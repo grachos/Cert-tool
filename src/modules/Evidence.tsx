@@ -1,12 +1,39 @@
-import { useState } from 'react';
-import { mockEvidence } from '../data/mock-data';
+import { useState, useEffect } from 'react';
 import { standards } from '../data/standards';
-import type { StandardId } from '../types';
+import type { StandardId, Evidence as EvidenceType } from '../types';
+import { useThemeLanguage } from '../components/ThemeLanguageContext';
+import api from '../api';
 
 export default function Evidence() {
+  const [evidence, setEvidence] = useState<EvidenceType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<StandardId>('BASC');
+  const { t, language } = useThemeLanguage();
   
-  const filteredEvidence = mockEvidence.filter(e => e.standard === activeTab);
+  useEffect(() => {
+    api.get('/evidence').then(res => {
+      setEvidence(res.data);
+      setIsLoading(false);
+    });
+  }, []);
+
+  const filteredEvidence = evidence.filter(e => e.standardId === activeTab);
+
+  if (isLoading) {
+    return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('evidence.loading')}</div>;
+  }
+
+  const getTranslatedStatus = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'valid':
+        return language === 'es' ? 'Vigente' : 'Valid';
+      case 'expired':
+        return language === 'es' ? 'Vencida' : 'Expired';
+      case 'pending-review':
+      default:
+        return language === 'es' ? 'En Revisión' : 'Under Review';
+    }
+  };
 
   return (
     <div className="flex-col gap-6 animate-fade-in">
@@ -25,10 +52,12 @@ export default function Evidence() {
       </div>
 
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-bold text-primary">Repositorio de Evidencias - {activeTab}</h3>
+        <h3 className="text-lg font-bold text-primary">
+          {language === 'es' ? 'Repositorio de Evidencias' : 'Evidence Repository'} - {activeTab}
+        </h3>
         <button className="btn btn-primary">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px', marginRight: '4px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-          Vincular Evidencia
+          {language === 'es' ? 'Vincular Evidencia' : 'Link Evidence'}
         </button>
       </div>
 
@@ -37,10 +66,15 @@ export default function Evidence() {
         {filteredEvidence.map(ev => (
           <div key={ev.id} className="card flex-col gap-4 border border-gray-200 hover:border-blue-300 shadow-sm transition-all">
             <div className="flex justify-between items-start">
-              <div className="badge bg-gray-100 text-gray-700 border border-gray-200">Cláusula {ev.clause}</div>
-              {ev.status === 'valid' && <span className="badge" style={{ background: 'var(--accent-green-bg)', color: 'var(--accent-green)' }}>Vigente</span>}
-              {ev.status === 'expired' && <span className="badge" style={{ background: 'var(--accent-red-bg)', color: 'var(--accent-red)' }}>Vencida</span>}
-              {ev.status === 'pending-review' && <span className="badge" style={{ background: 'var(--accent-gold-bg)', color: 'var(--accent-gold)' }}>En Revisión</span>}
+              <div className="badge bg-gray-100 text-gray-700 border border-gray-200">
+                {language === 'es' ? 'Cláusula' : 'Clause'} {ev.clause}
+              </div>
+              <span className="badge" style={{ 
+                background: ev.status === 'valid' ? 'var(--accent-green-bg)' : ev.status === 'expired' ? 'var(--accent-red-bg)' : 'var(--accent-gold-bg)',
+                color: ev.status === 'valid' ? 'var(--accent-green)' : ev.status === 'expired' ? 'var(--accent-red)' : 'var(--accent-gold)'
+              }}>
+                {getTranslatedStatus(ev.status)}
+              </span>
             </div>
             
             <div>
@@ -50,8 +84,8 @@ export default function Evidence() {
 
             <div className="bg-surface-1 p-3 rounded border border-gray-200 mt-2">
               <div className="flex justify-between items-center text-xs text-secondary mb-2">
-                <span>Archivos Vinculados ({ev.linkedDocuments.length})</span>
-                <button className="text-blue-600 hover:underline font-medium">Ver todos</button>
+                <span>{language === 'es' ? 'Archivos Vinculados' : 'Linked Files'} ({ev.linkedDocuments.length})</span>
+                <button className="text-blue-600 hover:underline font-medium">{language === 'es' ? 'Ver todos' : 'View all'}</button>
               </div>
               <div className="flex-col gap-2">
                 {ev.linkedDocuments.slice(0, 2).map((docId, idx) => (
@@ -65,12 +99,12 @@ export default function Evidence() {
 
             <div className="flex justify-between items-center mt-auto pt-4 border-t border-gray-100">
               <div className="flex-col">
-                <span className="text-xs text-muted">Subido el</span>
+                <span className="text-xs text-muted">{language === 'es' ? 'Subido el' : 'Uploaded on'}</span>
                 <span className="text-sm font-medium text-primary">{ev.uploadDate}</span>
               </div>
               {ev.expiryDate && (
                 <div className="flex-col text-right">
-                  <span className="text-xs text-muted">Vence el</span>
+                  <span className="text-xs text-muted">{language === 'es' ? 'Vence el' : 'Expires on'}</span>
                   <span className={`text-sm font-medium ${ev.status === 'expired' ? 'text-red-600' : 'text-primary'}`}>{ev.expiryDate}</span>
                 </div>
               )}
@@ -82,8 +116,8 @@ export default function Evidence() {
           <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-3 shadow-sm">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '24px', height: '24px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
           </div>
-          <p className="font-semibold text-primary">Añadir Evidencia</p>
-          <p className="text-xs text-secondary mt-1">Sube archivos o vincula documentos existentes</p>
+          <p className="font-semibold text-primary">{language === 'es' ? 'Añadir Evidencia' : 'Add Evidence'}</p>
+          <p className="text-xs text-secondary mt-1">{language === 'es' ? 'Sube archivos o vincula documentos existentes' : 'Upload files or link existing documents'}</p>
         </div>
       </div>
     </div>

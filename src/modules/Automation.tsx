@@ -1,25 +1,32 @@
-import { useState } from 'react';
-import { mockActionPlans } from '../data/mock-data';
+import { useState, useEffect } from 'react';
 import { standards } from '../data/standards';
 import type { ActionPlan } from '../types';
+import { useThemeLanguage } from '../components/ThemeLanguageContext';
+import api from '../api';
 
 export default function Automation() {
+  const [plans, setPlans] = useState<ActionPlan[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
+  const { t, language } = useThemeLanguage();
 
-  const pending = mockActionPlans.filter(p => p.status === 'pending');
-  const inProgress = mockActionPlans.filter(p => p.status === 'in-progress');
-  const completed = mockActionPlans.filter(p => p.status === 'completed');
-  
-  // Fake overdue for demo
-  const overdue: ActionPlan[] = [{
-    id: 'ap-over', title: 'Actualizar Matriz Legal', description: 'Revisión anual obligatoria', standard: 'ISO14001', type: 'preventive', status: 'overdue', priority: 'high', assignee: 'Luis Pérez', dueDate: '2026-06-01', createdDate: '2026-05-01', progress: 80
-  }];
+  useEffect(() => {
+    api.get('/automation').then(res => {
+      setPlans(res.data);
+      setIsLoading(false);
+    });
+  }, []);
+
+  const pending = plans.filter(p => p.status === 'PENDING');
+  const inProgress = plans.filter(p => p.status === 'IN_PROGRESS');
+  const completed = plans.filter(p => p.status === 'COMPLETED');
+  const overdue = plans.filter(p => p.status === 'OVERDUE');
 
   const columns = [
-    { id: 'pending', title: 'Pendiente', items: pending, color: 'var(--surface-2)', headerColor: 'var(--text-primary)' },
-    { id: 'in-progress', title: 'En Progreso', items: inProgress, color: 'var(--accent-blue-light)', headerColor: 'var(--accent-blue)' },
-    { id: 'completed', title: 'Completado', items: completed, color: 'var(--accent-green-bg)', headerColor: 'var(--accent-green)' },
-    { id: 'overdue', title: 'Vencido', items: overdue, color: 'var(--accent-red-bg)', headerColor: 'var(--accent-red)' }
+    { id: 'pending', title: t('auto.colPending'), items: pending, color: 'var(--surface-2)', headerColor: 'var(--text-primary)' },
+    { id: 'in-progress', title: t('auto.colInProgress'), items: inProgress, color: 'var(--accent-blue-light)', headerColor: 'var(--accent-blue)' },
+    { id: 'completed', title: t('auto.colCompleted'), items: completed, color: 'var(--accent-green-bg)', headerColor: 'var(--accent-green)' },
+    { id: 'overdue', title: t('auto.colOverdue'), items: overdue, color: 'var(--accent-red-bg)', headerColor: 'var(--accent-red)' }
   ];
 
   const getStandardBadge = (id: string) => {
@@ -33,13 +40,18 @@ export default function Automation() {
   };
 
   const getPriorityBadge = (priority: string) => {
-    switch(priority) {
-      case 'high': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 uppercase tracking-wider">Alta</span>;
-      case 'medium': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700 uppercase tracking-wider">Media</span>;
-      case 'low': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 uppercase tracking-wider">Baja</span>;
+    const p = priority.toLowerCase();
+    switch(p) {
+      case 'high': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 uppercase tracking-wider">{language === 'es' ? 'Alta' : 'High'}</span>;
+      case 'medium': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700 uppercase tracking-wider">{language === 'es' ? 'Media' : 'Medium'}</span>;
+      case 'low': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 uppercase tracking-wider">{language === 'es' ? 'Baja' : 'Low'}</span>;
       default: return null;
     }
   };
+
+  if (isLoading) {
+    return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('auto.loading')}</div>;
+  }
 
   return (
     <div className="flex-col gap-6 animate-fade-in h-full">
@@ -47,27 +59,41 @@ export default function Automation() {
       {/* Header Controls */}
       <div className="flex justify-between items-center bg-card p-4 rounded-lg border border-gray-200 shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="bg-surface-1 p-1 rounded-md border border-gray-200 flex">
+          <div className="p-1 rounded-md border flex" style={{ background: 'var(--surface-1)', borderColor: 'var(--border-color)' }}>
             <button 
-              className={`px-3 py-1.5 text-sm font-medium rounded ${view === 'kanban' ? 'bg-white shadow-sm text-primary' : 'text-secondary hover:text-primary'}`}
+              className="px-3 py-1.5 text-sm font-medium rounded transition-all"
+              style={{
+                background: view === 'kanban' ? 'var(--bg-card)' : 'transparent',
+                color: view === 'kanban' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                border: 'none',
+                boxShadow: view === 'kanban' ? 'var(--shadow-sm)' : 'none',
+                cursor: 'pointer'
+              }}
               onClick={() => setView('kanban')}
             >
-              Tablero Kanban
+              {t('auto.kanban')}
             </button>
             <button 
-              className={`px-3 py-1.5 text-sm font-medium rounded ${view === 'list' ? 'bg-white shadow-sm text-primary' : 'text-secondary hover:text-primary'}`}
+              className="px-3 py-1.5 text-sm font-medium rounded transition-all"
+              style={{
+                background: view === 'list' ? 'var(--bg-card)' : 'transparent',
+                color: view === 'list' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                border: 'none',
+                boxShadow: view === 'list' ? 'var(--shadow-sm)' : 'none',
+                cursor: 'pointer'
+              }}
               onClick={() => setView('list')}
             >
-              Lista
+              {t('auto.list')}
             </button>
           </div>
           <span className="text-sm text-secondary pl-4 border-l border-gray-200">
-            <strong className="text-primary">{mockActionPlans.length + 1}</strong> planes totales
+            <strong className="text-primary">{plans.length}</strong> {t('auto.planesCount')}
           </span>
         </div>
         <button className="btn btn-primary">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px', marginRight: '4px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-          Nuevo Plan de Acción
+          {t('auto.btnNewPlan')}
         </button>
       </div>
 
@@ -102,7 +128,7 @@ export default function Automation() {
                         </div>
                         <span className="text-xs text-secondary truncate max-w-[80px]">{item.assignee}</span>
                       </div>
-                      <div className="flex items-center gap-1 text-xs font-medium" style={{ color: item.status === 'overdue' ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
+                      <div className="flex items-center gap-1 text-xs font-medium" style={{ color: item.status.toLowerCase() === 'overdue' ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
                         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '12px', height: '12px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         {item.dueDate}
                       </div>
@@ -119,12 +145,12 @@ export default function Automation() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-surface-1 border-b border-gray-200">
-                <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">Plan de Acción</th>
-                <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">Norma</th>
-                <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">Prioridad</th>
-                <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">Progreso</th>
-                <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">Responsable</th>
-                <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">Vencimiento</th>
+                <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">{language === 'es' ? 'Plan de Acción' : 'Action Plan'}</th>
+                <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">{t('docs.thNorm')}</th>
+                <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">{language === 'es' ? 'Prioridad' : 'Priority'}</th>
+                <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">{language === 'es' ? 'Progreso' : 'Progress'}</th>
+                <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">{t('risks.thOwner')}</th>
+                <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">{language === 'es' ? 'Vencimiento' : 'Due Date'}</th>
               </tr>
             </thead>
             <tbody>
@@ -147,7 +173,7 @@ export default function Automation() {
                     </div>
                   </td>
                   <td className="p-4 text-sm text-secondary">{item.assignee}</td>
-                  <td className="p-4 text-sm font-medium" style={{ color: item.status === 'overdue' ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
+                  <td className="p-4 text-sm font-medium" style={{ color: item.status.toLowerCase() === 'overdue' ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
                     {item.dueDate}
                   </td>
                 </tr>

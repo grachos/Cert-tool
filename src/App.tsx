@@ -7,15 +7,29 @@ import Risks from './modules/Risks';
 import Compliance from './modules/Compliance';
 import Evidence from './modules/Evidence';
 import Automation from './modules/Automation';
+import Users from './modules/Users';
 import Toast from './components/Toast';
+import Login from './modules/Login';
 import { ToastProvider, useToast } from './components/ToastContext';
+import { AuthProvider, useAuth } from './components/AuthContext';
+import { ThemeLanguageProvider, useThemeLanguage } from './components/ThemeLanguageContext';
 
-type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation';
+type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'users';
 
 function AppContent() {
   const [activeModule, setActiveModule] = useState<ModuleId>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { toasts, removeToast } = useToast();
+  const { user, loading } = useAuth();
+  const { t } = useThemeLanguage();
+
+  if (loading) {
+    return <div className="flex-center min-h-screen">Cargando...</div>;
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   const renderModule = () => {
     switch (activeModule) {
@@ -31,6 +45,8 @@ function AppContent() {
         return <Evidence />;
       case 'automation':
         return <Automation />;
+      case 'users':
+        return <Users />;
       default:
         return <Dashboard onNavigate={setActiveModule} />;
     }
@@ -38,12 +54,13 @@ function AppContent() {
 
   const getModuleTitle = (): { title: string; subtitle: string } => {
     const titles: Record<ModuleId, { title: string; subtitle: string }> = {
-      dashboard: { title: 'Panel Principal', subtitle: 'Vista general del cumplimiento organizacional' },
-      documents: { title: 'Revisión Documental', subtitle: 'Análisis de documentos y contratos con IA' },
-      risks: { title: 'Análisis de Riesgos', subtitle: 'Matriz de riesgos e identificación con IA' },
-      compliance: { title: 'Cumplimiento Normativo', subtitle: 'Monitoreo de normas y estándares' },
-      evidence: { title: 'Evidencias para Auditorías', subtitle: 'Generación y gestión de evidencias' },
-      automation: { title: 'Automatización de Procesos', subtitle: 'Planes de acción y seguimiento' },
+      dashboard: { title: t('title.dashboard'), subtitle: t('subtitle.dashboard') },
+      documents: { title: t('title.documents'), subtitle: t('subtitle.documents') },
+      risks: { title: t('title.risks'), subtitle: t('subtitle.risks') },
+      compliance: { title: t('title.compliance'), subtitle: t('subtitle.compliance') },
+      evidence: { title: t('title.evidence'), subtitle: t('subtitle.evidence') },
+      automation: { title: t('title.automation'), subtitle: t('subtitle.automation') },
+      users: { title: t('title.users'), subtitle: t('subtitle.users') }
     };
     return titles[activeModule];
   };
@@ -77,9 +94,13 @@ function AppContent() {
 
 function App() {
   return (
-    <ToastProvider>
-      <AppContent />
-    </ToastProvider>
+    <ThemeLanguageProvider>
+      <AuthProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </AuthProvider>
+    </ThemeLanguageProvider>
   );
 }
 
