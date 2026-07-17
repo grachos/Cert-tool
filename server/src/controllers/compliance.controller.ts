@@ -1,8 +1,16 @@
 import { Request, Response } from 'express';
 import prisma from '../db';
+import cache from '../cache';
 
 export const getStandardsCompliance = async (req: Request, res: Response): Promise<void> => {
   try {
+    const cacheKey = 'compliance_standards';
+    const cachedCompliance = cache.get(cacheKey);
+    if (cachedCompliance) {
+      res.status(200).json(cachedCompliance);
+      return;
+    }
+
     const standards = await prisma.standard.findMany({
       include: {
         requirements: true
@@ -36,6 +44,7 @@ export const getStandardsCompliance = async (req: Request, res: Response): Promi
       };
     });
 
+    cache.set(cacheKey, complianceStatuses);
     res.status(200).json(complianceStatuses);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener cumplimiento de normas.' });
@@ -45,6 +54,12 @@ export const getStandardsCompliance = async (req: Request, res: Response): Promi
 export const getStandardRequirements = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+    const cacheKey = `compliance_standard_${id}`;
+    const cachedStandard = cache.get(cacheKey);
+    if (cachedStandard) {
+      res.status(200).json(cachedStandard);
+      return;
+    }
 
     const standard = await prisma.standard.findUnique({
       where: { id },
@@ -60,6 +75,7 @@ export const getStandardRequirements = async (req: Request, res: Response): Prom
       return;
     }
 
+    cache.set(cacheKey, standard);
     res.status(200).json(standard);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener requisitos de la norma.' });

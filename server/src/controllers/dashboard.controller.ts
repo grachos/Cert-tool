@@ -1,8 +1,16 @@
 import { Request, Response } from 'express';
 import prisma from '../db';
+import cache from '../cache';
 
 export const getStats = async (req: Request, res: Response): Promise<void> => {
   try {
+    const cacheKey = 'dashboard_stats';
+    const cachedStats = cache.get(cacheKey);
+    if (cachedStats) {
+      res.status(200).json(cachedStats);
+      return;
+    }
+
     // 1. Calcular Cumplimiento Global
     const requirements = await prisma.requirement.findMany();
     let overallCompliance = 0;
@@ -47,13 +55,16 @@ export const getStats = async (req: Request, res: Response): Promise<void> => {
       }
     });
 
-    res.status(200).json({
+    const stats = {
       overallCompliance,
       pendingReviews,
       activeRisks,
       criticalRisks,
       overdueActions
-    });
+    };
+
+    cache.set(cacheKey, stats);
+    res.status(200).json(stats);
   } catch (error) {
     res.status(500).json({ error: 'Error al calcular estadísticas del dashboard.' });
   }
@@ -61,6 +72,13 @@ export const getStats = async (req: Request, res: Response): Promise<void> => {
 
 export const getActivities = async (req: Request, res: Response): Promise<void> => {
   try {
+    const cacheKey = 'dashboard_activities';
+    const cachedActivities = cache.get(cacheKey);
+    if (cachedActivities) {
+      res.status(200).json(cachedActivities);
+      return;
+    }
+
     const activities = await prisma.activity.findMany({
       include: {
         user: { select: { name: true } },
@@ -74,7 +92,7 @@ export const getActivities = async (req: Request, res: Response): Promise<void> 
 
     // Si no hay actividades en BD, retornamos algunas de demostración reales
     if (activities.length === 0) {
-      res.status(200).json([
+      const demoActivities = [
         {
           id: 'act-1',
           action: 'Documento subido',
@@ -99,18 +117,23 @@ export const getActivities = async (req: Request, res: Response): Promise<void> 
           user: 'Administrador Principal',
           standard: 'PESV'
         }
-      ]);
+      ];
+      cache.set(cacheKey, demoActivities);
+      res.status(200).json(demoActivities);
       return;
     }
 
-    res.status(200).json(activities.map(act => ({
+    const formattedActivities = activities.map(act => ({
       id: act.id,
       action: act.action,
       description: act.description,
       timestamp: act.timestamp.toLocaleDateString(),
       user: act.user.name,
       standard: act.standard?.name || null
-    })));
+    }));
+
+    cache.set(cacheKey, formattedActivities);
+    res.status(200).json(formattedActivities);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener actividades recientes.' });
   }
