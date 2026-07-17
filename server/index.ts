@@ -75,7 +75,7 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
 
   res.status(200).json({
     url: `/uploads/${req.file.filename}`,
-    name: req.file.originalname,
+    name: `${req.file.originalname}|${req.file.filename}`,
     size: sizeStr
   });
 });
