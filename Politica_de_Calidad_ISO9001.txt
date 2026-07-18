@@ -1,0 +1,15 @@
+POLÍTICA DE CALIDAD - CERT-TECHCOL
+
+1. Objetivo
+Esta política establece el compromiso de Cert-TechCol con la calidad de sus servicios de auditoría y cumplimiento normativo.
+
+2. Cláusulas de Cumplimiento ISO 9001:
+- Cláusula 4.1: Entendemos el contexto de nuestra organización analizando las necesidades del mercado de software.
+- Cláusula 5.2: La dirección está comprometida con mantener canales de comunicación transparentes con todos los clientes.
+- Cláusula 6.2: Definimos objetivos de calidad medibles anualmente, sin embargo, actualmente no contamos con un plan de contingencia formalmente documentado para abordar desviaciones críticas.
+- Cláusula 7.2: Todo nuestro personal de auditoría está capacitado y cuenta con certificación profesional, aunque los perfiles de cargo no se actualizan de forma automatizada.
+- Cláusula 9.3: La revisión por la dirección se realiza anualmente al cierre del año fiscal y se registran actas firmadas.
+- Cláusula 10.2: Las no conformidades se manejan mediante registros manuales en hojas de cálculo.
+
+Firmado por: María García, Gerente de Calidad.
+Fecha: 15 de Julio de 2026.
