@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useThemeLanguage } from '../components/ThemeLanguageContext';
+import { useAuth } from '../components/AuthContext';
 import api from '../api';
 
 interface Requirement {
@@ -39,7 +40,27 @@ export default function Compliance() {
   const [standardDetail, setStandardDetail] = useState<StandardDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
+  
   const { t, language } = useThemeLanguage();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+
+  // Modales y Form State para Normas
+  const [showEditStdModal, setShowEditStdModal] = useState(false);
+  const [stdName, setStdName] = useState('');
+  const [stdFullName, setStdFullName] = useState('');
+  const [stdDescription, setStdDescription] = useState('');
+  const [stdColor, setStdColor] = useState('');
+  const [stdIcon, setStdIcon] = useState('');
+
+  // Modales y Form State para Requisitos
+  const [showReqModal, setShowReqModal] = useState(false);
+  const [isEditingReq, setIsEditingReq] = useState(false);
+  const [editingReqId, setEditingReqId] = useState('');
+  const [reqClause, setReqClause] = useState('');
+  const [reqTitle, setReqTitle] = useState('');
+  const [reqDescription, setReqDescription] = useState('');
+  const [reqStatus, setReqStatus] = useState<'COMPLIANT' | 'NON_COMPLIANT' | 'PARTIAL' | 'PENDING'>('PENDING');
 
   const fetchCompliance = async () => {
     try {
@@ -76,6 +97,102 @@ export default function Compliance() {
       setStandardDetail(null);
     }
   }, [selectedStandard]);
+
+  const openEditStdModal = () => {
+    const std = complianceStatuses.find(s => s.standardId === selectedStandard);
+    if (std) {
+      setStdName(std.name);
+      setStdFullName(std.fullName);
+      setStdDescription(std.description);
+      setStdColor(std.color);
+      setStdIcon(std.icon);
+      setShowEditStdModal(true);
+    }
+  };
+
+  const openAddReqModal = () => {
+    setIsEditingReq(false);
+    setEditingReqId('');
+    setReqClause('');
+    setReqTitle('');
+    setReqDescription('');
+    setReqStatus('PENDING');
+    setShowReqModal(true);
+  };
+
+  const openEditReqModal = (req: Requirement) => {
+    setIsEditingReq(true);
+    setEditingReqId(req.id);
+    setReqClause(req.clause);
+    setReqTitle(req.title);
+    setReqDescription(req.description);
+    setReqStatus(req.status);
+    setShowReqModal(true);
+  };
+
+  const handleSaveStandard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStandard) return;
+    try {
+      await api.put(`/compliance/standards/${selectedStandard}`, {
+        name: stdName,
+        fullName: stdFullName,
+        description: stdDescription,
+        color: stdColor,
+        icon: stdIcon
+      });
+      setShowEditStdModal(false);
+      await fetchCompliance();
+      await fetchStandardDetail(selectedStandard);
+    } catch (err) {
+      console.error('Error al guardar norma:', err);
+    }
+  };
+
+  const handleSaveRequirement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStandard) return;
+    try {
+      if (isEditingReq) {
+        await api.put(`/compliance/requirements/${editingReqId}`, {
+          clause: reqClause,
+          title: reqTitle,
+          description: reqDescription,
+          status: reqStatus
+        });
+      } else {
+        await api.post(`/compliance/requirements`, {
+          clause: reqClause,
+          title: reqTitle,
+          description: reqDescription,
+          standardId: selectedStandard
+        });
+      }
+      setShowReqModal(false);
+      await fetchStandardDetail(selectedStandard);
+      await fetchCompliance();
+    } catch (err) {
+      console.error('Error al guardar requisito:', err);
+    }
+  };
+
+  const handleDeleteRequirement = async (id: string) => {
+    if (!selectedStandard) return;
+    const confirmDelete = window.confirm(
+      language === 'es' 
+        ? '¿Estás seguro de que deseas eliminar este requisito?' 
+        : 'Are you sure you want to delete this requirement?'
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await api.delete(`/compliance/requirements/${id}`);
+      await fetchStandardDetail(selectedStandard);
+      await fetchCompliance();
+    } catch (err) {
+      console.error('Error al eliminar requisito:', err);
+    }
+  };
 
   if (isLoading) {
     return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('compliance.loading')}</div>;
@@ -163,10 +280,25 @@ export default function Compliance() {
             <div className="card p-0 overflow-hidden border border-gray-200">
               <div className="p-6 border-b border-gray-200 bg-surface-1 flex justify-between items-center">
                 <div>
-                  <h2 className="text-xl font-bold text-primary">{standardDetail.name} - {language === 'es' ? 'Requisitos' : 'Requirements'}</h2>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-bold text-primary">{standardDetail.name} - {language === 'es' ? 'Requisitos' : 'Requirements'}</h2>
+                    {isAdmin && (
+                      <button className="btn btn-sm btn-secondary" onClick={openEditStdModal} style={{ padding: '4px 8px' }}>
+                        ✏️ {language === 'es' ? 'Editar Norma' : 'Edit Standard'}
+                      </button>
+                    )}
+                  </div>
                   <p className="text-sm text-secondary mt-1">{standardDetail.fullName}</p>
                 </div>
-                <button className="btn btn-primary">{t('compliance.evalBtn')}</button>
+                
+                <div className="flex gap-2">
+                  {isAdmin && (
+                    <button className="btn btn-secondary" onClick={openAddReqModal}>
+                      ➕ {language === 'es' ? 'Añadir Requisito' : 'Add Requirement'}
+                    </button>
+                  )}
+                  <button className="btn btn-primary">{t('compliance.evalBtn')}</button>
+                </div>
               </div>
               
               <table className="w-full text-left">
@@ -176,7 +308,7 @@ export default function Compliance() {
                     <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('compliance.requirement')}</th>
                     <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('compliance.status')}</th>
                     <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('compliance.evidence')}</th>
-                    <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('compliance.action')}</th>
+                    {isAdmin && <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{language === 'es' ? 'Acciones' : 'Actions'}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -198,9 +330,18 @@ export default function Compliance() {
                           <span className="text-sm font-medium">{req.evidenceCount}</span>
                         </div>
                       </td>
-                      <td className="p-4">
-                        <button className="btn btn-sm btn-ghost border border-gray-200 hover:border-gray-300">{t('btn.audit')}</button>
-                      </td>
+                      {isAdmin && (
+                        <td className="p-4">
+                          <div className="flex gap-2">
+                            <button className="btn btn-sm btn-secondary" onClick={() => openEditReqModal(req)} style={{ padding: '4px 8px' }}>
+                              ✏️
+                            </button>
+                            <button className="btn btn-sm btn-secondary" onClick={() => handleDeleteRequirement(req.id)} style={{ padding: '4px 8px', color: 'var(--accent-red)' }}>
+                              🗑️
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -209,6 +350,164 @@ export default function Compliance() {
           )}
         </div>
       )}
+
+      {/* Modal: Editar Norma */}
+      {showEditStdModal && (
+        <div className="modal-overlay flex-center" onClick={() => setShowEditStdModal(false)}>
+          <div className="modal card max-w-md w-full p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-primary">
+                {language === 'es' ? 'Editar Norma' : 'Edit Standard'}
+              </h3>
+              <button className="btn-icon" onClick={() => setShowEditStdModal(false)}>
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveStandard} className="flex-col gap-4">
+              <div className="form-group flex-col gap-1">
+                <label className="form-label font-semibold">{language === 'es' ? 'Nombre Corto' : 'Short Name'}</label>
+                <input
+                  type="text"
+                  value={stdName}
+                  onChange={(e) => setStdName(e.target.value)}
+                  className="form-input"
+                  required
+                />
+              </div>
+
+              <div className="form-group flex-col gap-1">
+                <label className="form-label font-semibold">{language === 'es' ? 'Nombre Completo' : 'Full Name'}</label>
+                <input
+                  type="text"
+                  value={stdFullName}
+                  onChange={(e) => setStdFullName(e.target.value)}
+                  className="form-input"
+                  required
+                />
+              </div>
+
+              <div className="form-group flex-col gap-1">
+                <label className="form-label font-semibold">{language === 'es' ? 'Descripción' : 'Description'}</label>
+                <textarea
+                  value={stdDescription}
+                  onChange={(e) => setStdDescription(e.target.value)}
+                  className="form-input"
+                  rows={3}
+                  required
+                />
+              </div>
+
+              <div className="form-group flex-col gap-1">
+                <label className="form-label font-semibold">{language === 'es' ? 'Color (CSS Hex)' : 'Color (CSS Hex)'}</label>
+                <input
+                  type="text"
+                  value={stdColor}
+                  onChange={(e) => setStdColor(e.target.value)}
+                  className="form-input"
+                  placeholder="#3b82f6"
+                  required
+                />
+              </div>
+
+              <div className="form-group flex-col gap-1">
+                <label className="form-label font-semibold">{language === 'es' ? 'Emoji / Icono' : 'Emoji / Icon'}</label>
+                <input
+                  type="text"
+                  value={stdIcon}
+                  onChange={(e) => setStdIcon(e.target.value)}
+                  className="form-input"
+                  placeholder="🛡️"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end mt-4">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditStdModal(false)}>{t('btn.cancel')}</button>
+                <button type="submit" className="btn btn-primary">{language === 'es' ? 'Guardar Cambios' : 'Save Changes'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Agregar / Editar Requisito */}
+      {showReqModal && (
+        <div className="modal-overlay flex-center" onClick={() => setShowReqModal(false)}>
+          <div className="modal card max-w-md w-full p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-primary">
+                {isEditingReq 
+                  ? (language === 'es' ? 'Editar Requisito' : 'Edit Requirement') 
+                  : (language === 'es' ? 'Añadir Nuevo Requisito' : 'Add New Requirement')}
+              </h3>
+              <button className="btn-icon" onClick={() => setShowReqModal(false)}>
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRequirement} className="flex-col gap-4">
+              <div className="form-group flex-col gap-1">
+                <label className="form-label font-semibold">{language === 'es' ? 'Cláusula / Código' : 'Clause / Code'}</label>
+                <input
+                  type="text"
+                  value={reqClause}
+                  onChange={(e) => setReqClause(e.target.value)}
+                  className="form-input"
+                  placeholder="Ej. 9.3"
+                  required
+                />
+              </div>
+
+              <div className="form-group flex-col gap-1">
+                <label className="form-label font-semibold">{language === 'es' ? 'Título' : 'Title'}</label>
+                <input
+                  type="text"
+                  value={reqTitle}
+                  onChange={(e) => setReqTitle(e.target.value)}
+                  className="form-input"
+                  placeholder="Ej. Revisión por la Dirección"
+                  required
+                />
+              </div>
+
+              <div className="form-group flex-col gap-1">
+                <label className="form-label font-semibold">{language === 'es' ? 'Descripción' : 'Description'}</label>
+                <textarea
+                  value={reqDescription}
+                  onChange={(e) => setReqDescription(e.target.value)}
+                  className="form-input"
+                  rows={4}
+                  placeholder="Detalle de la obligación normativa..."
+                  required
+                />
+              </div>
+
+              {isEditingReq && (
+                <div className="form-group flex-col gap-1">
+                  <label className="form-label font-semibold">{language === 'es' ? 'Estado Inicial' : 'Initial Status'}</label>
+                  <select
+                    value={reqStatus}
+                    onChange={(e) => setReqStatus(e.target.value as any)}
+                    className="form-input"
+                  >
+                    <option value="COMPLIANT">{t('compliance.compliant')}</option>
+                    <option value="NON_COMPLIANT">{t('compliance.nonCompliant')}</option>
+                    <option value="PARTIAL">{t('compliance.partial')}</option>
+                    <option value="PENDING">{t('compliance.pending')}</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end mt-4">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowReqModal(false)}>{t('btn.cancel')}</button>
+                <button type="submit" className="btn btn-primary">{language === 'es' ? 'Guardar Requisito' : 'Save Requirement'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
