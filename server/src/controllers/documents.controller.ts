@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import pdfParse from 'pdf-parse';
+import mammoth from 'mammoth';
 
 interface MockFinding {
   type: FindingType;
@@ -97,12 +98,24 @@ const runRealAiAnalysis = async (docId: string, compoundName: string, standardId
   const filePath = path.join(__dirname, '../../uploads', filename);
 
   try {
-    // 1. Extract text from PDF if it exists
+    // 1. Extract text based on file format
     let documentText = '';
     if (fs.existsSync(filePath)) {
-      const dataBuffer = fs.readFileSync(filePath);
-      const pdfData = await pdfParse(dataBuffer);
-      documentText = pdfData.text || '';
+      const ext = path.extname(filePath).toLowerCase();
+      
+      if (ext === '.pdf') {
+        const dataBuffer = fs.readFileSync(filePath);
+        const pdfData = await pdfParse(dataBuffer);
+        documentText = pdfData.text || '';
+      } else if (ext === '.docx') {
+        const result = await mammoth.extractRawText({ path: filePath });
+        documentText = result.value || '';
+      } else if (ext === '.txt' || ext === '.csv' || ext === '.json') {
+        documentText = fs.readFileSync(filePath, 'utf-8');
+      } else {
+        console.warn(`[AI Analysis] Unsupported file extension ${ext}. Using fallback mock text.`);
+        documentText = `Este es un documento de prueba para la norma ${standardId}.`;
+      }
     } else {
       console.warn(`[AI Analysis] File not found at: ${filePath}. Using fallback mock text.`);
       documentText = `Este es un documento de prueba para la norma ${standardId}.`;
