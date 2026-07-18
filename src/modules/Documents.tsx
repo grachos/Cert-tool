@@ -67,6 +67,13 @@ export default function Documents() {
     }
   }, [documents]);
 
+  // Cerrar el detalle del documento si ya no pertenece a la norma filtrada
+  useEffect(() => {
+    if (selectedDoc && filter !== 'Todos' && selectedDoc.standardId !== filter) {
+      setSelectedDoc(null);
+    }
+  }, [filter, selectedDoc]);
+
   // Sincronizar norma seleccionada con el filtro activo al abrir la carga
   useEffect(() => {
     if (showUpload) {
