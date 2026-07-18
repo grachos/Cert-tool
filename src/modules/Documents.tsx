@@ -34,6 +34,39 @@ export default function Documents() {
     fetchDocuments();
   }, []);
 
+  // Polling para documentos con estado PENDING (análisis en progreso)
+  useEffect(() => {
+    const hasPending = documents.some(doc => doc.status.toUpperCase() === 'PENDING');
+    if (!hasPending) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get('/documents');
+        // Formatear los nombres como se hace en el fetch inicial si fuera necesario (el backend ya los devuelve limpios)
+        setDocuments(res.data);
+        
+        const stillPending = res.data.some((doc: any) => doc.status.toUpperCase() === 'PENDING');
+        if (!stillPending) {
+          clearInterval(interval);
+        }
+      } catch (error) {
+        console.error('Error polling documents:', error);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [documents]);
+
+  // Mantener el selectedDoc sincronizado con los cambios en documents (ej. cuando pasa de PENDING a REVIEWED)
+  useEffect(() => {
+    if (selectedDoc) {
+      const updated = documents.find(d => d.id === selectedDoc.id);
+      if (updated && JSON.stringify(updated) !== JSON.stringify(selectedDoc)) {
+        setSelectedDoc(updated);
+      }
+    }
+  }, [documents]);
+
   // Sincronizar norma seleccionada con el filtro activo al abrir la carga
   useEffect(() => {
     if (showUpload) {
