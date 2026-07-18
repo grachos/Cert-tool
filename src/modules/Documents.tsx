@@ -339,9 +339,78 @@ export default function Documents() {
                   <p className="text-sm font-medium text-secondary">{t('docs.aiLoading')}</p>
                 </div>
               ) : (
-                <div className="p-6 text-center border rounded-lg" style={{ background: 'var(--accent-green-bg)', borderColor: 'var(--accent-green)' }}>
-                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="mx-auto mb-2" style={{ width: '32px', height: '32px', color: 'var(--accent-green)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  <p className="text-sm font-semibold" style={{ color: 'var(--accent-green)' }}>{t('docs.aiAligned')}</p>
+                <div className="flex-col gap-4">
+                  {/* Banner de estado */}
+                  {selectedDoc.status.toUpperCase() === 'REVIEWED' ? (
+                    <div className="p-4 text-center border rounded-lg mb-4" style={{ background: 'var(--accent-green-bg)', borderColor: 'var(--accent-green)' }}>
+                      <p className="text-sm font-semibold" style={{ color: 'var(--accent-green)' }}>{t('docs.aiAligned')}</p>
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center border rounded-lg mb-4" style={{ background: 'var(--accent-red-bg)', borderColor: 'var(--accent-red)' }}>
+                      <p className="text-sm font-semibold" style={{ color: 'var(--accent-red)' }}>
+                        {language === 'es' ? 'Se encontraron observaciones en el documento.' : 'Observations were found in the document.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Listado de Hallazgos */}
+                  {selectedDoc.findings && selectedDoc.findings.length > 0 ? (
+                    <div className="flex-col gap-3">
+                      <p className="text-xs font-bold text-secondary uppercase tracking-wider mb-2">
+                        {language === 'es' ? 'Hallazgos de IA Detectados' : 'Detected AI Findings'}
+                      </p>
+                      {selectedDoc.findings.map((finding: any) => {
+                        const getSeverityColor = (sev: string) => {
+                          switch(sev.toUpperCase()) {
+                            case 'HIGH': return 'var(--accent-red)';
+                            case 'MEDIUM': return 'var(--accent-gold)';
+                            default: return 'var(--accent-blue)';
+                          }
+                        };
+                        const getSeverityBg = (sev: string) => {
+                          switch(sev.toUpperCase()) {
+                            case 'HIGH': return 'var(--accent-red-bg)';
+                            case 'MEDIUM': return 'var(--accent-gold-bg)';
+                            default: return 'var(--accent-blue-bg)';
+                          }
+                        };
+                        const getTypeLabel = (type: string) => {
+                          switch(type.toUpperCase()) {
+                            case 'GAP': return language === 'es' ? 'Brecha (GAP)' : 'Gap';
+                            case 'RISK': return language === 'es' ? 'Riesgo' : 'Risk';
+                            case 'RECOMMENDATION': return language === 'es' ? 'Recomendación' : 'Recommendation';
+                            default: return language === 'es' ? 'Mejora' : 'Improvement';
+                          }
+                        };
+
+                        return (
+                          <div 
+                            key={finding.id} 
+                            className="p-3 rounded-lg border flex-col gap-2 bg-surface-1"
+                            style={{ 
+                              borderLeft: `4px solid ${getSeverityColor(finding.severity)}`,
+                              borderColor: 'var(--border-color)',
+                              marginBottom: '0.75rem'
+                            }}
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="badge text-xs font-bold" style={{ background: getSeverityBg(finding.severity), color: getSeverityColor(finding.severity) }}>
+                                {getTypeLabel(finding.type)}
+                              </span>
+                              <span className="text-xs text-secondary font-semibold">
+                                {language === 'es' ? `Cláusula ${finding.clause}` : `Clause ${finding.clause}`}
+                              </span>
+                            </div>
+                            <p className="text-xs text-primary leading-relaxed">{finding.description}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-secondary text-center py-4">
+                      {language === 'es' ? 'No se reportaron hallazgos detallados.' : 'No detailed findings reported.'}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

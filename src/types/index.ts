@@ -32,6 +32,7 @@ export interface Document {
   reviewer?: string;
   aiScore?: number;
   aiFindings?: AIFinding[];
+  findings?: AIFinding[];
   size: string;
   version: string;
 }
