@@ -216,7 +216,18 @@ export default function Compliance() {
     <div className="flex-col gap-6 animate-fade-in">
       
       {!selectedStandard ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="flex-col gap-6">
+          <div className="flex justify-between items-center bg-card p-4 rounded-lg border border-gray-200 shadow-sm no-print">
+            <div>
+              <h2 className="text-xl font-bold text-primary">{language === 'es' ? 'Estado General de Cumplimiento' : 'General Compliance Status'}</h2>
+              <p className="text-sm text-secondary">{language === 'es' ? 'Resumen ejecutivo de todas las normas auditadas en el sistema' : 'Executive summary of all audited standards in the system'}</p>
+            </div>
+            <button className="btn btn-secondary flex items-center gap-2" onClick={() => window.print()}>
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+              {language === 'es' ? 'Exportar Reporte PDF' : 'Export PDF Report'}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {complianceStatuses.map((status) => {
             return (
               <div 
@@ -263,6 +274,7 @@ export default function Compliance() {
               </div>
             );
           })}
+          </div>
         </div>
       ) : (
         <div className="animate-slide-right">
@@ -293,11 +305,15 @@ export default function Compliance() {
                 
                 <div className="flex gap-2">
                   {isAdmin && (
-                    <button className="btn btn-secondary" onClick={openAddReqModal}>
+                    <button className="btn btn-secondary no-print" onClick={openAddReqModal}>
                       ➕ {language === 'es' ? 'Añadir Requisito' : 'Add Requirement'}
                     </button>
                   )}
-                  <button className="btn btn-primary">{t('compliance.evalBtn')}</button>
+                  <button className="btn btn-secondary flex items-center gap-2 no-print" onClick={() => window.print()}>
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                    {language === 'es' ? 'Exportar Reporte PDF' : 'Export PDF Report'}
+                  </button>
+                  <button className="btn btn-primary no-print">{t('compliance.evalBtn')}</button>
                 </div>
               </div>
               
