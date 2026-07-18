@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
-import prisma from './src/db';
+import { v4 as uuidv4 } from 'uuid';
+import db from './src/db';
 
 const standardsData = [
   {
@@ -112,22 +113,18 @@ const standardsData = [
 async function main() {
   // 1. Crear Admin por Defecto
   const adminEmail = 'admin@cert-techcol.com';
-  let adminUser = await prisma.user.findUnique({
-    where: { email: adminEmail }
-  });
+  const [userRows] = await db.query('SELECT * FROM User WHERE email = ?', [adminEmail]);
+  const adminUser = (userRows as any[])[0];
 
   if (!adminUser) {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash('admin123', salt);
+    const adminId = uuidv4();
 
-    adminUser = await prisma.user.create({
-      data: {
-        email: adminEmail,
-        password: hashedPassword,
-        name: 'Administrador Principal',
-        role: 'ADMIN'
-      }
-    });
+    await db.query(
+      'INSERT INTO User (id, email, password, name, role) VALUES (?, ?, ?, ?, ?)',
+      [adminId, adminEmail, hashedPassword, 'Administrador Principal', 'ADMIN']
+    );
     console.log('✅ Default Admin created: admin@cert-techcol.com / admin123');
   } else {
     console.log('ℹ️ Default Admin already exists.');
@@ -135,30 +132,24 @@ async function main() {
 
   // 2. Sembrar Standards y Requirements
   for (const std of standardsData) {
-    const existingStd = await prisma.standard.findUnique({
-      where: { id: std.id }
-    });
+    const [stdRows] = await db.query('SELECT * FROM Standard WHERE id = ?', [std.id]);
+    const existingStd = (stdRows as any[])[0];
 
     if (!existingStd) {
-      await prisma.standard.create({
-        data: {
-          id: std.id,
-          name: std.name,
-          fullName: std.fullName,
-          description: std.description,
-          color: std.color,
-          icon: std.icon,
-          requirements: {
-            create: std.requirements.map(req => ({
-              clause: req.clause,
-              title: req.title,
-              description: req.description,
-              status: req.status as any,
-              evidenceCount: req.evidenceCount
-            }))
-          }
-        }
-      });
+      await db.query(
+        'INSERT INTO Standard (id, name, fullName, description, color, icon) VALUES (?, ?, ?, ?, ?, ?)',
+        [std.id, std.name, std.fullName, std.description, std.color, std.icon]
+      );
+
+      // Insert requirements
+      for (const req of std.requirements) {
+        const reqId = uuidv4();
+        await db.query(
+          'INSERT INTO Requirement (id, clause, title, description, status, evidenceCount, standardId) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [reqId, req.clause, req.title, req.description, req.status, req.evidenceCount, std.id]
+        );
+      }
+
       console.log(`✅ Standard ${std.id} y sus requisitos sembrados.`);
     } else {
       console.log(`ℹ️ Standard ${std.id} ya existe.`);
@@ -172,5 +163,5 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    await db.end();
   });

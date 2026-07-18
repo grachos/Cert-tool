@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import prisma from '../db';
+import { v4 as uuidv4 } from 'uuid';
+import db from '../db';
 import cache from '../cache';
 
 export const getStandardsCompliance = async (req: Request, res: Response): Promise<void> => {
@@ -11,18 +12,18 @@ export const getStandardsCompliance = async (req: Request, res: Response): Promi
       return;
     }
 
-    const standards = await prisma.standard.findMany({
-      include: {
-        requirements: true
-      }
-    });
+    const [stdRows] = await db.query('SELECT * FROM Standard');
+    const standards = stdRows as any[];
 
-    const complianceStatuses = standards.map(std => {
-      const total = std.requirements.length;
-      const compliant = std.requirements.filter(r => r.status === 'COMPLIANT').length;
-      const nonCompliant = std.requirements.filter(r => r.status === 'NON_COMPLIANT').length;
-      const partial = std.requirements.filter(r => r.status === 'PARTIAL').length;
-      const pending = std.requirements.filter(r => r.status === 'PENDING').length;
+    const complianceStatuses = await Promise.all(standards.map(async (std) => {
+      const [reqRows] = await db.query('SELECT * FROM Requirement WHERE standardId = ?', [std.id]);
+      const requirements = reqRows as any[];
+
+      const total = requirements.length;
+      const compliant = requirements.filter(r => r.status === 'COMPLIANT').length;
+      const nonCompliant = requirements.filter(r => r.status === 'NON_COMPLIANT').length;
+      const partial = requirements.filter(r => r.status === 'PARTIAL').length;
+      const pending = requirements.filter(r => r.status === 'PENDING').length;
 
       const score = total > 0 
         ? Math.round(((compliant + (partial * 0.5)) / total) * 100)
@@ -42,11 +43,12 @@ export const getStandardsCompliance = async (req: Request, res: Response): Promi
         pending,
         overallScore: score
       };
-    });
+    }));
 
     cache.set(cacheKey, complianceStatuses);
     res.status(200).json(complianceStatuses);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al obtener cumplimiento de normas.' });
   }
 };
@@ -61,23 +63,26 @@ export const getStandardRequirements = async (req: Request, res: Response): Prom
       return;
     }
 
-    const standard = await prisma.standard.findUnique({
-      where: { id },
-      include: {
-        requirements: {
-          orderBy: { clause: 'asc' }
-        }
-      }
-    });
+    const [stdRows] = await db.query('SELECT * FROM Standard WHERE id = ?', [id]);
+    const standard = (stdRows as any[])[0];
 
     if (!standard) {
       res.status(404).json({ error: 'Estándar normativo no encontrado.' });
       return;
     }
 
-    cache.set(cacheKey, standard);
-    res.status(200).json(standard);
+    const [reqRows] = await db.query('SELECT * FROM Requirement WHERE standardId = ? ORDER BY clause ASC', [id]);
+    const requirements = reqRows as any[];
+
+    const result = {
+      ...standard,
+      requirements
+    };
+
+    cache.set(cacheKey, result);
+    res.status(200).json(result);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al obtener requisitos de la norma.' });
   }
 };
@@ -87,15 +92,19 @@ export const updateStandard = async (req: Request, res: Response): Promise<void>
     const { id } = req.params;
     const { name, fullName, description, color, icon } = req.body;
     
-    const updated = await prisma.standard.update({
-      where: { id },
-      data: { name, fullName, description, color, icon }
-    });
+    await db.query(
+      'UPDATE Standard SET name = ?, fullName = ?, description = ?, color = ?, icon = ? WHERE id = ?',
+      [name, fullName, description, color, icon, id]
+    );
+
+    const [stdRows] = await db.query('SELECT * FROM Standard WHERE id = ?', [id]);
+    const updated = (stdRows as any[])[0];
     
     cache.del('compliance_standards');
     cache.del(`compliance_standard_${id}`);
     res.status(200).json(updated);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al actualizar la norma.' });
   }
 };
@@ -103,21 +112,21 @@ export const updateStandard = async (req: Request, res: Response): Promise<void>
 export const createRequirement = async (req: Request, res: Response): Promise<void> => {
   try {
     const { clause, title, description, standardId } = req.body;
+    const reqId = uuidv4();
     
-    const newReq = await prisma.requirement.create({
-      data: {
-        clause,
-        title,
-        description,
-        status: 'PENDING',
-        standardId
-      }
-    });
+    await db.query(
+      'INSERT INTO Requirement (id, clause, title, description, status, standardId) VALUES (?, ?, ?, ?, ?, ?)',
+      [reqId, clause, title, description, 'PENDING', standardId]
+    );
+
+    const [reqRows] = await db.query('SELECT * FROM Requirement WHERE id = ?', [reqId]);
+    const newReq = (reqRows as any[])[0];
     
     cache.del('compliance_standards');
     cache.del(`compliance_standard_${standardId}`);
     res.status(201).json(newReq);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al crear el requisito.' });
   }
 };
@@ -127,15 +136,19 @@ export const updateRequirement = async (req: Request, res: Response): Promise<vo
     const { id } = req.params;
     const { clause, title, description, status } = req.body;
     
-    const updated = await prisma.requirement.update({
-      where: { id },
-      data: { clause, title, description, status }
-    });
+    await db.query(
+      'UPDATE Requirement SET clause = ?, title = ?, description = ?, status = ? WHERE id = ?',
+      [clause, title, description, status, id]
+    );
+
+    const [reqRows] = await db.query('SELECT * FROM Requirement WHERE id = ?', [id]);
+    const updated = (reqRows as any[])[0];
     
     cache.del('compliance_standards');
     cache.del(`compliance_standard_${updated.standardId}`);
     res.status(200).json(updated);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al actualizar el requisito.' });
   }
 };
@@ -144,15 +157,21 @@ export const deleteRequirement = async (req: Request, res: Response): Promise<vo
   try {
     const { id } = req.params;
     
-    const deleted = await prisma.requirement.delete({
-      where: { id }
-    });
+    const [reqRows] = await db.query('SELECT * FROM Requirement WHERE id = ?', [id]);
+    const reqToDelete = (reqRows as any[])[0];
+
+    if (!reqToDelete) {
+      res.status(404).json({ error: 'Requisito no encontrado.' });
+      return;
+    }
+
+    await db.query('DELETE FROM Requirement WHERE id = ?', [id]);
     
     cache.del('compliance_standards');
-    cache.del(`compliance_standard_${deleted.standardId}`);
+    cache.del(`compliance_standard_${reqToDelete.standardId}`);
     res.status(200).json({ message: 'Requisito eliminado con éxito.' });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al eliminar el requisito.' });
   }
 };
-

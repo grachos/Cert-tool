@@ -1,16 +1,16 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import prisma from '../db';
+import { v4 as uuidv4 } from 'uuid';
+import db from '../db';
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password, name, role } = req.body;
 
     // Check if user exists
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    const [existingRows] = await db.query('SELECT * FROM User WHERE email = ?', [email]);
+    if ((existingRows as any[]).length > 0) {
       res.status(400).json({ error: 'El correo electrónico ya está registrado.' });
       return;
     }
@@ -19,17 +19,16 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name,
-        role: role || 'USER',
-      },
-    });
+    const userId = uuidv4();
+    const userRole = role || 'USER';
 
-    res.status(201).json({ message: 'Usuario registrado exitosamente', userId: user.id });
+    // Create user
+    await db.query(
+      'INSERT INTO User (id, email, password, name, role) VALUES (?, ?, ?, ?, ?)',
+      [userId, email, hashedPassword, name, userRole]
+    );
+
+    res.status(201).json({ message: 'Usuario registrado exitosamente', userId });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error interno del servidor al registrar usuario.' });
@@ -41,7 +40,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const { email, password } = req.body;
 
     // Find user
-    const user = await prisma.user.findUnique({ where: { email } });
+    const [rows] = await db.query('SELECT * FROM User WHERE email = ?', [email]);
+    const user = (rows as any[])[0];
     if (!user) {
       res.status(400).json({ error: 'Credenciales inválidas.' });
       return;
@@ -80,10 +80,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 export const getProfile = async (req: any, res: Response): Promise<void> => {
   try {
     const userId = req.user.id;
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, name: true, email: true, role: true, createdAt: true }
-    });
+    const [rows] = await db.query(
+      'SELECT id, name, email, role, createdAt FROM User WHERE id = ?',
+      [userId]
+    );
+    const user = (rows as any[])[0];
     
     if (!user) {
       res.status(404).json({ error: 'Usuario no encontrado.' });

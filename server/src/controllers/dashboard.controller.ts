@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import prisma from '../db';
+import db from '../db';
 import cache from '../cache';
 
 export const getStats = async (req: Request, res: Response): Promise<void> => {
@@ -12,48 +12,35 @@ export const getStats = async (req: Request, res: Response): Promise<void> => {
     }
 
     // 1. Calcular Cumplimiento Global
-    const requirements = await prisma.requirement.findMany();
+    const [reqRows] = await db.query('SELECT status FROM Requirement');
+    const requirements = reqRows as any[];
     let overallCompliance = 0;
     if (requirements.length > 0) {
-      const totalScore = requirements.reduce((acc, req) => {
-        if (req.status === 'COMPLIANT') return acc + 1;
-        if (req.status === 'PARTIAL') return acc + 0.5;
+      const totalScore = requirements.reduce((acc, r) => {
+        if (r.status === 'COMPLIANT') return acc + 1;
+        if (r.status === 'PARTIAL') return acc + 0.5;
         return acc;
       }, 0);
       overallCompliance = Math.round((totalScore / requirements.length) * 100);
     }
 
     // 2. Documentos pendientes de revisión
-    const pendingReviews = await prisma.document.count({
-      where: { status: 'PENDING' }
-    });
+    const [pendingRows] = await db.query('SELECT COUNT(*) AS count FROM Document WHERE status = "PENDING"');
+    const pendingReviews = (pendingRows as any[])[0]?.count || 0;
 
     // 3. Riesgos activos (OPEN)
-    const activeRisks = await prisma.risk.count({
-      where: { status: 'OPEN' }
-    });
+    const [activeRiskRows] = await db.query('SELECT COUNT(*) AS count FROM Risk WHERE status = "OPEN"');
+    const activeRisks = (activeRiskRows as any[])[0]?.count || 0;
 
     // Calcular cuántos de esos riesgos activos son críticos
-    const criticalRisks = await prisma.risk.count({
-      where: {
-        status: 'OPEN',
-        level: 'CRITICAL'
-      }
-    });
+    const [criticalRiskRows] = await db.query('SELECT COUNT(*) AS count FROM Risk WHERE status = "OPEN" AND level = "CRITICAL"');
+    const criticalRisks = (criticalRiskRows as any[])[0]?.count || 0;
 
     // 4. Planes vencidos
-    const now = new Date();
-    const overdueActions = await prisma.actionPlan.count({
-      where: {
-        OR: [
-          { status: 'OVERDUE' },
-          {
-            status: { in: ['PENDING', 'IN_PROGRESS'] },
-            dueDate: { lt: now }
-          }
-        ]
-      }
-    });
+    const [overdueRows] = await db.query(
+      'SELECT COUNT(*) AS count FROM ActionPlan WHERE status = "OVERDUE" OR (status IN ("PENDING", "IN_PROGRESS") AND dueDate < NOW())'
+    );
+    const overdueActions = (overdueRows as any[])[0]?.count || 0;
 
     const stats = {
       overallCompliance,
@@ -66,6 +53,7 @@ export const getStats = async (req: Request, res: Response): Promise<void> => {
     cache.set(cacheKey, stats);
     res.status(200).json(stats);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al calcular estadísticas del dashboard.' });
   }
 };
@@ -79,16 +67,15 @@ export const getActivities = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const activities = await prisma.activity.findMany({
-      include: {
-        user: { select: { name: true } },
-        standard: { select: { name: true } }
-      },
-      orderBy: {
-        timestamp: 'desc'
-      },
-      take: 10
-    });
+    const [actRows] = await db.query(
+      `SELECT a.id, a.action, a.description, a.timestamp, u.name AS userName, s.name AS standardName
+       FROM Activity a
+       JOIN User u ON a.userId = u.id
+       LEFT JOIN Standard s ON a.standardId = s.id
+       ORDER BY a.timestamp DESC
+       LIMIT 10`
+    );
+    const activities = actRows as any[];
 
     // Si no hay actividades en BD, retornamos algunas de demostración reales
     if (activities.length === 0) {
@@ -127,14 +114,15 @@ export const getActivities = async (req: Request, res: Response): Promise<void> 
       id: act.id,
       action: act.action,
       description: act.description,
-      timestamp: act.timestamp.toLocaleDateString(),
-      user: act.user.name,
-      standard: act.standard?.name || null
+      timestamp: new Date(act.timestamp).toLocaleDateString(),
+      user: act.userName,
+      standard: act.standardName || null
     }));
 
     cache.set(cacheKey, formattedActivities);
     res.status(200).json(formattedActivities);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al obtener actividades recientes.' });
   }
 };

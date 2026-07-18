@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import prisma from './src/db';
+import db from './src/db';
 
 dotenv.config();
 
@@ -40,7 +40,6 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // Middleware
-// Disable contentSecurityPolicy to allow resource loading when frontend is served alongside backend if needed, or simply standard helmet config
 app.use(helmet({
   crossOriginResourcePolicy: false
 }));
@@ -92,7 +91,7 @@ async function main() {
     });
   } catch (error) {
     console.error('Failed to start server:', error);
-    await prisma.$disconnect();
+    await db.end();
     process.exit(1);
   }
 }

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { FindingType, Severity } from '@prisma/client';
-import prisma from '../db';
+import { v4 as uuidv4 } from 'uuid';
+import db from '../db';
 import cache from '../cache';
 import fs from 'fs';
 import path from 'path';
@@ -9,8 +9,8 @@ import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
 
 interface MockFinding {
-  type: FindingType;
-  severity: Severity;
+  type: 'GAP' | 'RECOMMENDATION' | 'RISK' | 'IMPROVEMENT';
+  severity: 'HIGH' | 'MEDIUM' | 'LOW';
   description: string;
   clause: string;
 }
@@ -24,20 +24,20 @@ const getFallbackMockData = (standardId: string) => {
       aiScore = 78;
       findings.push(
         {
-          type: FindingType.GAP,
-          severity: Severity.HIGH,
+          type: 'GAP',
+          severity: 'HIGH',
           description: 'No se encontraron registros de la revisión anual del sistema de calidad por parte de la alta dirección.',
           clause: '9.3'
         },
         {
-          type: FindingType.RISK,
-          severity: Severity.MEDIUM,
+          type: 'RISK',
+          severity: 'MEDIUM',
           description: 'Riesgo de desactualización del catálogo de perfiles de cargos críticos debido a cambios recientes en la estructura organizacional.',
           clause: '7.2'
         },
         {
-          type: FindingType.RECOMMENDATION,
-          severity: Severity.LOW,
+          type: 'RECOMMENDATION',
+          severity: 'LOW',
           description: 'Se recomienda definir un formato estandarizado digital para documentar las no conformidades detectadas en sitio.',
           clause: '10.2'
         }
@@ -47,14 +47,14 @@ const getFallbackMockData = (standardId: string) => {
       aiScore = 88;
       findings.push(
         {
-          type: FindingType.GAP,
-          severity: Severity.HIGH,
+          type: 'GAP',
+          severity: 'HIGH',
           description: 'Inspección de contenedores físicos y sellos de seguridad carece de registro fotográfico mandatorio.',
           clause: '5.2'
         },
         {
-          type: FindingType.IMPROVEMENT,
-          severity: Severity.LOW,
+          type: 'IMPROVEMENT',
+          severity: 'LOW',
           description: 'Reemplazar las hojas físicas de registro de visitantes por un sistema digital basado en la nube.',
           clause: '4.2'
         }
@@ -64,14 +64,14 @@ const getFallbackMockData = (standardId: string) => {
       aiScore = 92;
       findings.push(
         {
-          type: FindingType.GAP,
-          severity: Severity.MEDIUM,
+          type: 'GAP',
+          severity: 'MEDIUM',
           description: 'Falta documentación de soporte para evidenciar la capacitación del personal del área involucrada.',
           clause: '7.2'
         },
         {
-          type: FindingType.RECOMMENDATION,
-          severity: Severity.LOW,
+          type: 'RECOMMENDATION',
+          severity: 'LOW',
           description: 'Implementar controles documentales con firmas digitales en lugar de formatos escaneados a mano.',
           clause: '7.5'
         }
@@ -218,41 +218,40 @@ ${documentText}
       findings = fallback.findings;
     }
 
-    // 3. Save findings & update DB
-    await prisma.$transaction(async (tx) => {
-      // Update document
-      await tx.document.update({
-        where: { id: docId },
-        data: {
-          aiScore,
-          status: status as any,
-          reviewer: 'Auditor IA'
-        }
-      });
+    // 3. Save findings & update DB under transaction
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
 
-      // Create findings
+      // Update document status
+      await conn.query(
+        'UPDATE Document SET aiScore = ?, status = ?, reviewer = ? WHERE id = ?',
+        [aiScore, status, 'Auditor IA', docId]
+      );
+
+      // Insert findings
       for (const finding of findings) {
-        await tx.aIFinding.create({
-          data: {
-            type: finding.type as any,
-            severity: finding.severity as any,
-            description: finding.description,
-            clause: finding.clause,
-            documentId: docId
-          }
-        });
+        const findingId = uuidv4();
+        await conn.query(
+          'INSERT INTO AIFinding (id, type, severity, description, clause, documentId) VALUES (?, ?, ?, ?, ?, ?)',
+          [findingId, finding.type, finding.severity, finding.description, finding.clause, docId]
+        );
       }
 
-      // Create activity
-      await tx.activity.create({
-        data: {
-          action: 'Análisis de IA Completado',
-          description: `El documento "${originalName}" fue analizado automáticamente contra la norma ${standardId}. Resultado: ${aiScore}% de cumplimiento.`,
-          userId,
-          standardId
-        }
-      });
-    });
+      // Insert activity
+      const activityId = uuidv4();
+      await conn.query(
+        'INSERT INTO Activity (id, action, description, userId, standardId) VALUES (?, ?, ?, ?, ?)',
+        [activityId, 'Análisis de IA Completado', `El documento "${originalName}" fue analizado automáticamente contra la norma ${standardId}. Resultado: ${aiScore}% de cumplimiento.`, userId, standardId]
+      );
+
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
 
     console.log(`[AI Analysis] Document ${docId} successfully analyzed. Status: ${status}, Score: ${aiScore}%`);
   } catch (error: any) {
@@ -260,13 +259,10 @@ ${documentText}
     
     // In case of error, mark status as ISSUES_FOUND so it does not stay pending forever
     try {
-      await prisma.document.update({
-        where: { id: docId },
-        data: {
-          status: 'ISSUES_FOUND',
-          reviewer: 'Auditor IA (Fallo API)'
-        }
-      });
+      await db.query(
+        'UPDATE Document SET status = ?, reviewer = ? WHERE id = ?',
+        ['ISSUES_FOUND', 'Auditor IA (Fallo API)', docId]
+      );
     } catch (dbErr) {
       console.error('Error al actualizar estado de fallo de documento:', dbErr);
     }
@@ -290,28 +286,27 @@ export const getDocuments = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const documents = await prisma.document.findMany({
-      include: {
-        standard: true,
-        findings: true
-      },
-      orderBy: {
-        uploadDate: 'desc'
-      }
-    });
+    const [docRows] = await db.query('SELECT * FROM Document ORDER BY uploadDate DESC');
+    const documents = docRows as any[];
     
-    // Strip file physical suffix before returning
-    const formattedDocs = documents.map(doc => {
+    // Map with standard details and findings
+    const formattedDocs = await Promise.all(documents.map(async (doc) => {
+      const [stdRows] = await db.query('SELECT * FROM Standard WHERE id = ?', [doc.standardId]);
+      const [findingRows] = await db.query('SELECT * FROM AIFinding WHERE documentId = ?', [doc.id]);
+      
       const parts = doc.name.split('|');
       return {
         ...doc,
-        name: parts[0]
+        name: parts[0],
+        standard: (stdRows as any[])[0] || null,
+        findings: findingRows
       };
-    });
+    }));
     
     cache.set(cacheKey, formattedDocs);
     res.status(200).json(formattedDocs);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al obtener documentos.' });
   }
 };
@@ -327,16 +322,14 @@ export const createDocument = async (req: Request, res: Response): Promise<void>
       return;
     }
     
-    const newDoc = await prisma.document.create({
-      data: {
-        name,
-        type,
-        standardId,
-        size,
-        version,
-        status: 'PENDING'
-      }
-    });
+    const docId = uuidv4();
+    await db.query(
+      'INSERT INTO Document (id, name, type, standardId, size, version, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [docId, name, type, standardId, size, version, 'PENDING']
+    );
+
+    const [docRows] = await db.query('SELECT * FROM Document WHERE id = ?', [docId]);
+    const newDoc = (docRows as any[])[0];
 
     // Trigger AI analysis in the background
     runRealAiAnalysis(newDoc.id, name, standardId, userId);
@@ -350,6 +343,7 @@ export const createDocument = async (req: Request, res: Response): Promise<void>
       name: name.split('|')[0]
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al crear documento.' });
   }
 };

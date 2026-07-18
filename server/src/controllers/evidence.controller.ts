@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import prisma from '../db';
+import { v4 as uuidv4 } from 'uuid';
+import db from '../db';
 import cache from '../cache';
 import fs from 'fs';
 import path from 'path';
@@ -42,12 +43,8 @@ const runEvidenceAiAnalysis = async (evidenceId: string, compoundTitle: string, 
     }
 
     // 2. Fetch the clause description from DB
-    const requirement = await prisma.requirement.findFirst({
-      where: {
-        standardId,
-        clause
-      }
-    });
+    const [reqRows] = await db.query('SELECT description FROM Requirement WHERE standardId = ? AND clause = ?', [standardId, clause]);
+    const requirement = (reqRows as any[])[0];
     const reqDesc = requirement ? requirement.description : 'Requisito del estándar.';
 
     // 3. Call Gemini API if key is present
@@ -117,35 +114,40 @@ Devuelve un JSON estrictamente estructurado según el siguiente formato:
       feedback = 'Evidencia de auditoría simulada aprobada con éxito.';
     }
 
-    // 4. Update the DB
-    await prisma.$transaction(async (tx) => {
-      await tx.evidence.update({
-        where: { id: evidenceId },
-        data: {
-          status: status as any,
-          description: `${feedback}` // Overwrite description to contain Gemini feedback
-        }
-      });
+    // 4. Update the DB under transaction
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // Update evidence
+      await conn.query(
+        'UPDATE Evidence SET status = ?, description = ? WHERE id = ?',
+        [status, feedback, evidenceId]
+      );
 
       // Create activity
-      await tx.activity.create({
-        data: {
-          action: 'Evidencia Auditada por IA',
-          description: `La evidencia de "${cleanTitle}" para la cláusula ${clause} fue auditada. Estado: ${status === 'VALID' ? 'Vigente' : 'Rechazada'}.`,
-          userId,
-          standardId
-        }
-      });
-    });
+      const activityId = uuidv4();
+      await conn.query(
+        'INSERT INTO Activity (id, action, description, userId, standardId) VALUES (?, ?, ?, ?, ?)',
+        [activityId, 'Evidencia Auditada por IA', `La evidencia de "${cleanTitle}" para la cláusula ${clause} fue auditada. Estado: ${status === 'VALID' ? 'Vigente' : 'Rechazada'}.`, userId, standardId]
+      );
+
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
 
     console.log(`[Evidence AI] Evidence ${evidenceId} audited successfully. Status: ${status}`);
   } catch (error: any) {
     console.error(`[Evidence AI] Error in analysis for evidence ${evidenceId}:`, error?.message || error);
     try {
-      await prisma.evidence.update({
-        where: { id: evidenceId },
-        data: { status: 'EXPIRED', description: 'Error en el motor de auditoría de IA.' }
-      });
+      await db.query(
+        'UPDATE Evidence SET status = ?, description = ? WHERE id = ?',
+        ['EXPIRED', 'Error en el motor de auditoría de IA.', evidenceId]
+      );
     } catch (dbErr) {
       console.error(dbErr);
     }
@@ -162,31 +164,35 @@ export const getEvidence = async (req: Request, res: Response): Promise<void> =>
   try {
     const { standardId } = req.query;
     
-    const evidence = await prisma.evidence.findMany({
-      where: standardId ? { standardId: String(standardId) } : undefined,
-      include: {
-        standard: true
-      },
-      orderBy: {
-        uploadDate: 'desc'
-      }
-    });
+    let query = 'SELECT * FROM Evidence ORDER BY uploadDate DESC';
+    let params: any[] = [];
+    if (standardId) {
+      query = 'SELECT * FROM Evidence WHERE standardId = ? ORDER BY uploadDate DESC';
+      params = [standardId];
+    }
+
+    const [evRows] = await db.query(query, params);
+    const evidence = evRows as any[];
 
     // Format compound title to split physical file name
-    const formattedEvidence = evidence.map(ev => {
+    const formattedEvidence = await Promise.all(evidence.map(async (ev) => {
       const parts = ev.title.split('|');
       const cleanTitle = parts[0];
       const filename = parts[1] || '';
       
+      const [stdRows] = await db.query('SELECT * FROM Standard WHERE id = ?', [ev.standardId]);
+      
       return {
         ...ev,
         title: cleanTitle,
-        linkedDocuments: filename ? [filename.split('-').slice(2).join('-') || filename] : [] // clean prefix for display
+        standard: (stdRows as any[])[0] || null,
+        linkedDocuments: filename ? [filename.split('-').slice(2).join('-') || filename] : []
       };
-    });
+    }));
     
     res.status(200).json(formattedEvidence);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al obtener evidencias.' });
   }
 };
@@ -202,17 +208,17 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
       return;
     }
     
-    const newEvidence = await prisma.evidence.create({
-      data: {
-        title,
-        description,
-        standardId,
-        clause,
-        type,
-        status: status || 'PENDING_REVIEW',
-        expiryDate: expiryDate ? new Date(expiryDate) : null
-      }
-    });
+    const evId = uuidv4();
+    const parsedExpiryDate = expiryDate ? new Date(expiryDate) : null;
+    const evStatus = status || 'PENDING_REVIEW';
+
+    await db.query(
+      'INSERT INTO Evidence (id, title, description, standardId, clause, type, status, expiryDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [evId, title, description, standardId, clause, type, evStatus, parsedExpiryDate]
+    );
+
+    const [evRows] = await db.query('SELECT * FROM Evidence WHERE id = ?', [evId]);
+    const newEvidence = (evRows as any[])[0];
 
     // Trigger AI evidence analysis in the background
     runEvidenceAiAnalysis(newEvidence.id, title, standardId, clause, userId);
@@ -225,6 +231,7 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
       linkedDocuments: parts[1] ? [parts[1]] : []
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al subir evidencia.' });
   }
 };
