@@ -27,7 +27,7 @@ const runEvidenceAiAnalysis = async (evidenceId: string, compoundTitle: string, 
       const ext = path.extname(filePath).toLowerCase();
       if (ext === '.pdf') {
         const dataBuffer = fs.readFileSync(filePath);
-        const pdfData = await pdfParse(dataBuffer);
+        const pdfData = await (pdfParse as any)(dataBuffer);
         extractedText = pdfData.text || '';
       } else if (ext === '.docx') {
         const result = await mammoth.extractRawText({ path: filePath });

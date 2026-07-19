@@ -66,7 +66,7 @@ async function updateDb() {
         ADD COLUMN nonConformanceId VARCHAR(191) NULL,
         ADD FOREIGN KEY (nonConformanceId) REFERENCES NonConformance(id) ON DELETE SET NULL
       `);
-    } catch (err) {
+    } catch {
       console.log('Column might already exist, skipping...');
     }
   } catch (err) {

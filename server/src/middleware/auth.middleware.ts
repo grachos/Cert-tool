@@ -22,7 +22,7 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     const verified = jwt.verify(token, secret) as { id: string, role: string };
     req.user = verified;
     next();
-  } catch (error) {
+  } catch {
     res.status(403).json({ error: 'Token inválido o expirado.' });
   }
 };

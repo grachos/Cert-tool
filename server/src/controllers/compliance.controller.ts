@@ -68,7 +68,7 @@ export const getStandardRequirements = async (req: Request, res: Response): Prom
     const enabledStandardsEnv = process.env.ENABLED_STANDARDS;
     if (enabledStandardsEnv) {
       const allowedIds = enabledStandardsEnv.split(',').map(s => s.trim().toUpperCase());
-      if (!allowedIds.includes(id.toUpperCase())) {
+      if (!allowedIds.includes((id as string).toUpperCase())) {
         res.status(403).json({ error: 'Acceso denegado a esta norma por licenciamiento.' });
         return;
       }

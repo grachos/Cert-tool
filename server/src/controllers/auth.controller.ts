@@ -92,7 +92,7 @@ export const getProfile = async (req: any, res: Response): Promise<void> => {
     }
     
     res.status(200).json(user);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Error al obtener perfil.' });
   }
 };

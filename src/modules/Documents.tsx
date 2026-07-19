@@ -75,7 +75,7 @@ export default function Documents() {
         setSelectedDoc(updated);
       }
     }
-  }, [documents]);
+  }, [documents, selectedDoc]);
 
   // Cerrar el detalle del documento si ya no pertenece a la norma filtrada
   useEffect(() => {

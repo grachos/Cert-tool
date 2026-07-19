@@ -105,7 +105,7 @@ const runRealAiAnalysis = async (docId: string, compoundName: string, standardId
       
       if (ext === '.pdf') {
         const dataBuffer = fs.readFileSync(filePath);
-        const pdfData = await pdfParse(dataBuffer);
+        const pdfData = await (pdfParse as any)(dataBuffer);
         documentText = pdfData.text || '';
       } else if (ext === '.docx') {
         const result = await mammoth.extractRawText({ path: filePath });

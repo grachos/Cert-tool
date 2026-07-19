@@ -8,7 +8,7 @@ import axios from 'axios';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
 
-const runActionPlanAiAnalysis = async (planId: string, evidenceName: string, userId: string) => {
+const runActionPlanAiAnalysis = async (planId: string, evidenceName: string, _userId: string) => {
   const parts = evidenceName.split('|');
   const filename = parts[1] || parts[0];
 
@@ -23,7 +23,7 @@ const runActionPlanAiAnalysis = async (planId: string, evidenceName: string, use
       const ext = path.extname(filePath).toLowerCase();
       if (ext === '.pdf') {
         const dataBuffer = fs.readFileSync(filePath);
-        const pdfData = await pdfParse(dataBuffer);
+        const pdfData = await (pdfParse as any)(dataBuffer);
         extractedText = pdfData.text || '';
       } else if (ext === '.docx') {
         const result = await mammoth.extractRawText({ path: filePath });
@@ -234,7 +234,7 @@ export const createActionPlan = async (req: Request, res: Response): Promise<voi
 
 export const updateActionPlan = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { title, description, type, status, priority, assigneeId, dueDate, progress, evidenceName, riskId } = req.body;
     const authReq = req as any;
     const userId = authReq.user?.id || 'system';
@@ -268,7 +268,7 @@ export const updateActionPlan = async (req: Request, res: Response): Promise<voi
 
     // If new evidence was uploaded, trigger AI evaluation (and block/wait for it)
     if (evidenceName && evidenceName !== current.evidenceName) {
-      await runActionPlanAiAnalysis(id, evidenceName, userId);
+      await runActionPlanAiAnalysis(id, evidenceName as string, userId);
     }
 
     // Fetch updated plan with assignee

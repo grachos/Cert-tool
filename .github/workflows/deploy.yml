@@ -33,8 +33,7 @@ jobs:
         npm run lint || echo "Linter warnings found"
         npm run build
 
-    - name: Backend Build and Lint Check
+    - name: Backend Build Check
       run: |
         cd server
-        npx prisma generate
         npx tsc --noEmit
