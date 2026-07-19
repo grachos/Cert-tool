@@ -12,6 +12,7 @@ const translations = {
     'nav.compliance': 'Cumplimiento',
     'nav.evidence': 'Evidencias',
     'nav.automation': 'Automatización',
+    'nav.audits': 'Auditorías',
     'nav.users': 'Usuarios',
     'nav.logout': 'Cerrar Sesión',
     
@@ -27,6 +28,8 @@ const translations = {
     'subtitle.evidence': 'Generación y gestión de evidencias',
     'title.automation': 'Automatización de Procesos',
     'subtitle.automation': 'Planes de acción y seguimiento',
+    'title.audits': 'Auditorías y Hallazgos',
+    'subtitle.audits': 'Gestión de no conformidades validadas por IA',
     'title.users': 'Administración de Usuarios',
     'subtitle.users': 'Gestión de accesos y roles del sistema',
 
@@ -149,6 +152,28 @@ const translations = {
     'auto.colOverdue': 'Vencido',
     'auto.loading': 'Cargando planes de acción...',
 
+    // Audits module
+    'audits.listTitle': 'Registro de Auditorías',
+    'audits.newBtn': 'Registrar Auditoría',
+    'audits.thTitle': 'Título',
+    'audits.thDate': 'Fecha',
+    'audits.thType': 'Tipo',
+    'audits.thAuditor': 'Auditor',
+    'audits.thStatus': 'Estado',
+    'audits.viewFindings': 'Ver Hallazgos',
+    'audits.findingsTitle': 'Hallazgos y No Conformidades',
+    'audits.backBtn': 'Volver a Auditorías',
+    'audits.newFindingBtn': 'Registrar Hallazgo',
+    'audits.type.major': 'No Conformidad Mayor',
+    'audits.type.minor': 'No Conformidad Menor',
+    'audits.type.obs': 'Observación',
+    'audits.type.opp': 'Oportunidad de Mejora',
+    'audits.aiVerifyBtn': 'Solicitar Cierre a IA',
+    'audits.finding.open': 'ABIERTO',
+    'audits.finding.closed': 'CERRADO',
+    'audits.finding.rejected': 'RECHAZADO POR IA',
+    'audits.aiTitle': 'Veredicto de Inteligencia Artificial',
+
     // Users module
     'users.title': 'Usuarios Registrados',
     'users.desc': 'Administra los accesos de auditores y oficiales de cumplimiento.',
@@ -172,6 +197,7 @@ const translations = {
     'nav.compliance': 'Compliance',
     'nav.evidence': 'Evidence',
     'nav.automation': 'Automation',
+    'nav.audits': 'Audits',
     'nav.users': 'Users',
     'nav.logout': 'Log Out',
     
@@ -187,6 +213,8 @@ const translations = {
     'subtitle.evidence': 'Generation and management of evidence files',
     'title.automation': 'Process Automation',
     'subtitle.automation': 'Action plans and compliance scheduling',
+    'title.audits': 'Audits and Findings',
+    'subtitle.audits': 'Management of non-conformances validated by AI',
     'title.users': 'User Administration',
     'subtitle.users': 'Manage system access and roles',
 
@@ -308,6 +336,28 @@ const translations = {
     'auto.colCompleted': 'Completed',
     'auto.colOverdue': 'Overdue',
     'auto.loading': 'Loading action plans...',
+
+    // Audits module
+    'audits.listTitle': 'Audit Registry',
+    'audits.newBtn': 'Log Audit',
+    'audits.thTitle': 'Title',
+    'audits.thDate': 'Date',
+    'audits.thType': 'Type',
+    'audits.thAuditor': 'Auditor',
+    'audits.thStatus': 'Status',
+    'audits.viewFindings': 'View Findings',
+    'audits.findingsTitle': 'Findings & Non-Conformances',
+    'audits.backBtn': 'Back to Audits',
+    'audits.newFindingBtn': 'Log Finding',
+    'audits.type.major': 'Major Non-Conformance',
+    'audits.type.minor': 'Minor Non-Conformance',
+    'audits.type.obs': 'Observation',
+    'audits.type.opp': 'Opportunity for Improvement',
+    'audits.aiVerifyBtn': 'Request AI Closure',
+    'audits.finding.open': 'OPEN',
+    'audits.finding.closed': 'CLOSED',
+    'audits.finding.rejected': 'REJECTED BY AI',
+    'audits.aiTitle': 'Artificial Intelligence Verdict',
 
     // Users module
     'users.title': 'Registered Users',

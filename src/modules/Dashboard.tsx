@@ -13,6 +13,9 @@ interface Stats {
   activeRisks: number;
   criticalRisks: number;
   overdueActions: number;
+  openFindings: number;
+  closedFindings: number;
+  averagePlansProgress: number;
 }
 
 interface Activity {
@@ -44,7 +47,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [complianceStatuses, setComplianceStatuses] = useState<StandardCompliance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { t } = useThemeLanguage();
+  const { t, language } = useThemeLanguage();
 
   const fetchDashboardData = async () => {
     try {
@@ -88,7 +91,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     <div className="flex-col gap-6 animate-fade-in">
       
       {/* Stats Row */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
         <div className="card">
           <div className="flex justify-between items-start mb-4">
             <span className="text-sm text-secondary font-medium uppercase tracking-wide">{t('dash.compliance')}</span>
@@ -138,6 +141,32 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             <span className="text-3xl font-bold text-accent-red">{stats?.overdueActions}</span>
             <span className="text-sm text-secondary font-medium flex items-center gap-1">
               {t('dash.attention')}
+            </span>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex justify-between items-start mb-4">
+            <span className="text-sm text-secondary font-medium uppercase tracking-wide">{language === 'es' ? 'No Conformidades' : 'Non-Conformances'}</span>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+          </div>
+          <div className="flex items-end justify-between">
+            <span className="text-3xl font-bold text-primary">{stats?.openFindings}</span>
+            <span className="text-sm text-secondary font-medium flex items-center gap-1">
+              {stats?.closedFindings} {language === 'es' ? 'Cerradas' : 'Closed'}
+            </span>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex justify-between items-start mb-4">
+            <span className="text-sm text-secondary font-medium uppercase tracking-wide">{language === 'es' ? 'Avance de Planes' : 'Plans Progress'}</span>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          </div>
+          <div className="flex items-end justify-between">
+            <span className="text-3xl font-bold text-primary">{stats?.averagePlansProgress}%</span>
+            <span className="text-sm text-accent-blue font-medium flex items-center gap-1">
+              {language === 'es' ? 'Promedio' : 'Average'}
             </span>
           </div>
         </div>

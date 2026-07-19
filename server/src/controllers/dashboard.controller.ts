@@ -42,12 +42,26 @@ export const getStats = async (req: Request, res: Response): Promise<void> => {
     );
     const overdueActions = (overdueRows as any[])[0]?.count || 0;
 
+    // 5. No Conformidades abiertas / cerradas
+    const [openFindingsRows] = await db.query('SELECT COUNT(*) AS count FROM NonConformance WHERE status != "CLOSED"');
+    const openFindings = (openFindingsRows as any[])[0]?.count || 0;
+
+    const [closedFindingsRows] = await db.query('SELECT COUNT(*) AS count FROM NonConformance WHERE status = "CLOSED"');
+    const closedFindings = (closedFindingsRows as any[])[0]?.count || 0;
+
+    // 6. Avance promedio de planes de acción
+    const [avgProgressRows] = await db.query('SELECT AVG(progress) AS avg FROM ActionPlan');
+    const averagePlansProgress = Math.round(Number((avgProgressRows as any[])[0]?.avg || 0));
+
     const stats = {
       overallCompliance,
       pendingReviews,
       activeRisks,
       criticalRisks,
-      overdueActions
+      overdueActions,
+      openFindings,
+      closedFindings,
+      averagePlansProgress
     };
 
     cache.set(cacheKey, stats);

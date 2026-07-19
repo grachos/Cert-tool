@@ -7,6 +7,7 @@ import Risks from './modules/Risks';
 import Compliance from './modules/Compliance';
 import Evidence from './modules/Evidence';
 import Automation from './modules/Automation';
+import Audits from './modules/Audits';
 import Users from './modules/Users';
 import Toast from './components/Toast';
 import Login from './modules/Login';
@@ -14,7 +15,7 @@ import { ToastProvider, useToast } from './components/ToastContext';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ThemeLanguageProvider, useThemeLanguage } from './components/ThemeLanguageContext';
 
-type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'users';
+type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users';
 
 function AppContent() {
   const [activeModule, setActiveModule] = useState<ModuleId>('dashboard');
@@ -45,6 +46,8 @@ function AppContent() {
         return <Evidence />;
       case 'automation':
         return <Automation />;
+      case 'audits':
+        return <Audits />;
       case 'users':
         return <Users />;
       default:
@@ -60,6 +63,7 @@ function AppContent() {
       compliance: { title: t('title.compliance'), subtitle: t('subtitle.compliance') },
       evidence: { title: t('title.evidence'), subtitle: t('subtitle.evidence') },
       automation: { title: t('title.automation'), subtitle: t('subtitle.automation') },
+      audits: { title: t('title.audits'), subtitle: t('subtitle.audits') },
       users: { title: t('title.users'), subtitle: t('subtitle.users') }
     };
     return titles[activeModule];

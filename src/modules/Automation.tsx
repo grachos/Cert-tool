@@ -13,6 +13,8 @@ interface UserSelect {
 export default function Automation() {
   const [plans, setPlans] = useState<ActionPlan[]>([]);
   const [users, setUsers] = useState<UserSelect[]>([]);
+  const [findings, setFindings] = useState<any[]>([]);
+  const [risks, setRisks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
   const { t, language } = useThemeLanguage();
@@ -30,12 +32,16 @@ export default function Automation() {
     priority: 'MEDIUM',
     assigneeId: '',
     dueDate: '',
-    standardId: 'ISO9001'
+    standardId: 'ISO9001',
+    nonConformanceId: '',
+    riskId: ''
   });
 
   // Edit progress / status state
   const [editProgress, setEditProgress] = useState(0);
   const [editStatus, setEditStatus] = useState<string>('PENDING');
+  const [editEvidenceFile, setEditEvidenceFile] = useState<File | null>(null);
+  const [isEvaluatingEvidence, setIsEvaluatingEvidence] = useState(false);
 
   // Drag over state to highlight column
   const [activeDragCol, setActiveDragCol] = useState<string | null>(null);
@@ -52,10 +58,14 @@ export default function Automation() {
   useEffect(() => {
     Promise.all([
       api.get('/automation'),
-      api.get('/users')
-    ]).then(([autoRes, usersRes]) => {
+      api.get('/users'),
+      api.get('/audits/findings/all'),
+      api.get('/risks')
+    ]).then(([autoRes, usersRes, findingsRes, risksRes]) => {
       setPlans(autoRes.data);
       setUsers(usersRes.data);
+      setFindings(findingsRes.data.filter((f: any) => f.status !== 'CLOSED'));
+      setRisks(risksRes.data);
       setIsLoading(false);
     }).catch(err => {
       console.error(err);
@@ -140,7 +150,9 @@ export default function Automation() {
         priority: newPlanForm.priority,
         assigneeId: newPlanForm.assigneeId,
         dueDate: newPlanForm.dueDate,
-        standardId: newPlanForm.standardId
+        standardId: newPlanForm.standardId,
+        nonConformanceId: newPlanForm.nonConformanceId || null,
+        riskId: newPlanForm.riskId || null
       });
       fetchPlans();
       setShowNewModal(false);
@@ -151,7 +163,9 @@ export default function Automation() {
         priority: 'MEDIUM',
         assigneeId: '',
         dueDate: '',
-        standardId: 'ISO9001'
+        standardId: 'ISO9001',
+        nonConformanceId: '',
+        riskId: ''
       });
     } catch (err) {
       console.error(err);
@@ -162,6 +176,7 @@ export default function Automation() {
     setSelectedPlan(plan);
     setEditProgress(plan.progress);
     setEditStatus(plan.status);
+    setEditEvidenceFile(null);
     setShowEditModal(true);
   };
 
@@ -170,15 +185,32 @@ export default function Automation() {
     if (!selectedPlan) return;
 
     try {
+      let evidenceName = undefined;
+      
+      if (editEvidenceFile) {
+        setIsEvaluatingEvidence(true);
+        const formData = new FormData();
+        formData.append('file', editEvidenceFile);
+        const uploadRes = await api.post('/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        evidenceName = uploadRes.data.name;
+      }
+
       await api.put(`/automation/${selectedPlan.id}`, {
         status: editStatus,
-        progress: editProgress
+        progress: editProgress,
+        ...(evidenceName && { evidenceName })
       });
+      
       fetchPlans();
       setShowEditModal(false);
       setSelectedPlan(null);
+      setEditEvidenceFile(null);
     } catch (err) {
       console.error(err);
+    } finally {
+      setIsEvaluatingEvidence(false);
     }
   };
 
@@ -294,9 +326,9 @@ export default function Automation() {
                     <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-100">
                       <div className="flex items-center gap-1">
                         <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-600">
-                          {(item.assignee || 'A').charAt(0).toUpperCase()}
+                          {((item.assignee as any)?.name || (typeof item.assignee === 'string' ? item.assignee : 'A')).charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-xs text-secondary truncate max-w-[80px]">{item.assignee}</span>
+                        <span className="text-xs text-secondary truncate max-w-[80px]">{(item.assignee as any)?.name || item.assignee}</span>
                       </div>
                       <div className="flex items-center gap-1 text-xs font-medium" style={{ color: item.status.toLowerCase() === 'overdue' ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
                         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '12px', height: '12px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -352,7 +384,14 @@ export default function Automation() {
                       <span className="text-xs font-medium text-secondary">{item.progress}%</span>
                     </div>
                   </td>
-                  <td className="p-4 text-sm text-secondary">{item.assignee}</td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
+                        {((item.assignee as any)?.name || (typeof item.assignee === 'string' ? item.assignee : 'A')).charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-sm font-medium text-primary">{(item.assignee as any)?.name || (typeof item.assignee === 'string' ? item.assignee : '')}</span>
+                    </div>
+                  </td>
                   <td className="p-4 text-sm font-medium" style={{ color: item.status.toLowerCase() === 'overdue' ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
                     {item.dueDate}
                   </td>
@@ -392,6 +431,38 @@ export default function Automation() {
                     value={newPlanForm.description}
                     onChange={e => setNewPlanForm({ ...newPlanForm, description: e.target.value })}
                   />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">{language === 'es' ? 'Vincular a Hallazgo / No Conformidad (Opcional)' : 'Link to Finding / Non-Conformance (Optional)'}</label>
+                  <select 
+                    className="form-select"
+                    value={newPlanForm.nonConformanceId}
+                    onChange={e => setNewPlanForm({ ...newPlanForm, nonConformanceId: e.target.value })}
+                  >
+                    <option value="">{language === 'es' ? 'Ninguno' : 'None'}</option>
+                    {findings.map(finding => (
+                      <option key={finding.id} value={finding.id}>
+                        {finding.auditTitle} - {finding.clause} ({finding.type === 'MAJOR_NC' ? 'No Conformidad Mayor' : finding.type === 'MINOR_NC' ? 'No Conformidad Menor' : finding.type === 'OBSERVATION' ? 'Observación' : 'Oportunidad de Mejora'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">{language === 'es' ? 'Vincular a Riesgo (Opcional)' : 'Link to Risk (Optional)'}</label>
+                  <select 
+                    className="form-select"
+                    value={newPlanForm.riskId}
+                    onChange={e => setNewPlanForm({ ...newPlanForm, riskId: e.target.value })}
+                  >
+                    <option value="">{language === 'es' ? 'Ninguno' : 'None'}</option>
+                    {risks.filter(r => r.status === 'OPEN').map(risk => (
+                      <option key={risk.id} value={risk.id}>
+                        {risk.title} ({language === 'es' ? 'Probabilidad' : 'Probability'}: {risk.probability} x {language === 'es' ? 'Impacto' : 'Impact'}: {risk.impact})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -503,25 +574,29 @@ export default function Automation() {
                   </div>
                   <div className="flex-between">
                     <span className="text-secondary">{language === 'es' ? 'Responsable' : 'Assignee'}:</span>
-                    <strong className="text-primary">{selectedPlan.assignee}</strong>
+                    <strong className="text-primary">{(selectedPlan.assignee as any)?.name || (typeof selectedPlan.assignee === 'string' ? selectedPlan.assignee : '')}</strong>
                   </div>
                   <div className="flex-between">
-                    <span className="text-secondary">{language === 'es' ? 'Vencimiento' : 'Due Date'}:</span>
+                      <span className="text-secondary">{language === 'es' ? 'Vencimiento' : 'Due Date'}:</span>
                     <strong className="text-primary">{selectedPlan.dueDate}</strong>
                   </div>
+                  {(selectedPlan as any).riskId && (
+                    <div className="flex-between">
+                      <span className="text-secondary">{language === 'es' ? 'Riesgo Vinculado' : 'Linked Risk'}:</span>
+                      <strong className="text-primary truncate max-w-[200px]">
+                        {risks.find(r => r.id === (selectedPlan as any).riskId)?.title || (selectedPlan as any).riskId}
+                      </strong>
+                    </div>
+                  )}
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">{language === 'es' ? 'Estado' : 'Status'}</label>
+                  <label className="form-label">{language === 'es' ? 'Estado (Gestionado por IA)' : 'Status (AI Managed)'}</label>
                   <select 
-                    className="form-select"
+                    className="form-select opacity-70 cursor-not-allowed bg-gray-100"
                     value={editStatus}
-                    onChange={e => {
-                      const newStatus = e.target.value;
-                      setEditStatus(newStatus);
-                      if (newStatus === 'COMPLETED') setEditProgress(100);
-                      else if (newStatus === 'PENDING') setEditProgress(0);
-                    }}
+                    disabled
+                    onChange={() => {}}
                   >
                     <option value="PENDING">{language === 'es' ? 'Pendiente' : 'Pending'}</option>
                     <option value="IN_PROGRESS">{language === 'es' ? 'En Progreso' : 'In Progress'}</option>
@@ -532,7 +607,7 @@ export default function Automation() {
 
                 <div className="form-group">
                   <div className="flex justify-between items-center mb-1">
-                    <label className="form-label">{language === 'es' ? 'Progreso' : 'Progress'}</label>
+                    <label className="form-label">{language === 'es' ? 'Progreso (Gestionado por IA)' : 'Progress (AI Managed)'}</label>
                     <span className="text-xs font-bold text-blue-500">{editProgress}%</span>
                   </div>
                   <input 
@@ -540,27 +615,51 @@ export default function Automation() {
                     min="0" 
                     max="100" 
                     step="5"
-                    className="w-full cursor-pointer accent-blue-500" 
+                    className="w-full cursor-not-allowed opacity-75 accent-blue-500" 
                     value={editProgress}
-                    onChange={e => {
-                      const val = Number(e.target.value);
-                      setEditProgress(val);
-                      if (val === 100) setEditStatus('COMPLETED');
-                      else if (val === 0) setEditStatus('PENDING');
-                      else if (editStatus === 'COMPLETED' || editStatus === 'PENDING') {
-                        setEditStatus('IN_PROGRESS');
-                      }
-                    }}
+                    disabled
+                    onChange={() => {}}
                   />
+                </div>
+
+                {(selectedPlan as any).aiFeedback && (
+                  <div className="form-group bg-blue-50/50 p-3 rounded-lg border border-blue-100 flex-col gap-1.5 animate-fade-in">
+                    <div className="flex items-center gap-1.5 text-blue-700 font-bold text-xs">
+                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} style={{ width: '14px', height: '14px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                      {language === 'es' ? 'Retroalimentación de la IA:' : 'AI Feedback:'}
+                    </div>
+                    <p className="text-xs text-blue-800 leading-normal font-medium italic">
+                      "{(selectedPlan as any).aiFeedback}"
+                    </p>
+                  </div>
+                )}
+
+                <div className="form-group border-t border-gray-100 pt-4 mt-2">
+                  <label className="form-label font-bold text-primary">
+                    {language === 'es' ? 'Evidencia de Avance' : 'Progress Evidence'}
+                  </label>
+                  <input 
+                    type="file" 
+                    className="form-input text-xs" 
+                    onChange={e => setEditEvidenceFile(e.target.files ? e.target.files[0] : null)}
+                  />
+                  <p className="text-[10px] text-secondary mt-1">
+                    {language === 'es' ? 'Sube un archivo para que la IA mida automáticamente el porcentaje de avance.' : 'Upload a file to let AI automatically measure progress.'}
+                  </p>
+                  {(selectedPlan as any).evidenceName && (
+                    <div className="mt-2 text-xs bg-green-50 p-2 rounded text-green-700 font-medium">
+                      ✓ {language === 'es' ? 'Evidencia adjunta:' : 'Evidence attached:'} {((selectedPlan as any).evidenceName).split('|')[0]}
+                    </div>
+                  )}
                 </div>
               </div>
               
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)} disabled={isEvaluatingEvidence}>
                   {language === 'es' ? 'Cerrar' : 'Close'}
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  {language === 'es' ? 'Guardar Cambios' : 'Save Changes'}
+                <button type="submit" className="btn btn-primary" disabled={isEvaluatingEvidence}>
+                  {isEvaluatingEvidence ? (language === 'es' ? 'Evaluando con IA...' : 'Evaluating with AI...') : (language === 'es' ? 'Guardar Cambios' : 'Save Changes')}
                 </button>
               </div>
             </form>
