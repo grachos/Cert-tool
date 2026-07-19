@@ -13,6 +13,7 @@ export default function Documents() {
   const { t, language } = useThemeLanguage();
 
   // Upload States
+  const [activeStandards, setActiveStandards] = useState<any[]>([]);
   const [selectedStandard, setSelectedStandard] = useState<string>('');
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -20,18 +21,34 @@ export default function Documents() {
 
   const fetchDocuments = async () => {
     try {
-      setIsLoading(true);
       const res = await api.get('/documents');
       setDocuments(res.data);
+      return res.data;
     } catch (error) {
       console.error('Error al obtener documentos', error);
-    } finally {
-      setIsLoading(false);
+      return [];
     }
   };
 
   useEffect(() => {
-    fetchDocuments();
+    setIsLoading(true);
+    Promise.all([
+      api.get('/documents'),
+      api.get('/compliance/standards')
+    ]).then(([docsRes, complianceRes]) => {
+      setDocuments(docsRes.data);
+      const activeIds = (complianceRes.data as any[]).map(s => s.standardId || s.id);
+      const filtered = standards.filter(std => activeIds.includes(std.id));
+      setActiveStandards(filtered);
+      
+      if (filtered.length > 0) {
+        setSelectedStandard(filtered[0].id);
+      }
+    }).catch(err => {
+      console.error(err);
+    }).finally(() => {
+      setIsLoading(false);
+    });
   }, []);
 
   // Polling para documentos con estado PENDING (análisis en progreso)
@@ -40,17 +57,10 @@ export default function Documents() {
     if (!hasPending) return;
 
     const interval = setInterval(async () => {
-      try {
-        const res = await api.get('/documents');
-        // Formatear los nombres como se hace en el fetch inicial si fuera necesario (el backend ya los devuelve limpios)
-        setDocuments(res.data);
-        
-        const stillPending = res.data.some((doc: any) => doc.status.toUpperCase() === 'PENDING');
-        if (!stillPending) {
-          clearInterval(interval);
-        }
-      } catch (error) {
-        console.error('Error polling documents:', error);
+      const docs = await fetchDocuments();
+      const stillPending = docs.some((doc: any) => doc.status.toUpperCase() === 'PENDING');
+      if (!stillPending) {
+        clearInterval(interval);
       }
     }, 2000);
 
@@ -170,7 +180,7 @@ export default function Documents() {
           >
             {language === 'es' ? 'Todos' : 'All'}
           </button>
-          {standards.map(s => (
+          {activeStandards.map(s => (
             <button 
               key={s.id}
               className={`btn btn-sm ${filter === s.id ? 'btn-primary' : 'btn-secondary'}`}
@@ -216,7 +226,7 @@ export default function Documents() {
                   style={{ width: '200px', padding: '0.5rem 0.75rem' }}
                 >
                   <option value="">{t('docs.selectNorm')}</option>
-                  {standards.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {activeStandards.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               ) : (
                 <span className="badge" style={{ background: 'var(--accent-blue-light)', color: 'var(--accent-blue)', padding: '0.5rem 1rem', fontSize: '0.875rem', border: '1px solid rgba(37, 99, 235, 0.2)' }}>

@@ -8,6 +8,7 @@ export default function Evidence() {
   const [evidence, setEvidence] = useState<EvidenceType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<StandardId>('BASC');
+  const [activeStandards, setActiveStandards] = useState<any[]>([]);
   const { t, language } = useThemeLanguage();
 
   // Modal & Form States
@@ -25,15 +26,32 @@ export default function Evidence() {
     try {
       const res = await api.get('/evidence');
       setEvidence(res.data);
+      return res.data;
     } catch (error) {
       console.error('Error al obtener evidencias', error);
-    } finally {
-      setIsLoading(false);
+      return [];
     }
   };
 
   useEffect(() => {
-    fetchEvidence();
+    setIsLoading(true);
+    Promise.all([
+      api.get('/evidence'),
+      api.get('/compliance/standards')
+    ]).then(([evidenceRes, complianceRes]) => {
+      setEvidence(evidenceRes.data);
+      const activeIds = (complianceRes.data as any[]).map(s => s.standardId || s.id);
+      const filtered = standards.filter(std => activeIds.includes(std.id));
+      setActiveStandards(filtered);
+      
+      if (filtered.length > 0) {
+        setActiveTab(filtered[0].id as StandardId);
+      }
+    }).catch(err => {
+      console.error(err);
+    }).finally(() => {
+      setIsLoading(false);
+    });
   }, []);
 
   // Polling para actualizar las evidencias en revisión por la IA en tiempo real
@@ -42,15 +60,10 @@ export default function Evidence() {
     if (!hasPending) return;
 
     const interval = setInterval(async () => {
-      try {
-        const res = await api.get('/evidence');
-        setEvidence(res.data);
-        const stillPending = res.data.some((e: any) => e.status.toLowerCase() === 'pending_review' || e.status.toLowerCase() === 'pending-review');
-        if (!stillPending) {
-          clearInterval(interval);
-        }
-      } catch (error) {
-        console.error('Error polling evidence:', error);
+      const data = await fetchEvidence();
+      const stillPending = data.some((e: any) => e.status.toLowerCase() === 'pending_review' || e.status.toLowerCase() === 'pending-review');
+      if (!stillPending) {
+        clearInterval(interval);
       }
     }, 2000);
 
@@ -152,7 +165,7 @@ export default function Evidence() {
       
       {/* Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {standards.map(s => (
+        {activeStandards.map(s => (
           <button
             key={s.id}
             className={`btn btn-sm ${activeTab === s.id ? 'btn-primary' : 'btn-secondary'}`}

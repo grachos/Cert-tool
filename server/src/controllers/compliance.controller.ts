@@ -13,7 +13,14 @@ export const getStandardsCompliance = async (req: Request, res: Response): Promi
     }
 
     const [stdRows] = await db.query('SELECT * FROM Standard');
-    const standards = stdRows as any[];
+    let standards = stdRows as any[];
+
+    // Filter by environment variables if set (SaaS licensing check)
+    const enabledStandardsEnv = process.env.ENABLED_STANDARDS;
+    if (enabledStandardsEnv) {
+      const allowedIds = enabledStandardsEnv.split(',').map(s => s.trim().toUpperCase());
+      standards = standards.filter(std => allowedIds.includes(std.id.toUpperCase()));
+    }
 
     const complianceStatuses = await Promise.all(standards.map(async (std) => {
       const [reqRows] = await db.query('SELECT * FROM Requirement WHERE standardId = ?', [std.id]);
@@ -56,6 +63,16 @@ export const getStandardsCompliance = async (req: Request, res: Response): Promi
 export const getStandardRequirements = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+
+    // Check SaaS licensing
+    const enabledStandardsEnv = process.env.ENABLED_STANDARDS;
+    if (enabledStandardsEnv) {
+      const allowedIds = enabledStandardsEnv.split(',').map(s => s.trim().toUpperCase());
+      if (!allowedIds.includes(id.toUpperCase())) {
+        res.status(403).json({ error: 'Acceso denegado a esta norma por licenciamiento.' });
+        return;
+      }
+    }
     const cacheKey = `compliance_standard_${id}`;
     const cachedStandard = cache.get(cacheKey);
     if (cachedStandard) {

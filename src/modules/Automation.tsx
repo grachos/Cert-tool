@@ -15,6 +15,7 @@ export default function Automation() {
   const [users, setUsers] = useState<UserSelect[]>([]);
   const [findings, setFindings] = useState<any[]>([]);
   const [risks, setRisks] = useState<any[]>([]);
+  const [activeStandards, setActiveStandards] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
   const { t, language } = useThemeLanguage();
@@ -60,12 +61,23 @@ export default function Automation() {
       api.get('/automation'),
       api.get('/users'),
       api.get('/audits/findings/all'),
-      api.get('/risks')
-    ]).then(([autoRes, usersRes, findingsRes, risksRes]) => {
+      api.get('/risks'),
+      api.get('/compliance/standards')
+    ]).then(([autoRes, usersRes, findingsRes, risksRes, standardsRes]) => {
       setPlans(autoRes.data);
       setUsers(usersRes.data);
       setFindings(findingsRes.data.filter((f: any) => f.status !== 'CLOSED'));
       setRisks(risksRes.data);
+      
+      const activeIds = (standardsRes.data as any[]).map(s => s.standardId || s.id);
+      const filtered = standards.filter(std => activeIds.includes(std.id));
+      setActiveStandards(filtered);
+      
+      // Default standardId in form to first active standard if available
+      if (filtered.length > 0) {
+        setNewPlanForm(prev => ({ ...prev, standardId: filtered[0].id }));
+      }
+      
       setIsLoading(false);
     }).catch(err => {
       console.error(err);
@@ -473,7 +485,7 @@ export default function Automation() {
                       value={newPlanForm.standardId}
                       onChange={e => setNewPlanForm({ ...newPlanForm, standardId: e.target.value })}
                     >
-                      {standards.map(std => (
+                      {activeStandards.map(std => (
                         <option key={std.id} value={std.id}>{std.name}</option>
                       ))}
                     </select>

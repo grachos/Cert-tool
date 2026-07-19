@@ -9,11 +9,17 @@ export default function Risks() {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<StandardId | 'Todos'>('Todos');
   const [showMatrix, setShowMatrix] = useState(true);
+  const [activeStandards, setActiveStandards] = useState<any[]>([]);
   const { t, language } = useThemeLanguage();
 
   useEffect(() => {
-    api.get('/risks').then(res => {
-      setRisks(res.data);
+    Promise.all([
+      api.get('/risks'),
+      api.get('/compliance/standards')
+    ]).then(([risksRes, complianceRes]) => {
+      setRisks(risksRes.data);
+      const activeIds = (complianceRes.data as any[]).map(s => s.standardId || s.id);
+      setActiveStandards(standards.filter(std => activeIds.includes(std.id)));
       setIsLoading(false);
     });
   }, []);
@@ -69,7 +75,7 @@ export default function Risks() {
           >
             {language === 'es' ? 'Todos' : 'All'}
           </button>
-          {standards.map(s => (
+          {activeStandards.map(s => (
             <button 
               key={s.id}
               className={`btn btn-sm ${filter === s.id ? 'btn-primary' : 'btn-secondary'}`}
