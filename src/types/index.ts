@@ -105,6 +105,10 @@ export interface ActionPlan {
   progress: number;
   relatedRisk?: string;
   relatedFinding?: string;
+  brecha?: string;
+  causaRaiz?: string;
+  correccion?: string;
+  eficacia?: string;
 }
 
 export interface ActivityItem {

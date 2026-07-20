@@ -159,10 +159,14 @@ export const getActionPlans = async (req: Request, res: Response): Promise<void>
       dueDate: new Date(p.dueDate).toISOString().split('T')[0],
       createdDate: p.createdDate,
       progress: p.progress,
-      standard: p.standardId, // frontend expects standard
+      standard: p.standardId,
       evidenceName: p.evidenceName,
       aiFeedback: p.aiFeedback,
       riskId: p.riskId,
+      brecha: p.brecha,
+      causaRaiz: p.causaRaiz,
+      correccion: p.correccion,
+      eficacia: p.eficacia,
       assignee: {
         name: p.assigneeName,
         email: p.assigneeEmail
@@ -184,9 +188,9 @@ export const createActionPlan = async (req: Request, res: Response): Promise<voi
     const progress = data.progress || 0;
     
     await db.query(
-      `INSERT INTO ActionPlan (id, title, description, type, status, priority, assigneeId, dueDate, progress, nonConformanceId, riskId)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [planId, data.title, data.description, data.type, data.status || 'PENDING', data.priority, data.assigneeId, dueDate, progress, data.nonConformanceId || null, data.riskId || null]
+      `INSERT INTO ActionPlan (id, title, description, type, status, priority, assigneeId, dueDate, progress, nonConformanceId, riskId, brecha, causaRaiz, correccion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [planId, data.title, data.description, data.type, data.status || 'PENDING', data.priority, data.assigneeId, dueDate, progress, data.nonConformanceId || null, data.riskId || null, data.brecha || null, data.causaRaiz || null, data.correccion || null]
     );
 
     // Fetch new plan with assignee
@@ -221,6 +225,10 @@ export const createActionPlan = async (req: Request, res: Response): Promise<voi
       evidenceName: newPlan.evidenceName,
       aiFeedback: newPlan.aiFeedback,
       riskId: newPlan.riskId,
+      brecha: newPlan.brecha,
+      causaRaiz: newPlan.causaRaiz,
+      correccion: newPlan.correccion,
+      eficacia: newPlan.eficacia,
       assignee: {
         name: newPlan.assigneeName,
         email: newPlan.assigneeEmail
@@ -235,7 +243,7 @@ export const createActionPlan = async (req: Request, res: Response): Promise<voi
 export const updateActionPlan = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;
-    const { title, description, type, status, priority, assigneeId, dueDate, progress, evidenceName, riskId } = req.body;
+    const { title, description, type, status, priority, assigneeId, dueDate, progress, evidenceName, riskId, brecha, causaRaiz, correccion, eficacia } = req.body;
     const authReq = req as any;
     const userId = authReq.user?.id || 'system';
 
@@ -259,11 +267,16 @@ export const updateActionPlan = async (req: Request, res: Response): Promise<voi
     const updatedEvidenceName = evidenceName !== undefined ? evidenceName : current.evidenceName;
     const updatedRiskId = riskId !== undefined ? riskId : current.riskId;
 
+    const updatedBrecha = brecha !== undefined ? brecha : current.brecha;
+    const updatedCausaRaiz = causaRaiz !== undefined ? causaRaiz : current.causaRaiz;
+    const updatedCorreccion = correccion !== undefined ? correccion : current.correccion;
+    const updatedEficacia = eficacia !== undefined ? eficacia : current.eficacia;
+
     await db.query(
       `UPDATE ActionPlan 
-       SET title = ?, description = ?, type = ?, status = ?, priority = ?, assigneeId = ?, dueDate = ?, progress = ?, evidenceName = ?, riskId = ?
+       SET title = ?, description = ?, type = ?, status = ?, priority = ?, assigneeId = ?, dueDate = ?, progress = ?, evidenceName = ?, riskId = ?, brecha = ?, causaRaiz = ?, correccion = ?, eficacia = ?
        WHERE id = ?`,
-      [updatedTitle, updatedDescription, updatedType, updatedStatus, updatedPriority, updatedAssigneeId, updatedDueDate, updatedProgress, updatedEvidenceName, updatedRiskId, id]
+      [updatedTitle, updatedDescription, updatedType, updatedStatus, updatedPriority, updatedAssigneeId, updatedDueDate, updatedProgress, updatedEvidenceName, updatedRiskId, updatedBrecha, updatedCausaRaiz, updatedCorreccion, updatedEficacia, id]
     );
 
     // If new evidence was uploaded, trigger AI evaluation (and block/wait for it)
@@ -298,6 +311,10 @@ export const updateActionPlan = async (req: Request, res: Response): Promise<voi
       evidenceName: updated.evidenceName,
       aiFeedback: updated.aiFeedback,
       riskId: updated.riskId,
+      brecha: updated.brecha,
+      causaRaiz: updated.causaRaiz,
+      correccion: updated.correccion,
+      eficacia: updated.eficacia,
       assignee: {
         name: updated.assigneeName,
         email: updated.assigneeEmail

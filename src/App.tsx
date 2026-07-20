@@ -12,6 +12,10 @@ import Users from './modules/Users';
 import Scc from './modules/Scc';
 import Stakeholders from './modules/Stakeholders';
 import Alerts from './modules/Alerts';
+import PlantExtractora from './modules/PlantExtractora';
+import GhgCalculator from './modules/GhgCalculator';
+import SupplyBase from './modules/SupplyBase';
+import PlantationCompliance from './modules/PlantationCompliance';
 import Toast from './components/Toast';
 import Login from './modules/Login';
 import { ToastProvider, useToast } from './components/ToastContext';
@@ -19,7 +23,7 @@ import { AuthProvider, useAuth } from './components/AuthContext';
 import { ThemeLanguageProvider, useThemeLanguage } from './components/ThemeLanguageContext';
 import { UoCProvider } from './components/UoCContext';
 
-type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users' | 'scc' | 'stakeholders' | 'alerts';
+type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations';
 
 function AppContent() {
   const [activeModule, setActiveModule] = useState<ModuleId>('dashboard');
@@ -60,6 +64,14 @@ function AppContent() {
         return <Stakeholders />;
       case 'alerts':
         return <Alerts />;
+      case 'plant':
+        return <PlantExtractora />;
+      case 'ghg':
+        return <GhgCalculator />;
+      case 'supply':
+        return <SupplyBase />;
+      case 'plantations':
+        return <PlantationCompliance />;
       default:
         return <Dashboard onNavigate={setActiveModule} />;
     }
@@ -77,7 +89,11 @@ function AppContent() {
       users: { title: t('title.users'), subtitle: t('subtitle.users') },
       scc: { title: t('title.scc'), subtitle: t('subtitle.scc') },
       stakeholders: { title: t('title.stakeholders'), subtitle: t('subtitle.stakeholders') },
-      alerts: { title: t('title.alerts'), subtitle: t('subtitle.alerts') }
+      alerts: { title: t('title.alerts'), subtitle: t('subtitle.alerts') },
+      plant: { title: t('title.plant'), subtitle: t('subtitle.plant') },
+      ghg: { title: t('title.ghg'), subtitle: t('subtitle.ghg') },
+      supply: { title: t('title.supply'), subtitle: t('subtitle.supply') },
+      plantations: { title: t('title.plantations'), subtitle: t('subtitle.plantations') }
     };
     return titles[activeModule];
   };

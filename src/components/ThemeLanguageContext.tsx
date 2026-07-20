@@ -17,6 +17,10 @@ const translations = {
     'nav.scc': 'Cadena SCC',
     'nav.stakeholders': 'Partes Interesadas',
     'nav.alerts': 'Alertas',
+    'nav.plant': 'P&C Extractora',
+    'nav.ghg': 'Calculadora GHG',
+    'nav.supply': 'Base Suministro',
+    'nav.plantations': 'Cumpl. Plantac.',
     'nav.logout': 'Cerrar Sesión',
     
     'title.dashboard': 'Panel Principal',
@@ -41,6 +45,14 @@ const translations = {
     'subtitle.stakeholders': 'Registro y gestión de partes interesadas',
     'title.alerts': 'Alertas y Notificaciones',
     'subtitle.alerts': 'Sistema de notificaciones y seguimiento de alertas',
+    'title.plant': 'P&C Planta Extractora',
+    'subtitle.plant': 'Contratistas, SST, Ambiente, AVC, Social y Plan de Negocios',
+    'title.ghg': 'Calculadora GHG',
+    'subtitle.ghg': 'Prediagnóstico de emisiones de gases de efecto invernadero',
+    'title.supply': 'Base de Suministro',
+    'subtitle.supply': 'Registro maestro de proveedores, predios, riesgo y elegibilidad',
+    'title.plantations': 'Cumplimiento de Plantaciones',
+    'subtitle.plantations': 'BPA, Mantenimiento del cultivo, Sanidad vegetal y Control documental',
 
     // Dashboard
     'dash.compliance': 'Cumplimiento Global',
@@ -211,6 +223,10 @@ const translations = {
     'nav.scc': 'SCC Chain',
     'nav.stakeholders': 'Stakeholders',
     'nav.alerts': 'Alerts',
+    'nav.plant': 'P&C Mill',
+    'nav.ghg': 'GHG Calculator',
+    'nav.supply': 'Supply Base',
+    'nav.plantations': 'Plant. Compl.',
     'nav.logout': 'Log Out',
     
     'title.dashboard': 'Dashboard',
@@ -235,6 +251,14 @@ const translations = {
     'subtitle.stakeholders': 'Stakeholder registry and engagement tracking',
     'title.alerts': 'Alerts & Notifications',
     'subtitle.alerts': 'System alerts and notification tracking',
+    'title.plant': 'P&C Processing Mill',
+    'subtitle.plant': 'Contractors, OHS, Environment, HCV, Social & Business Plan',
+    'title.ghg': 'GHG Calculator',
+    'subtitle.ghg': 'Greenhouse gas emissions pre-diagnosis',
+    'title.supply': 'Supply Base',
+    'subtitle.supply': 'Supplier registry, farms, risk & eligibility',
+    'title.plantations': 'Plantation Compliance',
+    'subtitle.plantations': 'GAP, Crop Maintenance, Plant Health & Document Control',
 
     // Dashboard
     'dash.compliance': 'Overall Compliance',

@@ -35,7 +35,10 @@ export default function Automation() {
     dueDate: '',
     standardId: 'ISO9001',
     nonConformanceId: '',
-    riskId: ''
+    riskId: '',
+    brecha: '',
+    causaRaiz: '',
+    correccion: ''
   });
 
   // Edit progress / status state
@@ -164,7 +167,10 @@ export default function Automation() {
         dueDate: newPlanForm.dueDate,
         standardId: newPlanForm.standardId,
         nonConformanceId: newPlanForm.nonConformanceId || null,
-        riskId: newPlanForm.riskId || null
+        riskId: newPlanForm.riskId || null,
+        brecha: newPlanForm.brecha,
+        causaRaiz: newPlanForm.causaRaiz,
+        correccion: newPlanForm.correccion
       });
       fetchPlans();
       setShowNewModal(false);
@@ -177,7 +183,10 @@ export default function Automation() {
         dueDate: '',
         standardId: 'ISO9001',
         nonConformanceId: '',
-        riskId: ''
+        riskId: '',
+        brecha: '',
+        causaRaiz: '',
+        correccion: ''
       });
     } catch (err) {
       console.error(err);
@@ -416,8 +425,8 @@ export default function Automation() {
 
       {/* MODAL 1: NUEVO PLAN DE ACCIÓN */}
       {showNewModal && (
-        <div className="modal-overlay" onClick={() => setShowNewModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+        <div className="modal-overlay flex-center" onClick={() => setShowNewModal(false)}>
+          <div className="modal card max-w-lg w-full p-6 animate-scale-in" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{language === 'es' ? 'Crear Nuevo Plan de Acción' : 'Create New Action Plan'}</h3>
               <button className="btn-icon" onClick={() => setShowNewModal(false)}>×</button>
@@ -434,7 +443,20 @@ export default function Automation() {
                     onChange={e => setNewPlanForm({ ...newPlanForm, title: e.target.value })}
                   />
                 </div>
-                
+
+                <div className="form-group">
+                  <label className="form-label">Hallazgo / Brecha</label>
+                  <textarea className="form-input" rows={2} value={newPlanForm.brecha} onChange={e => setNewPlanForm({ ...newPlanForm, brecha: e.target.value })} placeholder="¿Qué brecha o no conformidad se encontró?" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Causa Raíz</label>
+                  <input className="form-input" value={newPlanForm.causaRaiz} onChange={e => setNewPlanForm({ ...newPlanForm, causaRaiz: e.target.value })} placeholder="¿Cuál es la causa raíz del hallazgo?" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Corrección Inmediata</label>
+                  <textarea className="form-input" rows={2} value={newPlanForm.correccion} onChange={e => setNewPlanForm({ ...newPlanForm, correccion: e.target.value })} placeholder="¿Qué corrección inmediata se aplicó?" />
+                </div>
+
                 <div className="form-group">
                   <label className="form-label">{language === 'es' ? 'Descripción' : 'Description'}</label>
                   <textarea 
@@ -563,7 +585,7 @@ export default function Automation() {
       {/* MODAL 2: EDICIÓN / DETALLE DE PLAN */}
       {showEditModal && selectedPlan && (
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+          <div className="modal card max-w-lg w-full p-6 animate-scale-in" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{language === 'es' ? 'Detalle de Plan de Acción' : 'Action Plan Details'}</h3>
               <button className="btn-icon" onClick={() => setShowEditModal(false)}>×</button>
@@ -601,6 +623,25 @@ export default function Automation() {
                     </div>
                   )}
                 </div>
+
+                {(selectedPlan as any).brecha && (
+                  <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-xs flex-col gap-1">
+                    <span className="font-bold text-amber-800">Hallazgo / Brecha:</span>
+                    <span className="text-amber-700">{(selectedPlan as any).brecha}</span>
+                  </div>
+                )}
+                {(selectedPlan as any).causaRaiz && (
+                  <div className="bg-red-50 p-3 rounded-lg border border-red-200 text-xs flex-col gap-1">
+                    <span className="font-bold text-red-800">Causa Raíz:</span>
+                    <span className="text-red-700">{(selectedPlan as any).causaRaiz}</span>
+                  </div>
+                )}
+                {(selectedPlan as any).correccion && (
+                  <div className="bg-green-50 p-3 rounded-lg border border-green-200 text-xs flex-col gap-1">
+                    <span className="font-bold text-green-800">Corrección Inmediata:</span>
+                    <span className="text-green-700">{(selectedPlan as any).correccion}</span>
+                  </div>
+                )}
 
                 <div className="form-group">
                   <label className="form-label">{language === 'es' ? 'Estado (Gestionado por IA)' : 'Status (AI Managed)'}</label>
