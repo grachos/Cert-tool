@@ -1,4 +1,5 @@
 import { useThemeLanguage } from './ThemeLanguageContext';
+import { useUoC } from './UoCContext';
 
 interface HeaderProps {
   title: string;
@@ -8,6 +9,7 @@ interface HeaderProps {
 
 export default function Header({ title, subtitle, onToggleSidebar }: HeaderProps) {
   const { theme, toggleTheme, language, setLanguage } = useThemeLanguage();
+  const { selectedUocId, uocs, setSelectedUoc } = useUoC();
 
   return (
     <header className="page-header">
@@ -25,6 +27,31 @@ export default function Header({ title, subtitle, onToggleSidebar }: HeaderProps
         </div>
       </div>
       <div className="flex items-center gap-3">
+        {uocs.length > 0 && (
+          <select
+            value={selectedUocId}
+            onChange={e => {
+              const uoc = uocs.find(u => u.id === e.target.value);
+              setSelectedUoc(e.target.value, uoc?.name || '');
+            }}
+            style={{
+              background: 'var(--surface-1)',
+              border: '1px solid var(--border-color)',
+              color: 'var(--text-primary)',
+              padding: '0.4rem 0.75rem',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              maxWidth: '200px'
+            }}
+          >
+            <option value="">🌐 Todas las UoCs</option>
+            {uocs.map(u => (
+              <option key={u.id} value={u.id}>🏭 {u.name.length > 25 ? u.name.slice(0,25) + '...' : u.name}</option>
+            ))}
+          </select>
+        )}
+
         {/* Search */}
         <div className="relative">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="absolute left-3 top-2.5 text-muted" style={{ width: '16px', height: '16px' }}>

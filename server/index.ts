@@ -21,6 +21,9 @@ import usersRoutes from './src/routes/users.routes';
 import dashboardRoutes from './src/routes/dashboard.routes';
 import complianceRoutes from './src/routes/compliance.routes';
 import auditsRoutes from './src/routes/audits.routes';
+import sccRoutes from './src/routes/scc.routes';
+import stakeholdersRoutes from './src/routes/stakeholders.routes';
+import alertsRoutes from './src/routes/alerts.routes';
 
 // Ensure uploads folder exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -60,6 +63,9 @@ app.use('/api/users', usersRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/audits', auditsRoutes);
+app.use('/api/scc', sccRoutes);
+app.use('/api/stakeholders', stakeholdersRoutes);
+app.use('/api/alerts', alertsRoutes);
 
 // File Upload Endpoint
 app.post('/api/upload', upload.single('file'), (req, res) => {

@@ -4,7 +4,7 @@ import { useThemeLanguage } from '../components/ThemeLanguageContext';
 import api from '../api';
 
 interface DashboardProps {
-  onNavigate: (module: 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'users') => void;
+  onNavigate: (module: 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'users' | 'scc' | 'stakeholders') => void;
 }
 
 interface Stats {
@@ -47,6 +47,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [complianceStatuses, setComplianceStatuses] = useState<StandardCompliance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [sccStats, setSccStats] = useState<{ uocCount: number; txCount: number; stCount: number } | null>(null);
   const { t, language } = useThemeLanguage();
 
   const fetchDashboardData = async () => {
@@ -60,6 +61,13 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       setStats(statsRes.data);
       setActivities(activitiesRes.data);
       setComplianceStatuses(complianceRes.data);
+      try {
+        const [sccDash, stResp] = await Promise.all([
+          api.get('/scc/dashboard'),
+          api.get('/stakeholders')
+        ]);
+        setSccStats({ uocCount: sccDash.data.uocCount, txCount: sccDash.data.volumes?.length || 0, stCount: stResp.data.length });
+      } catch (e) { /* SCC module may not be seeded yet */ }
     } catch (error) {
       console.error('Error al cargar datos del dashboard', error);
     } finally {
@@ -172,6 +180,35 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         </div>
       </div>
 
+      {sccStats && (
+      <div>
+        <h3 className="text-lg font-bold text-primary mb-4">RSPO — Cadena de Suministro (SCC)</h3>
+        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+          <div className="card" style={{ borderLeft: '4px solid #65a30d' }}>
+            <span className="text-sm text-secondary font-medium uppercase tracking-wide">Unidades de Certificación</span>
+            <div className="flex items-end justify-between mt-3">
+              <span className="text-3xl font-bold text-primary">{sccStats.uocCount}</span>
+              <span className="text-sm text-accent-green font-medium">UoCs activas</span>
+            </div>
+          </div>
+          <div className="card" style={{ borderLeft: '4px solid #2563eb' }}>
+            <span className="text-sm text-secondary font-medium uppercase tracking-wide">Transacciones SCC</span>
+            <div className="flex items-end justify-between mt-3">
+              <span className="text-3xl font-bold text-primary">{sccStats.txCount}</span>
+              <span className="text-sm text-accent-blue font-medium">IP · SG · MB · BC</span>
+            </div>
+          </div>
+          <div className="card" style={{ borderLeft: '4px solid #d97706' }}>
+            <span className="text-sm text-secondary font-medium uppercase tracking-wide">Partes Interesadas</span>
+            <div className="flex items-end justify-between mt-3">
+              <span className="text-3xl font-bold text-primary">{sccStats.stCount}</span>
+              <span className="text-sm text-secondary font-medium">Stakeholders</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      )}
+
       {/* Compliance by Standard */}
       <div>
         <h3 className="text-lg font-bold text-primary mb-4">{t('dash.complianceByStd')}</h3>
@@ -271,6 +308,14 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             <button className="btn btn-secondary w-full justify-start" onClick={() => onNavigate('automation')}>
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '18px', height: '18px', marginRight: '8px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
               {t('dash.createActionPlan')}
+            </button>
+            <button className="btn btn-secondary w-full justify-start" onClick={() => onNavigate('scc')}>
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '18px', height: '18px', marginRight: '8px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+              Cadena SCC (RSPO)
+            </button>
+            <button className="btn btn-secondary w-full justify-start" onClick={() => onNavigate('stakeholders')}>
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '18px', height: '18px', marginRight: '8px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              Partes Interesadas
             </button>
           </div>
           

@@ -93,17 +93,19 @@ export const standards: Standard[] = [
   },
   {
     id: 'RSPO',
-    name: 'RSPO',
-    fullName: 'Roundtable on Sustainable Palm Oil',
-    description: 'Cadena de suministro responsable',
+    name: 'RSPO P&C 2024',
+    fullName: 'RSPO Principles & Criteria 2024',
+    description: 'Aceite de palma sostenible — Principios y Criterios RSPO 2024 (7 Principios, 162 Indicadores)',
     color: '#65a30d',
     icon: 'RSPO',
     requirements: [
-      { id: 'r1', clause: '1.0', title: 'Transparencia', description: 'Compromiso con la transparencia', status: 'compliant', evidenceCount: 2 },
-      { id: 'r2', clause: '2.0', title: 'Leyes y Regulaciones', description: 'Cumplimiento de leyes aplicables', status: 'compliant', evidenceCount: 5 },
-      { id: 'r3', clause: '3.0', title: 'Viabilidad Económica', description: 'Plan de viabilidad a largo plazo', status: 'pending', evidenceCount: 0 },
-      { id: 'r4', clause: '4.0', title: 'Mejores Prácticas', description: 'Prácticas agrícolas y de molienda', status: 'partial', evidenceCount: 3 },
-      { id: 'r5', clause: '5.0', title: 'Responsabilidad Ambiental', description: 'Conservación de recursos naturales', status: 'compliant', evidenceCount: 6 }
+      { id: 'r1', clause: '1.1.1', title: 'Politica de divulgacion publica', description: 'La UoC cuenta con una politica de transparencia y divulgacion publica aprobada por la alta direccion.', status: 'compliant', evidenceCount: 2 },
+      { id: 'r2', clause: '2.1.1', title: 'Cumplimiento legal', description: 'Se identifican y cumplen todas las leyes, regulaciones y requisitos aplicables.', status: 'compliant', evidenceCount: 5 },
+      { id: 'r3', clause: '3.1.1', title: 'Plan de negocios', description: 'Existe un plan de negocios o de gestion a mediano/largo plazo.', status: 'compliant', evidenceCount: 1 },
+      { id: 'r4', clause: '4.1.1', title: 'Evaluacion de impacto social', description: 'Se realiza una evaluacion de impacto social y de derechos humanos.', status: 'partial', evidenceCount: 3 },
+      { id: 'r5', clause: '5.1.1', title: 'Apoyo a pequenos productores', description: 'Existen procesos para conducta justa y transparente con pequenos productores.', status: 'pending', evidenceCount: 0 },
+      { id: 'r6', clause: '6.1.1', title: 'Politica de no discriminacion', description: 'Existe politica de no discriminacion e igualdad de oportunidades.', status: 'compliant', evidenceCount: 4 },
+      { id: 'r7', clause: '7.1.1', title: 'Plan MIP', description: 'Existe un plan de Manejo Integrado de Plagas.', status: 'compliant', evidenceCount: 6 }
     ]
   }
 ];

@@ -9,13 +9,17 @@ import Evidence from './modules/Evidence';
 import Automation from './modules/Automation';
 import Audits from './modules/Audits';
 import Users from './modules/Users';
+import Scc from './modules/Scc';
+import Stakeholders from './modules/Stakeholders';
+import Alerts from './modules/Alerts';
 import Toast from './components/Toast';
 import Login from './modules/Login';
 import { ToastProvider, useToast } from './components/ToastContext';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ThemeLanguageProvider, useThemeLanguage } from './components/ThemeLanguageContext';
+import { UoCProvider } from './components/UoCContext';
 
-type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users';
+type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users' | 'scc' | 'stakeholders' | 'alerts';
 
 function AppContent() {
   const [activeModule, setActiveModule] = useState<ModuleId>('dashboard');
@@ -50,6 +54,12 @@ function AppContent() {
         return <Audits />;
       case 'users':
         return <Users />;
+      case 'scc':
+        return <Scc />;
+      case 'stakeholders':
+        return <Stakeholders />;
+      case 'alerts':
+        return <Alerts />;
       default:
         return <Dashboard onNavigate={setActiveModule} />;
     }
@@ -64,7 +74,10 @@ function AppContent() {
       evidence: { title: t('title.evidence'), subtitle: t('subtitle.evidence') },
       automation: { title: t('title.automation'), subtitle: t('subtitle.automation') },
       audits: { title: t('title.audits'), subtitle: t('subtitle.audits') },
-      users: { title: t('title.users'), subtitle: t('subtitle.users') }
+      users: { title: t('title.users'), subtitle: t('subtitle.users') },
+      scc: { title: t('title.scc'), subtitle: t('subtitle.scc') },
+      stakeholders: { title: t('title.stakeholders'), subtitle: t('subtitle.stakeholders') },
+      alerts: { title: t('title.alerts'), subtitle: t('subtitle.alerts') }
     };
     return titles[activeModule];
   };
@@ -100,9 +113,11 @@ function App() {
   return (
     <ThemeLanguageProvider>
       <AuthProvider>
-        <ToastProvider>
-          <AppContent />
-        </ToastProvider>
+        <UoCProvider>
+          <ToastProvider>
+            <AppContent />
+          </ToastProvider>
+        </UoCProvider>
       </AuthProvider>
     </ThemeLanguageProvider>
   );

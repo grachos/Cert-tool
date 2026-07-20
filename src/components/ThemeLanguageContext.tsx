@@ -14,6 +14,9 @@ const translations = {
     'nav.automation': 'Automatización',
     'nav.audits': 'Auditorías',
     'nav.users': 'Usuarios',
+    'nav.scc': 'Cadena SCC',
+    'nav.stakeholders': 'Partes Interesadas',
+    'nav.alerts': 'Alertas',
     'nav.logout': 'Cerrar Sesión',
     
     'title.dashboard': 'Panel Principal',
@@ -32,6 +35,12 @@ const translations = {
     'subtitle.audits': 'Gestión de no conformidades validadas por IA',
     'title.users': 'Administración de Usuarios',
     'subtitle.users': 'Gestión de accesos y roles del sistema',
+    'title.scc': 'Cadena de Suministro SCC',
+    'subtitle.scc': 'Trazabilidad y modelos de suministro RSPO (IP, SG, MB, BC)',
+    'title.stakeholders': 'Partes Interesadas',
+    'subtitle.stakeholders': 'Registro y gestión de partes interesadas',
+    'title.alerts': 'Alertas y Notificaciones',
+    'subtitle.alerts': 'Sistema de notificaciones y seguimiento de alertas',
 
     // Dashboard
     'dash.compliance': 'Cumplimiento Global',
@@ -199,6 +208,9 @@ const translations = {
     'nav.automation': 'Automation',
     'nav.audits': 'Audits',
     'nav.users': 'Users',
+    'nav.scc': 'SCC Chain',
+    'nav.stakeholders': 'Stakeholders',
+    'nav.alerts': 'Alerts',
     'nav.logout': 'Log Out',
     
     'title.dashboard': 'Dashboard',
@@ -217,6 +229,12 @@ const translations = {
     'subtitle.audits': 'Management of non-conformances validated by AI',
     'title.users': 'User Administration',
     'subtitle.users': 'Manage system access and roles',
+    'title.scc': 'SCC Supply Chain',
+    'subtitle.scc': 'Traceability and RSPO supply models (IP, SG, MB, BC)',
+    'title.stakeholders': 'Stakeholders',
+    'subtitle.stakeholders': 'Stakeholder registry and engagement tracking',
+    'title.alerts': 'Alerts & Notifications',
+    'subtitle.alerts': 'System alerts and notification tracking',
 
     // Dashboard
     'dash.compliance': 'Overall Compliance',

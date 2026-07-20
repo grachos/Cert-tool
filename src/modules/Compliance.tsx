@@ -62,6 +62,9 @@ export default function Compliance() {
   const [reqDescription, setReqDescription] = useState('');
   const [reqStatus, setReqStatus] = useState<'COMPLIANT' | 'NON_COMPLIANT' | 'PARTIAL' | 'PENDING'>('PENDING');
 
+  const [expandedPrinciple, setExpandedPrinciple] = useState<string | null>(null);
+  const [principleFilter, setPrincipleFilter] = useState<string>('all');
+
   const fetchCompliance = async () => {
     try {
       setIsLoading(true);
@@ -212,6 +215,141 @@ export default function Compliance() {
     }
   };
 
+  const principleColors: Record<string, string> = {
+    '1': '#2563eb', '2': '#7c3aed', '3': '#0891b2',
+    '4': '#d97706', '5': '#65a30d', '6': '#dc2626', '7': '#16a34a'
+  };
+  const principleNames: Record<string, string> = {
+    '1': 'P1 — Ética y Transparencia', '2': 'P2 — Legalidad y Derechos',
+    '3': 'P3 — Productividad y Resiliencia', '4': 'P4 — Comunidad y DDHH',
+    '5': 'P5 — Inclusión Pequeños Productores', '6': 'P6 — Derechos de Trabajadores',
+    '7': 'P7 — Medio Ambiente y Clima'
+  };
+
+  const renderRspoDetail = () => {
+    if (!standardDetail) return null;
+    const reqs = standardDetail.requirements;
+    const grouped: Record<string, Requirement[]> = {};
+    reqs.forEach(r => {
+      const p = r.clause.split('.')[0];
+      if (!grouped[p]) grouped[p] = [];
+      grouped[p].push(r);
+    });
+
+    const filteredReqs = principleFilter === 'all' ? reqs : (grouped[principleFilter] || []);
+
+    return (
+      <div className="flex-col gap-4">
+        <div className="flex gap-2 flex-wrap">
+          <button className={`btn ${principleFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '4px 12px', fontSize: '0.8rem' }} onClick={() => { setPrincipleFilter('all'); setExpandedPrinciple(null); }}>
+            Todos ({reqs.length})
+          </button>
+          {Object.keys(principleNames).map(p => {
+            const g = grouped[p] || [];
+            const compliant = g.filter(r => r.status === 'COMPLIANT').length;
+            const score = g.length > 0 ? Math.round((compliant / g.length) * 100) : 0;
+            return (
+              <button key={p} className={`btn ${principleFilter === p ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '4px 12px', fontSize: '0.8rem', borderColor: principleColors[p], color: principleFilter === p ? '#fff' : principleColors[p] }}
+                onClick={() => { setPrincipleFilter(p); setExpandedPrinciple(null); }}>
+                P{p} ({g.length}) {score}%
+              </button>
+            );
+          })}
+        </div>
+
+        {principleFilter === 'all' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Object.entries(principleNames).map(([p, name]) => {
+              const g = grouped[p] || [];
+              const compliant = g.filter(r => r.status === 'COMPLIANT').length;
+              const partial = g.filter(r => r.status === 'PARTIAL').length;
+              const non = g.filter(r => r.status === 'NON_COMPLIANT').length;
+              const pending = g.filter(r => r.status === 'PENDING').length;
+              const score = g.length > 0 ? Math.round(((compliant + partial * 0.5) / g.length) * 100) : 0;
+              return (
+                <div key={p} className="card cursor-pointer" style={{ borderLeft: `4px solid ${principleColors[p]}` }}
+                  onClick={() => setExpandedPrinciple(expandedPrinciple === p ? null : p)}>
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-col">
+                      <h4 className="font-bold text-sm">{name}</h4>
+                      <span className="text-xs text-secondary">{g.length} indicadores</span>
+                    </div>
+                    <span className="text-xl font-bold" style={{ color: principleColors[p] }}>{score}%</span>
+                  </div>
+                  <div className="w-full bg-surface-2 h-2 rounded-full overflow-hidden mb-2">
+                    <div className="h-full rounded-full" style={{ width: `${score}%`, background: principleColors[p] }} />
+                  </div>
+                  <div className="flex gap-2 text-xs">
+                    <span style={{ color: 'var(--g)' }}>{compliant} C</span>
+                    <span style={{ color: 'var(--y)' }}>{partial} P</span>
+                    <span style={{ color: 'var(--r)' }}>{non} NC</span>
+                    {pending > 0 && <span className="text-muted">{pending} Pend</span>}
+                  </div>
+                  {expandedPrinciple === p && (
+                    <div className="mt-3 border-t pt-3 flex-col gap-2" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                      {g.map(r => (
+                        <div key={r.id} className="flex justify-between items-center text-sm" style={{ padding: '4px 0', borderBottom: '1px solid var(--border-color)' }}>
+                          <div>
+                            <span className="mono text-xs" style={{ color: principleColors[p] }}>{r.clause}</span>
+                            <span className="ml-2">{r.title}</span>
+                          </div>
+                          {getStatusBadge(r.status)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="card p-0 overflow-hidden border">
+            <div className="p-4 bg-surface-1 border-b flex justify-between items-center">
+              <h3 className="font-bold" style={{ color: principleColors[principleFilter] }}>
+                {principleNames[principleFilter]} — {filteredReqs.length} indicadores
+              </h3>
+            </div>
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-white border-b">
+                  <th className="p-3 text-xs font-bold text-secondary uppercase">Cláusula</th>
+                  <th className="p-3 text-xs font-bold text-secondary uppercase">Indicador</th>
+                  <th className="p-3 text-xs font-bold text-secondary uppercase">Estado</th>
+                  <th className="p-3 text-xs font-bold text-secondary uppercase">Evid.</th>
+                  {isAdmin && <th className="p-3 text-xs font-bold text-secondary uppercase">Acciones</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredReqs.map(req => (
+                  <tr key={req.id} className="border-b hover:bg-surface-1">
+                    <td className="p-3 font-mono text-sm text-secondary">{req.clause}</td>
+                    <td className="p-3">
+                      <div className="flex-col">
+                        <span className="font-semibold text-sm">{req.title}</span>
+                        <span className="text-xs text-secondary">{req.description}</span>
+                      </div>
+                    </td>
+                    <td className="p-3">{getStatusBadge(req.status)}</td>
+                    <td className="p-3"><span className="text-sm font-medium">{req.evidenceCount}</span></td>
+                    {isAdmin && (
+                      <td className="p-3">
+                        <div className="flex gap-1">
+                          <button className="btn btn-sm btn-secondary" onClick={() => openEditReqModal(req)} style={{ padding: '2px 6px' }}>✏️</button>
+                          <button className="btn btn-sm btn-secondary" onClick={() => handleDeleteRequirement(req.id)} style={{ padding: '2px 6px', color: 'var(--r)' }}>🗑️</button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex-col gap-6 animate-fade-in">
       
@@ -316,7 +454,8 @@ export default function Compliance() {
                   <button className="btn btn-primary no-print">{t('compliance.evalBtn')}</button>
                 </div>
               </div>
-              
+
+              {selectedStandard === 'RSPO' ? renderRspoDetail() : (
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-white border-b border-gray-200">
@@ -362,6 +501,7 @@ export default function Compliance() {
                   ))}
                 </tbody>
               </table>
+              )}
             </div>
           )}
         </div>
