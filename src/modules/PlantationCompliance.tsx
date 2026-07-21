@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useUoc } from '../components/UoCContext';
 
 type PlantTab = 'panorama' | 'bpa' | 'mantenimiento' | 'sanidad' | 'documental';
 
@@ -51,14 +52,15 @@ const saniRecords: SaniRecord[] = [
 ];
 
 const docs = [
-  { doc: 'Plan de manejo agrícola', plantation: 'San Miguel', version: '3.2', validity: '2027-06-01', owner: 'Ing. Agrónomo San Miguel', status: 'Vigente' },
-  { doc: 'Inventario de agroquímicos', plantation: 'Todas', version: '2.1', validity: '2027-03-15', owner: 'Coordinador Ambiental', status: 'Vigente' },
-  { doc: 'Matriz legal', plantation: 'Todas', version: '4.0', validity: '2026-12-01', owner: 'Jurídica', status: 'Vigente' },
-  { doc: 'Plan de manejo agrícola', plantation: 'Palmas del Río', version: '1.5', validity: '2026-09-01', owner: 'Técnico Palmas del Río', status: 'Por actualizar' },
-  { doc: 'Procedimiento de fertilización', plantation: 'El Roble', version: '2.0', validity: '2027-01-15', owner: 'Ing. Agrónomo El Roble', status: 'Vigente' },
+  { id: 'doc-1', doc: 'Plan de manejo agrícola', plantation: 'San Miguel', version: '3.2', validity: '2027-06-01', owner: 'Ing. Agrónomo San Miguel', status: 'Vigente' },
+  { id: 'doc-2', doc: 'Inventario de agroquímicos', plantation: 'Todas', version: '2.1', validity: '2027-03-15', owner: 'Coordinador Ambiental', status: 'Vigente' },
+  { id: 'doc-3', doc: 'Matriz legal', plantation: 'Todas', version: '4.0', validity: '2026-12-01', owner: 'Jurídica', status: 'Vigente' },
+  { id: 'doc-4', doc: 'Plan de manejo agrícola', plantation: 'Palmas del Río', version: '1.5', validity: '2026-09-01', owner: 'Técnico Palmas del Río', status: 'Por actualizar' },
+  { id: 'doc-5', doc: 'Procedimiento de fertilización', plantation: 'El Roble', version: '2.0', validity: '2027-01-15', owner: 'Ing. Agrónomo El Roble', status: 'Vigente' },
 ];
 
 export default function PlantationCompliance() {
+  const { selectedUoc } = useUoc();
   const [activeTab, setActiveTab] = useState<PlantTab>('panorama');
 
   const tabs: { id: PlantTab; label: string }[] = [
@@ -78,8 +80,19 @@ export default function PlantationCompliance() {
   const totalCritical = plantations.reduce((s, p) => s + p.critical, 0);
   const totalArea = plantations.reduce((s, p) => s + p.area, 0);
 
+  const isMillOnly = selectedUoc?.type === 'MILL';
+
   const renderPanorama = () => (
     <div className="flex-col gap-6">
+      {isMillOnly && (
+        <div className="card p-4 flex items-center gap-3 border-l-4" style={{ background: 'var(--surface-2)', borderLeftColor: 'var(--accent-gold)' }}>
+          <div className="text-xl">ℹ️</div>
+          <div>
+            <h4 className="font-bold text-sm text-primary">Alcance N/A para esta Unidad de Certificación</h4>
+            <p className="text-xs text-secondary mt-0.5">La UoC seleccionada <b>"{selectedUoc?.name}"</b> es de tipo <b>Solo Planta Extractora</b>. Las labores agronómicas de campo se administran en sus UoCs proveedoras de frutos.</p>
+          </div>
+        </div>
+      )}
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
         <div className="card"><div className="text-sm text-secondary font-medium uppercase">Plantaciones</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{plantations.length}</span><span className="text-sm text-muted">{totalArea.toLocaleString()} ha</span></div></div>
         <div className="card"><div className="text-sm text-secondary font-medium uppercase">Cumplimiento Promedio</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-blue)' }}>{avgComp}%</span><span className="text-sm text-muted">P&C 2024</span></div></div>
@@ -87,16 +100,39 @@ export default function PlantationCompliance() {
         <div className="card"><div className="text-sm text-secondary font-medium uppercase">En Riesgo</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-gold)' }}>{plantations.filter(p => p.status !== 'Lista').length}</span><span className="text-sm text-muted">Plantaciones</span></div></div>
       </div>
       <div className="card p-0 overflow-hidden">
-        <table className="w-full text-left">
-          <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Plantación</th><th className="p-4 text-xs font-bold text-secondary uppercase">Tipo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Área (ha)</th><th className="p-4 text-xs font-bold text-secondary uppercase">Cumplimiento</th><th className="p-4 text-xs font-bold text-secondary uppercase">Críticos</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left min-w-[600px]">
+            <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Plantación</th><th className="p-4 text-xs font-bold text-secondary uppercase">Tipo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Área (ha)</th><th className="p-4 text-xs font-bold text-secondary uppercase">Cumplimiento</th><th className="p-4 text-xs font-bold text-secondary uppercase">Críticos</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
+            <tbody>
+              {plantations.map(p => (
+                <tr key={p.id} className="border-b hover:bg-surface-1">
+                  <td className="p-4 font-semibold text-sm">{p.name}</td><td className="p-4 text-sm text-secondary">{p.type}</td>
+                  <td className="p-4 text-sm">{p.area.toLocaleString()}</td>
+                  <td className="p-4"><div className="flex items-center gap-2"><div className="w-16 bg-surface-2 h-1.5 rounded-full"><div className="h-full rounded-full" style={{ width: `${p.compliance}%`, background: 'var(--accent-blue)' }} /></div><span className="text-sm font-bold">{p.compliance}%</span></div></td>
+                  <td className="p-4 text-sm font-bold" style={{ color: p.critical > 0 ? 'var(--accent-red)' : 'var(--accent-green)' }}>{p.critical > 0 ? p.critical : '—'}</td>
+                  <td className="p-4">{getStatusBadge(p.status)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderFieldTable = (records: FieldRecord[]) => (
+    <div className="card p-0 overflow-hidden">
+      <div className="overflow-x-auto w-full">
+        <table className="w-full text-left min-w-[700px]">
+          <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Labor</th><th className="p-4 text-xs font-bold text-secondary uppercase">Plantación</th><th className="p-4 text-xs font-bold text-secondary uppercase">Lote</th><th className="p-4 text-xs font-bold text-secondary uppercase">Área (ha)</th><th className="p-4 text-xs font-bold text-secondary uppercase">Cuadrilla</th><th className="p-4 text-xs font-bold text-secondary uppercase">Fecha</th><th className="p-4 text-xs font-bold text-secondary uppercase">Meta</th><th className="p-4 text-xs font-bold text-secondary uppercase">Resultado</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
           <tbody>
-            {plantations.map(p => (
-              <tr key={p.id} className="border-b hover:bg-surface-1">
-                <td className="p-4 font-semibold text-sm">{p.name}</td><td className="p-4 text-sm text-secondary">{p.type}</td>
-                <td className="p-4 text-sm">{p.area.toLocaleString()}</td>
-                <td className="p-4"><div className="flex items-center gap-2"><div className="w-16 bg-surface-2 h-1.5 rounded-full"><div className="h-full rounded-full" style={{ width: `${p.compliance}%`, background: 'var(--accent-blue)' }} /></div><span className="text-sm font-bold">{p.compliance}%</span></div></td>
-                <td className="p-4 text-sm font-bold" style={{ color: p.critical > 0 ? 'var(--accent-red)' : 'var(--accent-green)' }}>{p.critical > 0 ? p.critical : '—'}</td>
-                <td className="p-4">{getStatusBadge(p.status)}</td>
+            {records.map(r => (
+              <tr key={r.id} className="border-b hover:bg-surface-1">
+                <td className="p-4 font-semibold text-sm">{r.task}</td><td className="p-4 text-sm text-secondary">{r.plantation}</td>
+                <td className="p-4 text-sm font-mono">{r.lot}</td><td className="p-4 text-sm">{r.area}</td>
+                <td className="p-4 text-sm">{r.crew}</td><td className="p-4 text-sm">{r.date}</td>
+                <td className="p-4 text-sm">{r.meta}</td><td className="p-4 text-sm font-medium">{r.result}</td>
+                <td className="p-4">{getStatusBadge(r.status)}</td>
               </tr>
             ))}
           </tbody>
@@ -105,28 +141,9 @@ export default function PlantationCompliance() {
     </div>
   );
 
-  const renderFieldTable = (records: FieldRecord[]) => (
-    <div className="card p-0 overflow-hidden">
-      <table className="w-full text-left">
-        <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Labor</th><th className="p-4 text-xs font-bold text-secondary uppercase">Plantación</th><th className="p-4 text-xs font-bold text-secondary uppercase">Lote</th><th className="p-4 text-xs font-bold text-secondary uppercase">Área (ha)</th><th className="p-4 text-xs font-bold text-secondary uppercase">Cuadrilla</th><th className="p-4 text-xs font-bold text-secondary uppercase">Fecha</th><th className="p-4 text-xs font-bold text-secondary uppercase">Meta</th><th className="p-4 text-xs font-bold text-secondary uppercase">Resultado</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
-        <tbody>
-          {records.map(r => (
-            <tr key={r.id} className="border-b hover:bg-surface-1">
-              <td className="p-4 font-semibold text-sm">{r.task}</td><td className="p-4 text-sm text-secondary">{r.plantation}</td>
-              <td className="p-4 text-sm font-mono">{r.lot}</td><td className="p-4 text-sm">{r.area}</td>
-              <td className="p-4 text-sm">{r.crew}</td><td className="p-4 text-sm">{r.date}</td>
-              <td className="p-4 text-sm">{r.meta}</td><td className="p-4 text-sm font-medium">{r.result}</td>
-              <td className="p-4">{getStatusBadge(r.status)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-
   return (
     <div className="flex-col gap-6 animate-fade-in">
-      <div className="flex gap-1" style={{ borderBottom: '2px solid var(--border-color)', paddingBottom: '0' }}>
+      <div className="flex gap-1 flex-wrap overflow-x-auto" style={{ borderBottom: '2px solid var(--border-color)', paddingBottom: '0' }}>
         {tabs.map(tab => (
           <button key={tab.id} className={activeTab === tab.id ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
             style={{ borderRadius: '6px 6px 0 0' }} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>
@@ -153,20 +170,22 @@ export default function PlantationCompliance() {
         <div className="flex-col gap-4">
           <h3 className="text-lg font-bold text-primary">Sanidad Vegetal</h3>
           <div className="card p-0 overflow-hidden">
-            <table className="w-full text-left">
-              <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Producto / Insumo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Tipo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Dosis</th><th className="p-4 text-xs font-bold text-secondary uppercase">Lote</th><th className="p-4 text-xs font-bold text-secondary uppercase">Responsable Técnico</th><th className="p-4 text-xs font-bold text-secondary uppercase">Fecha</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
-              <tbody>
-                {saniRecords.map(r => (
-                  <tr key={r.id} className="border-b hover:bg-surface-1">
-                    <td className="p-4 font-semibold text-sm">{r.product}</td><td className="p-4 text-sm">{r.type}</td>
-                    <td className="p-4 text-sm font-mono">{r.dose}</td><td className="p-4 text-sm">{r.lot}</td>
-                    <td className="p-4 text-sm text-secondary">{r.technician}</td>
-                    <td className="p-4 text-sm">{r.date}</td>
-                    <td className="p-4">{getStatusBadge(r.status)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left min-w-[600px]">
+                <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Producto / Insumo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Tipo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Dosis</th><th className="p-4 text-xs font-bold text-secondary uppercase">Lote</th><th className="p-4 text-xs font-bold text-secondary uppercase">Responsable Técnico</th><th className="p-4 text-xs font-bold text-secondary uppercase">Fecha</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
+                <tbody>
+                  {saniRecords.map(r => (
+                    <tr key={r.id} className="border-b hover:bg-surface-1">
+                      <td className="p-4 font-semibold text-sm">{r.product}</td><td className="p-4 text-sm">{r.type}</td>
+                      <td className="p-4 text-sm font-mono">{r.dose}</td><td className="p-4 text-sm">{r.lot}</td>
+                      <td className="p-4 text-sm text-secondary">{r.technician}</td>
+                      <td className="p-4 text-sm">{r.date}</td>
+                      <td className="p-4">{getStatusBadge(r.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -175,19 +194,21 @@ export default function PlantationCompliance() {
         <div className="flex-col gap-4">
           <h3 className="text-lg font-bold text-primary">Control Documental</h3>
           <div className="card p-0 overflow-hidden">
-            <table className="w-full text-left">
-              <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Documento</th><th className="p-4 text-xs font-bold text-secondary uppercase">Plantación</th><th className="p-4 text-xs font-bold text-secondary uppercase">Versión</th><th className="p-4 text-xs font-bold text-secondary uppercase">Vigencia</th><th className="p-4 text-xs font-bold text-secondary uppercase">Propietario</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
-              <tbody>
-                {docs.map(d => (
-                  <tr key={d.doc} className="border-b hover:bg-surface-1">
-                    <td className="p-4 font-semibold text-sm">{d.doc}</td><td className="p-4 text-sm text-secondary">{d.plantation}</td>
-                    <td className="p-4 text-sm font-mono">{d.version}</td><td className="p-4 text-sm">{d.validity}</td>
-                    <td className="p-4 text-sm">{d.owner}</td>
-                    <td className="p-4">{getStatusBadge(d.status)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left min-w-[600px]">
+                <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Documento</th><th className="p-4 text-xs font-bold text-secondary uppercase">Plantación</th><th className="p-4 text-xs font-bold text-secondary uppercase">Versión</th><th className="p-4 text-xs font-bold text-secondary uppercase">Vigencia</th><th className="p-4 text-xs font-bold text-secondary uppercase">Propietario</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
+                <tbody>
+                  {docs.map(d => (
+                    <tr key={d.id} className="border-b hover:bg-surface-1">
+                      <td className="p-4 font-semibold text-sm">{d.doc}</td><td className="p-4 text-sm text-secondary">{d.plantation}</td>
+                      <td className="p-4 text-sm font-mono">{d.version}</td><td className="p-4 text-sm">{d.validity}</td>
+                      <td className="p-4 text-sm">{d.owner}</td>
+                      <td className="p-4">{getStatusBadge(d.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

@@ -176,7 +176,7 @@ export default function Evidence() {
         ))}
       </div>
 
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-2">
         <h3 className="text-lg font-bold text-primary">
           {language === 'es' ? 'Repositorio de Evidencias' : 'Evidence Repository'} - {activeTab}
         </h3>

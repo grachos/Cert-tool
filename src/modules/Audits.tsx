@@ -170,7 +170,7 @@ export default function Audits() {
       {!selectedAudit ? (
         // AUDITS LIST VIEW
         <div className="card p-0 overflow-hidden">
-          <div className="p-6 border-b border-gray-200 bg-surface-1 flex justify-between items-center">
+          <div className="p-6 border-b border-gray-200 bg-surface-1 flex justify-between items-center flex-wrap gap-2">
             <h2 className="text-xl font-bold text-primary">{t('audits.listTitle')}</h2>
             {(user?.role === 'ADMIN' || user?.role === 'AUDITOR' || user?.role === 'MANAGER') && (
               <button className="btn btn-primary" onClick={() => setShowNewAuditModal(true)}>
@@ -179,8 +179,8 @@ export default function Audits() {
             )}
           </div>
           
-          <div className="p-0 table-container">
-            <table className="data-table w-full text-left">
+          <div className="p-0 table-container overflow-x-auto w-full">
+            <table className="data-table w-full text-left min-w-[600px]">
               <thead>
                 <tr>
                   <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('audits.thTitle')}</th>

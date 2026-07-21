@@ -5,12 +5,21 @@ import { useThemeLanguage } from '../components/ThemeLanguageContext';
 import api from '../api';
 
 export default function Documents() {
+  const [activeTab, setActiveTab] = useState<'docs' | 'legal'>('docs');
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<StandardId | 'Todos'>('Todos');
   const [showUpload, setShowUpload] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const { t, language } = useThemeLanguage();
+
+  // Legal Matrix M2 State
+  const [legalMatrix] = useState([
+    { id: 'l1', title: 'Concesión de Aguas Subterráneas', entity: 'CORPOAMAZONIA / CAR', permitNumber: 'RES-2023-4589', issueDate: '2023-05-15', expiryDate: '2026-08-15', category: 'Recurso Hídrico', status: 'POR_VENCER', daysLeft: 25, owner: 'Dpto. Ambiental' },
+    { id: 'l2', title: 'Permiso de Vertimientos de Aguas Residuales', entity: 'Autoridad Ambiental Regional', permitNumber: 'VERT-2024-089', issueDate: '2024-02-10', expiryDate: '2027-02-10', category: 'Vertimientos', status: 'VIGENTE', daysLeft: 205, owner: 'Dpto. Ambiental' },
+    { id: 'l3', title: 'Licencia Ambiental Planta Extractora', entity: 'Ministerio de Ambiente', permitNumber: 'LA-2022-0012', issueDate: '2022-01-20', expiryDate: '2032-01-20', category: 'Licencia Ambiental', status: 'VIGENTE', daysLeft: 2010, owner: 'Gerencia Jurídica' },
+    { id: 'l4', title: 'Verificación de Contratistas Laborales (SST)', entity: 'Ministerio del Trabajo', permitNumber: 'REG-SST-2025', issueDate: '2025-01-05', expiryDate: '2026-06-30', category: 'Terceros / SST', status: 'VENCIDO', daysLeft: -20, owner: 'RRHH / SST' },
+  ]);
 
   // Upload States
   const [activeStandards, setActiveStandards] = useState<any[]>([]);
@@ -225,10 +234,20 @@ export default function Documents() {
 
   return (
     <div className="flex-col gap-6 animate-fade-in">
-      
-      {/* Header Controls */}
-      <div className="flex justify-between items-center bg-card p-4 rounded-lg border border-gray-200 shadow-sm">
-        <div className="flex gap-2">
+      <div className="flex gap-1 flex-wrap overflow-x-auto" style={{ borderBottom: '2px solid var(--border-color)', paddingBottom: '0' }}>
+        <button className={activeTab === 'docs' ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'} style={{ borderRadius: '6px 6px 0 0' }} onClick={() => setActiveTab('docs')}>
+          Control Documental
+        </button>
+        <button className={activeTab === 'legal' ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'} style={{ borderRadius: '6px 6px 0 0' }} onClick={() => setActiveTab('legal')}>
+          Matriz Legal y Licencias (M2 — Cumplimiento)
+        </button>
+      </div>
+
+      {activeTab === 'docs' && (
+        <>
+          {/* Header Controls */}
+          <div className="flex justify-between items-center flex-wrap gap-3 bg-card p-4 rounded-lg border border-gray-200 shadow-sm">
+        <div className="flex gap-2 flex-wrap">
           <button 
             className={`btn btn-sm ${filter === 'Todos' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setFilter('Todos')}
@@ -317,7 +336,8 @@ export default function Documents() {
           ) : filteredDocs.length === 0 ? (
             <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('docs.noDocs')}</div>
           ) : (
-            <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left border-collapse min-w-[600px]">
               <thead>
                 <tr className="bg-surface-1 border-b border-gray-200">
                   <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">{t('docs.thDoc')}</th>
@@ -371,6 +391,7 @@ export default function Documents() {
                 ))}
               </tbody>
             </table>
+          </div>
           )}
         </div>
 
@@ -552,6 +573,65 @@ export default function Documents() {
         )}
 
       </div>
+      </>
+      )}
+
+      {/* Matriz Legal M2 */}
+      {activeTab === 'legal' && (
+        <div className="flex-col gap-4">
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <div>
+              <h3 className="text-lg font-bold text-primary">Matriz de Cumplimiento Legal y Licencias (Principio 2 — M2)</h3>
+              <p className="text-xs text-secondary mt-0.5">Control de vigencia de permisos ambientales, laborales, de uso de agua y contratistas</p>
+            </div>
+            <button className="btn btn-primary" onClick={() => alert('Función de registro de licencia/permiso legal disponible')}>+ Registrar Licencia / Permiso</button>
+          </div>
+
+          <div className="card p-0 overflow-hidden">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left min-w-[700px]">
+                <thead>
+                  <tr className="bg-white border-b border-gray-200">
+                    <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Permiso / Licencia</th>
+                    <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Autoridad / Entidad</th>
+                    <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">No. Expediente</th>
+                    <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Categoría</th>
+                    <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Vencimiento</th>
+                    <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Responsable</th>
+                    <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {legalMatrix.map(item => (
+                    <tr key={item.id} className="border-b border-gray-100 hover:bg-surface-1">
+                      <td className="p-4 font-semibold text-sm text-primary">{item.title}</td>
+                      <td className="p-4 text-sm text-secondary">{item.entity}</td>
+                      <td className="p-4 text-sm font-mono text-secondary">{item.permitNumber}</td>
+                      <td className="p-4"><span className="badge" style={{ background: 'var(--accent-blue-light)', color: 'var(--accent-blue)' }}>{item.category}</span></td>
+                      <td className="p-4">
+                        <div className="flex-col">
+                          <span className="text-sm font-mono font-medium">{item.expiryDate}</span>
+                          <span className="text-xs text-secondary">{item.daysLeft > 0 ? `${item.daysLeft} días restantes` : 'Vencido'}</span>
+                        </div>
+                      </td>
+                      <td className="p-4 text-sm text-secondary">{item.owner}</td>
+                      <td className="p-4">
+                        {item.status === 'VIGENTE' ? (
+                          <span className="badge" style={{ background: 'var(--accent-green-bg)', color: 'var(--accent-green)' }}>Vigente</span>
+                        ) : item.status === 'POR_VENCER' ? (
+                          <span className="badge" style={{ background: 'var(--accent-gold-bg)', color: 'var(--accent-gold)' }}>Por Vencer</span>
+                        ) : (
+                          <span className="badge" style={{ background: 'var(--accent-red-bg)', color: 'var(--accent-red)' }}>Vencido</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showSignModal && signDoc && (
         <div className="modal-overlay flex-center" onClick={() => setShowSignModal(false)}>

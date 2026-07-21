@@ -49,32 +49,34 @@ export default function SupplyBase() {
         <div className="card"><div className="text-sm font-medium uppercase tracking-wide" style={{ color: 'var(--accent-red)' }}>Riesgo Alto / Crítico</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-red)' }}>{highRisk}</span><span className="text-sm text-muted">grupos</span></div></div>
       </div>
 
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-2">
         <h3 className="text-lg font-bold text-primary">Registro de Base de Suministro</h3>
         <span className="text-sm text-secondary">Avance promedio: <b style={{ color: 'var(--accent-blue)' }}>{avgProgress}%</b></span>
       </div>
 
       <div className="card p-0 overflow-hidden">
-        <table className="w-full text-left">
-          <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Unidad / Grupo</th><th className="p-4 text-xs font-bold text-secondary uppercase">ID</th><th className="p-4 text-xs font-bold text-secondary uppercase">Tipo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Área (ha)</th><th className="p-4 text-xs font-bold text-secondary uppercase">Predios</th><th className="p-4 text-xs font-bold text-secondary uppercase">Riesgo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Avance</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th><th className="p-4 text-xs font-bold text-secondary uppercase">Última Eval.</th></tr></thead>
-          <tbody>
-            {units.map(u => (
-              <tr key={u.id} className="border-b hover:bg-surface-1">
-                <td className="p-4 font-semibold text-sm">{u.name}</td>
-                <td className="p-4 text-sm font-mono text-secondary">{u.identifier}</td>
-                <td className="p-4 text-sm text-secondary">{u.type === 'propia' ? 'Propia' : u.type === 'tercero' ? 'Tercero' : u.type === 'asociacion' ? 'Asociación' : 'Grupo'}</td>
-                <td className="p-4 text-sm">{u.area.toLocaleString()}</td>
-                <td className="p-4 text-sm">{u.predios}</td>
-                <td className="p-4"><span className="badge" style={{ background: riskColors[u.riskLevel].bg, color: riskColors[u.riskLevel].color }}>{u.riskLevel.charAt(0).toUpperCase() + u.riskLevel.slice(1)}</span></td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2"><div className="w-16 bg-surface-2 h-1.5 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${u.progress}%`, background: 'var(--accent-blue)' }} /></div><span className="text-sm font-bold">{u.progress}%</span></div>
-                </td>
-                <td className="p-4"><span className="badge" style={{ background: u.status === 'Activa' ? 'var(--accent-green-bg)' : 'var(--accent-red-bg)', color: u.status === 'Activa' ? 'var(--accent-green)' : 'var(--accent-red)' }}>{u.status}</span></td>
-                <td className="p-4 text-sm text-secondary">{u.lastEvaluation}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left min-w-[700px]">
+            <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Unidad / Grupo</th><th className="p-4 text-xs font-bold text-secondary uppercase">ID</th><th className="p-4 text-xs font-bold text-secondary uppercase">Tipo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Área (ha)</th><th className="p-4 text-xs font-bold text-secondary uppercase">Predios</th><th className="p-4 text-xs font-bold text-secondary uppercase">Riesgo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Avance</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th><th className="p-4 text-xs font-bold text-secondary uppercase">Última Eval.</th></tr></thead>
+            <tbody>
+              {units.map(u => (
+                <tr key={u.id} className="border-b hover:bg-surface-1">
+                  <td className="p-4 font-semibold text-sm">{u.name}</td>
+                  <td className="p-4 text-sm font-mono text-secondary">{u.identifier}</td>
+                  <td className="p-4 text-sm text-secondary">{u.type === 'propia' ? 'Propia' : u.type === 'tercero' ? 'Tercero' : u.type === 'asociacion' ? 'Asociación' : 'Grupo'}</td>
+                  <td className="p-4 text-sm">{u.area.toLocaleString()}</td>
+                  <td className="p-4 text-sm">{u.predios}</td>
+                  <td className="p-4"><span className="badge" style={{ background: riskColors[u.riskLevel].bg, color: riskColors[u.riskLevel].color }}>{u.riskLevel.charAt(0).toUpperCase() + u.riskLevel.slice(1)}</span></td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-2"><div className="w-16 bg-surface-2 h-1.5 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${u.progress}%`, background: 'var(--accent-blue)' }} /></div><span className="text-sm font-bold">{u.progress}%</span></div>
+                  </td>
+                  <td className="p-4"><span className="badge" style={{ background: u.status === 'Activa' ? 'var(--accent-green-bg)' : 'var(--accent-red-bg)', color: u.status === 'Activa' ? 'var(--accent-green)' : 'var(--accent-red)' }}>{u.status}</span></td>
+                  <td className="p-4 text-sm text-secondary">{u.lastEvaluation}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

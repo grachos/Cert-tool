@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcrypt';
 import pool from '../db';
 import cache from '../cache';
+import { alertCriticoNoConforme } from '../alertUtils';
 
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_MINUTES = 5;
@@ -119,6 +120,10 @@ export const signDocument = async (req: Request, res: Response): Promise<void> =
     cache.del('documents_all');
     cache.del('dashboard_stats');
     cache.del('dashboard_activities');
+
+    if (action === 'REJECTED') {
+      alertCriticoNoConforme(docRows[0].id, docRows[0].name.split('|')[0], userName).catch(() => {});
+    }
 
     res.json({ success: true, action, message: `Documento ${action === 'APPROVED' ? 'aprobado' : 'rechazado'} exitosamente por ${userName}.` });
   } catch (error) {

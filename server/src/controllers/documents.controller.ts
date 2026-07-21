@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db';
 import cache from '../cache';
+import { alertEvidenciaCargada } from '../alertUtils';
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
@@ -337,6 +338,8 @@ export const createDocument = async (req: Request, res: Response): Promise<void>
     // Invalidate cache immediately for document list & dashboard stats
     cache.del('documents_all');
     cache.del('dashboard_stats');
+    
+    alertEvidenciaCargada(name.split('|')[0], 'Revisor').catch(() => {});
     
     res.status(201).json({
       ...newDoc,

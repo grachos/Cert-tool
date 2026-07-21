@@ -41,12 +41,12 @@ export default function Alerts() {
         <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Pendientes</div><div className="flex justify-between items-end mt-3"><span className="text-3xl font-bold text-primary">{alerts.filter(a => a.dismissed === 0).length}</span><span className="text-sm text-muted">Sin descartar</span></div></div>
       </div>
 
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-2">
         <h3 className="text-lg font-bold text-primary">Sistema de Alertas y Notificaciones</h3>
         <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Nueva Alerta</button>
       </div>
 
-      <div className="flex gap-1">
+      <div className="flex gap-1 flex-wrap">
         {['all', 'critico', 'alta', 'media', 'info'].map(f => (
           <button key={f} className={filter === f ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'} onClick={() => setFilter(f)}>
             {f === 'all' ? 'Todas' : f.charAt(0).toUpperCase() + f.slice(1)}
@@ -59,15 +59,15 @@ export default function Alerts() {
           const s = typeStyles[a.type] || typeStyles.info;
           return (
             <div key={a.id} className="card" style={{ borderLeft: `4px solid ${s.border}` }}>
-              <div className="flex justify-between items-start">
-                <div className="flex-col gap-2">
-                  <div className="flex items-center gap-2">
+              <div className="flex justify-between items-start flex-wrap gap-2">
+                <div className="flex-col gap-2 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-bold">{a.title}</span>
                     <span className="badge" style={{ background: s.badge, color: '#fff', fontSize: '0.65rem' }}>{a.type.toUpperCase()}</span>
                     {a.module && <span className="badge" style={{ background: 'var(--accent-blue-light)', color: 'var(--accent-blue)', fontSize: '0.65rem' }}>{a.module}</span>}
                   </div>
                   <span className="text-sm text-secondary">{a.message}</span>
-                  <div className="flex items-center gap-3 mt-1">
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
                     <span className="text-xs text-muted">{new Date(a.createdAt).toLocaleString('es-CO')}</span>
                     {a.action && <span className="text-xs font-medium" style={{ color: s.border }}>Acción: {a.action}</span>}
                   </div>

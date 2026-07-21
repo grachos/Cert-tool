@@ -263,8 +263,8 @@ export default function Automation() {
     <div className="flex-col gap-6 animate-fade-in h-full">
       
       {/* Header Controls */}
-      <div className="flex justify-between items-center bg-card p-4 rounded-lg border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-4">
+      <div className="flex justify-between items-center flex-wrap gap-3 bg-card p-4 rounded-lg border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="p-1 rounded-md border flex" style={{ background: 'var(--surface-1)', borderColor: 'var(--border-color)' }}>
             <button 
               className="px-3 py-1.5 text-sm font-medium rounded transition-all"
@@ -365,7 +365,8 @@ export default function Automation() {
       ) : (
         /* List View */
         <div className="card p-0 overflow-hidden border border-gray-200">
-          <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left border-collapse min-w-[700px]">
             <thead>
               <tr className="bg-surface-1 border-b border-gray-200">
                 <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">{language === 'es' ? 'Plan de Acción' : 'Action Plan'}</th>
@@ -420,6 +421,7 @@ export default function Automation() {
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       )}
 
@@ -499,7 +501,7 @@ export default function Automation() {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="form-group">
                     <label className="form-label">{language === 'es' ? 'Norma' : 'Standard'}</label>
                     <select 
@@ -527,7 +529,7 @@ export default function Automation() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="form-group">
                     <label className="form-label">{language === 'es' ? 'Prioridad' : 'Priority'}</label>
                     <select 

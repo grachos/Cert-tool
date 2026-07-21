@@ -59,27 +59,29 @@ export default function Users() {
 
   return (
     <div className="flex-col gap-6 animate-fade-in">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-2">
         <div><h2 className="text-xl font-bold text-primary">{t('users.title')}</h2><p className="text-sm text-secondary mt-1">{t('users.desc')}</p></div>
         <button className="btn btn-primary" onClick={openNew}>{t('users.btnNew')}</button>
       </div>
 
       <div className="card p-0 overflow-hidden border border-gray-200">
         {isLoading ? <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('users.loading')}</div> : (
-          <table className="w-full text-left">
-            <thead><tr className="bg-surface-1 border-b border-gray-200"><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thName')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thEmail')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thRole')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thDate')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thActions')}</th></tr></thead>
-            <tbody>
-              {users.map(u => (
-                <tr key={u.id} className="border-b border-gray-100 hover:bg-surface-1">
-                  <td className="p-4 font-semibold text-primary">{u.name}</td>
-                  <td className="p-4 text-secondary">{u.email}</td>
-                  <td className="p-4">{roleBadge(u.role)}</td>
-                  <td className="p-4 text-secondary text-sm">{new Date(u.createdAt).toLocaleDateString()}</td>
-                  <td className="p-4"><div className="flex gap-1"><button className="btn btn-ghost btn-sm" onClick={() => openEdit(u)}>✏️ Editar</button><button className="btn btn-ghost btn-sm" style={{ color: 'var(--accent-red)' }} onClick={() => handleDelete(u.id)}>🗑️</button></div></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left min-w-[600px]">
+              <thead><tr className="bg-surface-1 border-b border-gray-200"><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thName')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thEmail')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thRole')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thDate')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thActions')}</th></tr></thead>
+              <tbody>
+                {users.map(u => (
+                  <tr key={u.id} className="border-b border-gray-100 hover:bg-surface-1">
+                    <td className="p-4 font-semibold text-primary">{u.name}</td>
+                    <td className="p-4 text-secondary">{u.email}</td>
+                    <td className="p-4">{roleBadge(u.role)}</td>
+                    <td className="p-4 text-secondary text-sm">{new Date(u.createdAt).toLocaleDateString()}</td>
+                    <td className="p-4"><div className="flex gap-1"><button className="btn btn-ghost btn-sm" onClick={() => openEdit(u)}>✏️ Editar</button><button className="btn btn-ghost btn-sm" style={{ color: 'var(--accent-red)' }} onClick={() => handleDelete(u.id)}>🗑️</button></div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

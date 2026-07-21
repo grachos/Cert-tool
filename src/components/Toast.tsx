@@ -60,7 +60,7 @@ export default function Toast({ toast, onClose }: ToastProps) {
         border: `1px solid ${getBorderColor()}`,
         borderRadius: 'var(--radius-md)',
         boxShadow: 'var(--shadow-lg)',
-        width: '320px',
+        width: 'min(320px, calc(100vw - 2rem))',
         marginBottom: '1rem',
         pointerEvents: 'auto',
       }}

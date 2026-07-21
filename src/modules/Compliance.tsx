@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useThemeLanguage } from '../components/ThemeLanguageContext';
 import { useAuth } from '../components/AuthContext';
+import { useUoc } from '../components/UoCContext';
 import api from '../api';
 
 interface Requirement {
@@ -35,6 +36,7 @@ interface StandardDetail {
 }
 
 export default function Compliance() {
+  const { selectedUoc, isPrincipleApplicable } = useUoc();
   const [complianceStatuses, setComplianceStatuses] = useState<StandardCompliance[]>([]);
   const [selectedStandard, setSelectedStandard] = useState<string | null>(null);
   const [standardDetail, setStandardDetail] = useState<StandardDetail | null>(null);
@@ -261,6 +263,8 @@ export default function Compliance() {
         {principleFilter === 'all' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.entries(principleNames).map(([p, name]) => {
+              const pKey = `M${p}`;
+              const isApp = isPrincipleApplicable(pKey);
               const g = grouped[p] || [];
               const compliant = g.filter(r => r.status === 'COMPLIANT').length;
               const partial = g.filter(r => r.status === 'PARTIAL').length;
@@ -268,33 +272,42 @@ export default function Compliance() {
               const pending = g.filter(r => r.status === 'PENDING').length;
               const score = g.length > 0 ? Math.round(((compliant + partial * 0.5) / g.length) * 100) : 0;
               return (
-                <div key={p} className="card cursor-pointer" style={{ borderLeft: `4px solid ${principleColors[p]}` }}
+                <div key={p} className="card cursor-pointer" style={{ borderLeft: `4px solid ${isApp ? principleColors[p] : 'var(--text-muted)'}`, opacity: isApp ? 1 : 0.65 }}
                   onClick={() => setExpandedPrinciple(expandedPrinciple === p ? null : p)}>
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-col">
-                      <h4 className="font-bold text-sm">{name}</h4>
-                      <span className="text-xs text-secondary">{g.length} indicadores</span>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-sm">{name}</h4>
+                        {!isApp && <span className="badge text-[10px]" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}>N/A</span>}
+                      </div>
+                      <span className="text-xs text-secondary">{g.length} indicadores {selectedUoc && !isApp ? `(No aplican a ${selectedUoc.name})` : ''}</span>
                     </div>
-                    <span className="text-xl font-bold" style={{ color: principleColors[p] }}>{score}%</span>
+                    <span className="text-xl font-bold" style={{ color: isApp ? principleColors[p] : 'var(--text-secondary)' }}>
+                      {isApp ? `${score}%` : 'N/A'}
+                    </span>
                   </div>
                   <div className="w-full bg-surface-2 h-2 rounded-full overflow-hidden mb-2">
-                    <div className="h-full rounded-full" style={{ width: `${score}%`, background: principleColors[p] }} />
+                    <div className="h-full rounded-full" style={{ width: isApp ? `${score}%` : '0%', background: isApp ? principleColors[p] : 'var(--text-muted)' }} />
                   </div>
-                  <div className="flex gap-2 text-xs">
-                    <span style={{ color: 'var(--g)' }}>{compliant} C</span>
-                    <span style={{ color: 'var(--y)' }}>{partial} P</span>
-                    <span style={{ color: 'var(--r)' }}>{non} NC</span>
-                    {pending > 0 && <span className="text-muted">{pending} Pend</span>}
+                  <div className="flex gap-2 text-xs flex-wrap">
+                    {isApp ? (<>
+                      <span style={{ color: 'var(--g)' }}>{compliant} C</span>
+                      <span style={{ color: 'var(--y)' }}>{partial} P</span>
+                      <span style={{ color: 'var(--r)' }}>{non} NC</span>
+                      {pending > 0 && <span className="text-muted">{pending} Pend</span>}
+                    </>) : (
+                      <span className="text-muted italic">Este principio está excluido del alcance de esta UoC</span>
+                    )}
                   </div>
                   {expandedPrinciple === p && (
                     <div className="mt-3 border-t pt-3 flex-col gap-2" style={{ maxHeight: '300px', overflowY: 'auto' }}>
                       {g.map(r => (
                         <div key={r.id} className="flex justify-between items-center text-sm" style={{ padding: '4px 0', borderBottom: '1px solid var(--border-color)' }}>
                           <div>
-                            <span className="mono text-xs" style={{ color: principleColors[p] }}>{r.clause}</span>
+                            <span className="mono text-xs" style={{ color: isApp ? principleColors[p] : 'var(--text-secondary)' }}>{r.clause}</span>
                             <span className="ml-2">{r.title}</span>
                           </div>
-                          {getStatusBadge(r.status)}
+                          {isApp ? getStatusBadge(r.status) : <span className="badge" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}>N/A (Excluido)</span>}
                         </div>
                       ))}
                     </div>
@@ -306,44 +319,65 @@ export default function Compliance() {
         ) : (
           <div className="card p-0 overflow-hidden border">
             <div className="p-4 bg-surface-1 border-b flex justify-between items-center">
-              <h3 className="font-bold" style={{ color: principleColors[principleFilter] }}>
-                {principleNames[principleFilter]} — {filteredReqs.length} indicadores
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold" style={{ color: isPrincipleApplicable(`M${principleFilter}`) ? principleColors[principleFilter] : 'var(--text-secondary)' }}>
+                  {principleNames[principleFilter]} — {filteredReqs.length} indicadores
+                </h3>
+                {!isPrincipleApplicable(`M${principleFilter}`) && (
+                  <span className="badge" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}>N/A (Excluido para {selectedUoc?.name})</span>
+                )}
+              </div>
             </div>
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-white border-b">
-                  <th className="p-3 text-xs font-bold text-secondary uppercase">Cláusula</th>
-                  <th className="p-3 text-xs font-bold text-secondary uppercase">Indicador</th>
-                  <th className="p-3 text-xs font-bold text-secondary uppercase">Estado</th>
-                  <th className="p-3 text-xs font-bold text-secondary uppercase">Evid.</th>
-                  {isAdmin && <th className="p-3 text-xs font-bold text-secondary uppercase">Acciones</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredReqs.map(req => (
-                  <tr key={req.id} className="border-b hover:bg-surface-1">
-                    <td className="p-3 font-mono text-sm text-secondary">{req.clause}</td>
-                    <td className="p-3">
-                      <div className="flex-col">
-                        <span className="font-semibold text-sm">{req.title}</span>
-                        <span className="text-xs text-secondary">{req.description}</span>
-                      </div>
-                    </td>
-                    <td className="p-3">{getStatusBadge(req.status)}</td>
-                    <td className="p-3"><span className="text-sm font-medium">{req.evidenceCount}</span></td>
-                    {isAdmin && (
-                      <td className="p-3">
-                        <div className="flex gap-1">
-                          <button className="btn btn-sm btn-secondary" onClick={() => openEditReqModal(req)} style={{ padding: '2px 6px' }}>✏️</button>
-                          <button className="btn btn-sm btn-secondary" onClick={() => handleDeleteRequirement(req.id)} style={{ padding: '2px 6px', color: 'var(--r)' }}>🗑️</button>
-                        </div>
-                      </td>
-                    )}
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left min-w-[600px]">
+                <thead>
+                  <tr className="bg-white border-b">
+                    <th className="p-3 text-xs font-bold text-secondary uppercase">Cláusula</th>
+                    <th className="p-3 text-xs font-bold text-secondary uppercase">Indicador</th>
+                    <th className="p-3 text-xs font-bold text-secondary uppercase">Estado</th>
+                    <th className="p-3 text-xs font-bold text-secondary uppercase">Evid.</th>
+                    {isAdmin && <th className="p-3 text-xs font-bold text-secondary uppercase">Acciones</th>}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {filteredReqs.map(req => {
+                    const reqPrinciple = `M${req.clause.split('.')[0]}`;
+                    const isReqApp = isPrincipleApplicable(reqPrinciple);
+                    return (
+                      <tr key={req.id} className="border-b hover:bg-surface-1" style={{ opacity: isReqApp ? 1 : 0.6 }}>
+                        <td className="p-3 font-mono text-sm text-secondary">{req.clause}</td>
+                        <td className="p-3">
+                          <div className="flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm">{req.title}</span>
+                              {(req as any).isCritical && (
+                                <span className="badge" style={{ background: 'var(--accent-red-bg)', color: 'var(--accent-red)', fontSize: '0.65rem', border: '1px solid var(--accent-red)' }}>CRÍTICO</span>
+                              )}
+                              {!isReqApp && (
+                                <span className="badge text-[10px]" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}>N/A</span>
+                              )}
+                            </div>
+                            <span className="text-xs text-secondary">{req.description}</span>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          {isReqApp ? getStatusBadge(req.status) : <span className="badge" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}>N/A (No Aplica)</span>}
+                        </td>
+                        <td className="p-3"><span className="text-sm font-medium">{req.evidenceCount}</span></td>
+                        {isAdmin && (
+                          <td className="p-3">
+                            <div className="flex gap-1">
+                              <button className="btn btn-sm btn-secondary" onClick={() => openEditReqModal(req)} style={{ padding: '2px 6px' }}>✏️</button>
+                              <button className="btn btn-sm btn-secondary" onClick={() => handleDeleteRequirement(req.id)} style={{ padding: '2px 6px', color: 'var(--r)' }}>🗑️</button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

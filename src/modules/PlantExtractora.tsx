@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useUoc } from '../components/UoCContext';
 import api from '../api';
 
 interface PlantRecord {
@@ -19,9 +20,12 @@ const sectionColors: Record<string, string> = {
 };
 
 export default function PlantExtractora() {
+  const { selectedUoc } = useUoc();
   const [activeTab, setActiveTab] = useState<PlantTab>('contratistas');
   const [records, setRecords] = useState<PlantRecord[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const isPlantationOnly = selectedUoc?.type === 'PLANTATION';
 
   const fetch = async (section?: string) => {
     setLoading(true);
@@ -54,6 +58,16 @@ export default function PlantExtractora() {
 
   return (
     <div className="flex-col gap-6 animate-fade-in">
+      {isPlantationOnly && (
+        <div className="card p-4 flex items-center gap-3 border-l-4" style={{ background: 'var(--surface-2)', borderLeftColor: 'var(--accent-gold)' }}>
+          <div className="text-xl">ℹ️</div>
+          <div>
+            <h4 className="font-bold text-sm text-primary">Alcance N/A para esta Unidad de Certificación</h4>
+            <p className="text-xs text-secondary mt-0.5">La UoC seleccionada <b>"{selectedUoc?.name}"</b> es de tipo <b>Solo Plantación / Finca</b>. Las operaciones industriales de refinación y laboratorio de extractora aplican N/A (No Aplica) a nivel directo de esta finca.</p>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
         <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Verificación</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-green)' }}>{score}%</span><span className="text-sm text-muted">{ok}/{records.length} OK</span></div></div>
         <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Controles Activos</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{records.length}</span><span className="text-sm text-muted">Indicadores</span></div></div>
@@ -61,7 +75,7 @@ export default function PlantExtractora() {
         <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Responsables</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{new Set(records.map(r => r.responsible)).size}</span><span className="text-sm text-muted">Asignados</span></div></div>
       </div>
 
-      <div className="flex gap-1" style={{ borderBottom: '2px solid var(--border-color)', paddingBottom: '0' }}>
+      <div className="flex gap-1 flex-wrap overflow-x-auto" style={{ borderBottom: '2px solid var(--border-color)', paddingBottom: '0' }}>
         {tabs.map(tab => (
           <button key={tab.id} className={activeTab === tab.id ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
             style={{ borderRadius: '6px 6px 0 0' }} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>
@@ -72,34 +86,38 @@ export default function PlantExtractora() {
 
       {loading ? <div className="text-center text-muted" style={{ padding: '2rem' }}>Cargando...</div> : (
         <div className="card p-0 overflow-hidden">
-          <table className="w-full text-left">
-            <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Indicador</th><th className="p-4 text-xs font-bold text-secondary uppercase">Descripción</th><th className="p-4 text-xs font-bold text-secondary uppercase">Responsable</th><th className="p-4 text-xs font-bold text-secondary uppercase">Meta</th><th className="p-4 text-xs font-bold text-secondary uppercase">Resultado</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
-            <tbody>
-              {records.map(r => (
-                <tr key={r.id} className="border-b hover:bg-surface-1">
-                  <td className="p-4 font-semibold text-sm">{r.title}</td>
-                  <td className="p-4 text-sm text-secondary">{r.description}</td>
-                  <td className="p-4 text-sm text-secondary">{r.responsible}</td>
-                  <td className="p-4 text-sm font-mono">{r.meta || '—'}</td>
-                  <td className="p-4 text-sm font-medium">{r.result || '—'}</td>
-                  <td className="p-4">{getStatusBadge(r.status)}</td>
-                </tr>
-              ))}
-              {records.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-muted">Sin registros para esta sección</td></tr>}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left min-w-[600px]">
+              <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Indicador</th><th className="p-4 text-xs font-bold text-secondary uppercase">Descripción</th><th className="p-4 text-xs font-bold text-secondary uppercase">Responsable</th><th className="p-4 text-xs font-bold text-secondary uppercase">Meta</th><th className="p-4 text-xs font-bold text-secondary uppercase">Resultado</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
+              <tbody>
+                {records.map(r => (
+                  <tr key={r.id} className="border-b hover:bg-surface-1">
+                    <td className="p-4 font-semibold text-sm">{r.title}</td>
+                    <td className="p-4 text-sm text-secondary">{r.description}</td>
+                    <td className="p-4 text-sm text-secondary">{r.responsible}</td>
+                    <td className="p-4 text-sm font-mono">{r.meta || '—'}</td>
+                    <td className="p-4 text-sm font-medium">{r.result || '—'}</td>
+                    <td className="p-4">{getStatusBadge(r.status)}</td>
+                  </tr>
+                ))}
+                {records.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-muted">Sin registros para esta sección</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {activeTab === 'contratistas' && records.length > 0 && (
         <div className="card p-0 overflow-hidden">
           <div className="p-4 border-b bg-surface-1"><h4 className="font-bold text-sm">Detalle de Contratistas</h4></div>
-          <table className="w-full text-left">
-            <thead><tr className="bg-white border-b"><th className="p-3 text-xs font-bold text-secondary uppercase">Contratista</th><th className="p-3 text-xs font-bold text-secondary uppercase">Servicio</th><th className="p-3 text-xs font-bold text-secondary uppercase">Trabajadores</th><th className="p-3 text-xs font-bold text-secondary uppercase">SST</th><th className="p-3 text-xs font-bold text-secondary uppercase">Vigencia Doc.</th><th className="p-3 text-xs font-bold text-secondary uppercase">Cumplimiento</th></tr></thead>
-            <tbody>
-              {records.map(r => (<tr key={r.id} className="border-b hover:bg-surface-1"><td className="p-3 font-semibold text-sm">{r.title}</td><td className="p-3 text-sm text-secondary">{r.description}</td><td className="p-3 text-sm">{r.extra?.workers || '—'}</td><td className="p-3">{r.extra?.sst === 'Completo' ? <span className="badge" style={{ background: 'var(--accent-green-bg)', color: 'var(--accent-green)' }}>Completo</span> : <span className="badge" style={{ background: 'var(--accent-red-bg)', color: 'var(--accent-red)' }}>Incompleto</span>}</td><td className="p-3 text-sm">{r.extra?.docValidity || '—'}</td><td className="p-3">{getStatusBadge(r.status)}</td></tr>))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left min-w-[600px]">
+              <thead><tr className="bg-white border-b"><th className="p-3 text-xs font-bold text-secondary uppercase">Contratista</th><th className="p-3 text-xs font-bold text-secondary uppercase">Servicio</th><th className="p-3 text-xs font-bold text-secondary uppercase">Trabajadores</th><th className="p-3 text-xs font-bold text-secondary uppercase">SST</th><th className="p-3 text-xs font-bold text-secondary uppercase">Vigencia Doc.</th><th className="p-3 text-xs font-bold text-secondary uppercase">Cumplimiento</th></tr></thead>
+              <tbody>
+                {records.map(r => (<tr key={r.id} className="border-b hover:bg-surface-1"><td className="p-3 font-semibold text-sm">{r.title}</td><td className="p-3 text-sm text-secondary">{r.description}</td><td className="p-3 text-sm">{r.extra?.workers || '—'}</td><td className="p-3">{r.extra?.sst === 'Completo' ? <span className="badge" style={{ background: 'var(--accent-green-bg)', color: 'var(--accent-green)' }}>Completo</span> : <span className="badge" style={{ background: 'var(--accent-red-bg)', color: 'var(--accent-red)' }}>Incompleto</span>}</td><td className="p-3 text-sm">{r.extra?.docValidity || '—'}</td><td className="p-3">{getStatusBadge(r.status)}</td></tr>))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

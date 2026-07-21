@@ -21,13 +21,15 @@ import Login from './modules/Login';
 import { ToastProvider, useToast } from './components/ToastContext';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { ThemeLanguageProvider, useThemeLanguage } from './components/ThemeLanguageContext';
-import { UoCProvider } from './components/UoCContext';
+import { UocProvider } from './components/UoCContext';
+import QuickSearch from './components/QuickSearch';
 
 type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations';
 
 function AppContent() {
   const [activeModule, setActiveModule] = useState<ModuleId>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { toasts, removeToast } = useToast();
   const { user, loading } = useAuth();
   const { t } = useThemeLanguage();
@@ -40,87 +42,69 @@ function AppContent() {
     return <Login />;
   }
 
-  const renderModule = () => {
-    switch (activeModule) {
-      case 'dashboard':
-        return <Dashboard onNavigate={setActiveModule} />;
-      case 'documents':
-        return <Documents />;
-      case 'risks':
-        return <Risks />;
-      case 'compliance':
-        return <Compliance />;
-      case 'evidence':
-        return <Evidence />;
-      case 'automation':
-        return <Automation />;
-      case 'audits':
-        return <Audits />;
-      case 'users':
-        return <Users />;
-      case 'scc':
-        return <Scc />;
-      case 'stakeholders':
-        return <Stakeholders />;
-      case 'alerts':
-        return <Alerts />;
-      case 'plant':
-        return <PlantExtractora />;
-      case 'ghg':
-        return <GhgCalculator />;
-      case 'supply':
-        return <SupplyBase />;
-      case 'plantations':
-        return <PlantationCompliance />;
-      default:
-        return <Dashboard onNavigate={setActiveModule} />;
-    }
-  };
-
   const getModuleTitle = (): { title: string; subtitle: string } => {
     const titles: Record<ModuleId, { title: string; subtitle: string }> = {
-      dashboard: { title: t('title.dashboard'), subtitle: t('subtitle.dashboard') },
-      documents: { title: t('title.documents'), subtitle: t('subtitle.documents') },
-      risks: { title: t('title.risks'), subtitle: t('subtitle.risks') },
-      compliance: { title: t('title.compliance'), subtitle: t('subtitle.compliance') },
-      evidence: { title: t('title.evidence'), subtitle: t('subtitle.evidence') },
-      automation: { title: t('title.automation'), subtitle: t('subtitle.automation') },
-      audits: { title: t('title.audits'), subtitle: t('subtitle.audits') },
-      users: { title: t('title.users'), subtitle: t('subtitle.users') },
-      scc: { title: t('title.scc'), subtitle: t('subtitle.scc') },
-      stakeholders: { title: t('title.stakeholders'), subtitle: t('subtitle.stakeholders') },
-      alerts: { title: t('title.alerts'), subtitle: t('subtitle.alerts') },
-      plant: { title: t('title.plant'), subtitle: t('subtitle.plant') },
-      ghg: { title: t('title.ghg'), subtitle: t('subtitle.ghg') },
-      supply: { title: t('title.supply'), subtitle: t('subtitle.supply') },
-      plantations: { title: t('title.plantations'), subtitle: t('subtitle.plantations') }
+      dashboard: { title: t('nav.dashboard'), subtitle: 'Vista ejecutiva y control consolidado por UoC' },
+      compliance: { title: t('nav.compliance'), subtitle: 'Monitoreo de indicadores y matriz de cumplimiento' },
+      documents: { title: t('nav.documents'), subtitle: 'Biblioteca documental y matriz legal M2' },
+      evidence: { title: t('nav.evidence'), subtitle: 'Repositorio de evidencias y verificación de auditoría' },
+      automation: { title: t('nav.automation'), subtitle: 'Reglas automáticas y flujos de trabajo' },
+      risks: { title: t('nav.risks'), subtitle: 'Matriz de riesgos y mitigación' },
+      audits: { title: t('nav.audits'), subtitle: 'Plan de auditorías e inspecciones' },
+      users: { title: t('nav.users'), subtitle: 'Gestión de usuarios y permisos' },
+      scc: { title: 'Cadena de Suministro SCC', subtitle: 'Trazabilidad y modelos de suministro RSPO (IP, SG, MB, BC)' },
+      stakeholders: { title: 'Gestión de Partes Interesadas', subtitle: 'Matriz de diálogo social, canales FPIC/CLPI y atención a comunidades' },
+      alerts: { title: 'Alertas y Notificaciones', subtitle: 'Centro de control de eventos críticos, hallazgos y alertas tempranas' },
+      plant: { title: 'Planta Extractora', subtitle: 'Control operacional de procesamiento de RFF, tasas de extracción (OER/KER) y laboratorio' },
+      ghg: { title: 'Calculadora GHG / PalmGHG', subtitle: 'Monitoreo de emisiones tCO2e/tCPO, alcances 1, 2 y 3' },
+      supply: { title: 'Base de Suministro', subtitle: 'Registro de predios propios, terceros, grupos de pequeños productores y evaluación de riesgo' },
+      plantations: { title: 'Cumplimiento Agrícola', subtitle: 'Monitoreo de campo, sanidad vegetal, labores agronómicas y registro por lotes' },
     };
     return titles[activeModule];
   };
 
   return (
     <div className={`app-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      <div className={`sidebar-overlay ${mobileMenuOpen ? 'active' : ''}`} onClick={() => setMobileMenuOpen(false)} />
       <Sidebar
         activeModule={activeModule}
-        onNavigate={setActiveModule}
+        onNavigate={(m) => { setActiveModule(m); setMobileMenuOpen(false); }}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        mobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
       />
       <div className="main-content">
         <Header
           title={getModuleTitle().title}
           subtitle={getModuleTitle().subtitle}
-          onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+          onToggleSidebar={() => setMobileMenuOpen(!mobileMenuOpen)}
+          onNavigateNotifications={() => setActiveModule('alerts')}
         />
         <div className="page-content">
-          {renderModule()}
+          {activeModule === 'dashboard' && <Dashboard onNavigate={setActiveModule} />}
+          {activeModule === 'compliance' && <Compliance />}
+          {activeModule === 'documents' && <Documents />}
+          {activeModule === 'evidence' && <Evidence />}
+          {activeModule === 'automation' && <Automation />}
+          {activeModule === 'risks' && <Risks />}
+          {activeModule === 'audits' && <Audits />}
+          {activeModule === 'users' && <Users />}
+          {activeModule === 'scc' && <Scc />}
+          {activeModule === 'stakeholders' && <Stakeholders />}
+          {activeModule === 'alerts' && <Alerts />}
+          {activeModule === 'plant' && <PlantExtractora />}
+          {activeModule === 'ghg' && <GhgCalculator />}
+          {activeModule === 'supply' && <SupplyBase />}
+          {activeModule === 'plantations' && <PlantationCompliance />}
         </div>
       </div>
       <div className="toast-container">
-        {toasts.map((toast) => (
-          <Toast key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
+        {toasts.map(t => (
+          <Toast key={t.id} toast={t} onClose={() => removeToast(t.id)} />
         ))}
       </div>
+      <QuickSearch onNavigate={(id) => setActiveModule(id as ModuleId)} />
     </div>
   );
 }
@@ -129,11 +113,11 @@ function App() {
   return (
     <ThemeLanguageProvider>
       <AuthProvider>
-        <UoCProvider>
+        <UocProvider>
           <ToastProvider>
             <AppContent />
           </ToastProvider>
-        </UoCProvider>
+        </UocProvider>
       </AuthProvider>
     </ThemeLanguageProvider>
   );

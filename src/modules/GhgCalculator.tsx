@@ -53,39 +53,39 @@ export default function GhgCalculator() {
   };
 
   const Bar = ({ value, color, max, label }: { value: number; color: string; max: number; label: string }) => (
-    <div className="flex items-center gap-2 mb-2">
-      <span className="text-xs text-secondary" style={{ width: '180px', textAlign: 'right' }}>{label}</span>
-      <div className="flex-1 bg-surface-2 h-4 rounded-full overflow-hidden">
+    <div className="flex items-center gap-2 mb-2 flex-wrap sm:flex-nowrap">
+      <span className="text-xs text-secondary" style={{ width: '100px', flexShrink: 0, textAlign: 'left' }}>{label}</span>
+      <div className="flex-1 bg-surface-2 h-4 rounded-full overflow-hidden" style={{ minWidth: '40px' }}>
         <div className="h-full rounded-full transition-all" style={{ width: `${(value / max) * 100}%`, background: color }} />
       </div>
-      <span className="text-xs font-mono font-bold" style={{ width: '80px' }}>{value.toLocaleString()} tCO₂e</span>
+      <span className="text-xs font-mono font-bold" style={{ width: '92px', flexShrink: 0, whiteSpace: 'nowrap' }}>{value.toLocaleString()} tCO₂e</span>
     </div>
   );
 
   return (
     <div className="flex-col gap-6 animate-fade-in">
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Emisiones Brutas</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-red)' }}>{grossEmissions.toLocaleString()}</span><span className="text-sm text-muted">tCO₂e/año</span></div></div>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Créditos</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-green)' }}>{credits.toLocaleString()}</span><span className="text-sm text-muted">tCO₂e/año</span></div></div>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Emisiones Netas</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{netEmissions.toLocaleString()}</span><span className="text-sm text-muted">tCO₂e/año</span></div></div>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Intensidad CPO</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-blue)' }}>{cpoIntensity.toFixed(2)}</span><span className="text-sm text-muted">tCO₂e/t CPO</span></div></div>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Intensidad RFF</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-secondary">{rffIntensity.toFixed(2)}</span><span className="text-sm text-muted">tCO₂e/t RFF</span></div></div>
+        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Emisiones Brutas</div><div className="flex items-end justify-between mt-3 flex-wrap gap-2"><span className="text-3xl font-bold" style={{ color: 'var(--accent-red)' }}>{grossEmissions.toLocaleString()}</span><span className="text-sm text-muted">tCO₂e/año</span></div></div>
+        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Créditos</div><div className="flex items-end justify-between mt-3 flex-wrap gap-2"><span className="text-3xl font-bold" style={{ color: 'var(--accent-green)' }}>{credits.toLocaleString()}</span><span className="text-sm text-muted">tCO₂e/año</span></div></div>
+        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Emisiones Netas</div><div className="flex items-end justify-between mt-3 flex-wrap gap-2"><span className="text-3xl font-bold text-primary">{netEmissions.toLocaleString()}</span><span className="text-sm text-muted">tCO₂e/año</span></div></div>
+        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Intensidad CPO</div><div className="flex items-end justify-between mt-3 flex-wrap gap-2"><span className="text-3xl font-bold" style={{ color: 'var(--accent-blue)' }}>{cpoIntensity.toFixed(2)}</span><span className="text-sm text-muted">tCO₂e/t CPO</span></div></div>
+        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">Intensidad RFF</div><div className="flex items-end justify-between mt-3 flex-wrap gap-2"><span className="text-3xl font-bold text-secondary">{rffIntensity.toFixed(2)}</span><span className="text-sm text-muted">tCO₂e/t RFF</span></div></div>
       </div>
 
-      <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))' }}>
+      <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 400px), 1fr))' }}>
         <div className="card">
           <h3 className="text-base font-bold text-primary mb-4">Fuentes de Emisión</h3>
           <div className="flex-col gap-3">
             {sources.map(s => (
               <div key={s.key} className="flex items-center gap-2">
-                <label className="text-sm text-secondary" style={{ width: '200px' }}>{s.label}</label>
-                <input type="number" className="form-input" style={{ width: '130px', textAlign: 'right' }}
+                <label className="text-sm text-secondary" style={{ flex: 1, minWidth: 0 }}>{s.label}</label>
+                <input type="number" className="form-input" style={{ width: '120px', textAlign: 'right', flexShrink: 0 }}
                   value={inputs[s.key]} onChange={e => update(s.key, e.target.value)} />
                 <span className="text-xs text-muted">tCO₂e/año</span>
               </div>
             ))}
             <div className="border-t pt-3 mt-2" style={{ borderColor: 'var(--border-color)' }}>
-              <div className="flex justify-between text-sm"><span className="font-bold">Total Emisiones Brutas</span><span className="font-bold" style={{ color: 'var(--accent-red)' }}>{grossEmissions.toLocaleString()} tCO₂e/año</span></div>
+              <div className="flex justify-between text-sm flex-wrap gap-2"><span className="font-bold">Total Emisiones Brutas</span><span className="font-bold" style={{ color: 'var(--accent-red)' }}>{grossEmissions.toLocaleString()} tCO₂e/año</span></div>
             </div>
           </div>
         </div>
@@ -95,14 +95,14 @@ export default function GhgCalculator() {
           <div className="flex-col gap-3">
             {creditSources.map(s => (
               <div key={s.key} className="flex items-center gap-2">
-                <label className="text-sm text-secondary" style={{ width: '200px' }}>{s.label}</label>
-                <input type="number" className="form-input" style={{ width: '130px', textAlign: 'right' }}
+                <label className="text-sm text-secondary" style={{ flex: 1, minWidth: 0 }}>{s.label}</label>
+                <input type="number" className="form-input" style={{ width: '120px', textAlign: 'right', flexShrink: 0 }}
                   value={inputs[s.key]} onChange={e => update(s.key, e.target.value)} />
                 <span className="text-xs text-muted">tCO₂e/año</span>
               </div>
             ))}
             <div className="border-t pt-3 mt-2" style={{ borderColor: 'var(--border-color)' }}>
-              <div className="flex justify-between text-sm"><span className="font-bold">Total Créditos</span><span className="font-bold" style={{ color: 'var(--accent-green)' }}>{credits.toLocaleString()} tCO₂e/año</span></div>
+              <div className="flex justify-between text-sm flex-wrap gap-2"><span className="font-bold">Total Créditos</span><span className="font-bold" style={{ color: 'var(--accent-green)' }}>{credits.toLocaleString()} tCO₂e/año</span></div>
             </div>
           </div>
         </div>
@@ -111,20 +111,20 @@ export default function GhgCalculator() {
           <h3 className="text-base font-bold text-primary mb-4">Datos de Producción</h3>
           <div className="flex-col gap-3">
             <div className="flex items-center gap-2">
-              <label className="text-sm text-secondary" style={{ width: '200px' }}>Producción CPO</label>
-              <input type="number" className="form-input" style={{ width: '130px', textAlign: 'right' }}
+              <label className="text-sm text-secondary" style={{ flex: 1, minWidth: 0 }}>Producción CPO</label>
+              <input type="number" className="form-input" style={{ width: '120px', textAlign: 'right', flexShrink: 0 }}
                 value={inputs.cpoProduction} onChange={e => update('cpoProduction', e.target.value)} />
               <span className="text-xs text-muted">t/año</span>
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-sm text-secondary" style={{ width: '200px' }}>RFF procesada</label>
-              <input type="number" className="form-input" style={{ width: '130px', textAlign: 'right' }}
+              <label className="text-sm text-secondary" style={{ flex: 1, minWidth: 0 }}>RFF procesada</label>
+              <input type="number" className="form-input" style={{ width: '120px', textAlign: 'right', flexShrink: 0 }}
                 value={inputs.rffProcessed} onChange={e => update('rffProcessed', e.target.value)} />
               <span className="text-xs text-muted">t/año</span>
             </div>
             <div className="border-t pt-3 mt-2" style={{ borderColor: 'var(--border-color)' }}>
-              <div className="flex justify-between text-sm mb-2"><span>Intensidad CPO</span><span className="font-bold" style={{ color: 'var(--accent-blue)' }}>{cpoIntensity.toFixed(2)} tCO₂e/t CPO</span></div>
-              <div className="flex justify-between text-sm"><span>Intensidad RFF</span><span className="font-bold text-secondary">{rffIntensity.toFixed(2)} tCO₂e/t RFF</span></div>
+              <div className="flex justify-between text-sm mb-2 flex-wrap gap-2"><span>Intensidad CPO</span><span className="font-bold" style={{ color: 'var(--accent-blue)' }}>{cpoIntensity.toFixed(2)} tCO₂e/t CPO</span></div>
+              <div className="flex justify-between text-sm flex-wrap gap-2"><span>Intensidad RFF</span><span className="font-bold text-secondary">{rffIntensity.toFixed(2)} tCO₂e/t RFF</span></div>
             </div>
           </div>
         </div>
@@ -155,18 +155,18 @@ export default function GhgCalculator() {
             </p>
           </div>
           <div className="flex-col gap-3">
-            <div className="flex items-center gap-2"><span className="badge" style={{ background: 'var(--accent-green-bg)', color: 'var(--accent-green)' }}>Meta 1</span><span className="text-sm">Reducir emisiones de POME/Metano en 30% mediante captura de biogás</span><span className="text-sm font-mono text-secondary ml-auto">-2,910 tCO₂e</span></div>
-            <div className="flex items-center gap-2"><span className="badge" style={{ background: 'var(--accent-green-bg)', color: 'var(--accent-green)' }}>Meta 2</span><span className="text-sm">Optimizar uso de fertilizantes nitrogenados (-15%)</span><span className="text-sm font-mono text-secondary ml-auto">-578 tCO₂e</span></div>
-            <div className="flex items-center gap-2"><span className="badge" style={{ background: 'var(--accent-green-bg)', color: 'var(--accent-green)' }}>Meta 3</span><span className="text-sm">Transición a combustibles de menor emisión en flota (-20%)</span><span className="text-sm font-mono text-secondary ml-auto">-258 tCO₂e</span></div>
-            <div className="border-t pt-3 mt-2 flex justify-between" style={{ borderColor: 'var(--border-color)' }}>
+            <div className="flex items-center gap-2 flex-wrap"><span className="badge" style={{ background: 'var(--accent-green-bg)', color: 'var(--accent-green)' }}>Meta 1</span><span className="text-sm">Reducir emisiones de POME/Metano en 30% mediante captura de biogás</span><span className="text-sm font-mono text-secondary ml-auto">-2,910 tCO₂e</span></div>
+            <div className="flex items-center gap-2 flex-wrap"><span className="badge" style={{ background: 'var(--accent-green-bg)', color: 'var(--accent-green)' }}>Meta 2</span><span className="text-sm">Optimizar uso de fertilizantes nitrogenados (-15%)</span><span className="text-sm font-mono text-secondary ml-auto">-578 tCO₂e</span></div>
+            <div className="flex items-center gap-2 flex-wrap"><span className="badge" style={{ background: 'var(--accent-green-bg)', color: 'var(--accent-green)' }}>Meta 3</span><span className="text-sm">Transición a combustibles de menor emisión en flota (-20%)</span><span className="text-sm font-mono text-secondary ml-auto">-258 tCO₂e</span></div>
+            <div className="border-t pt-3 mt-2 flex justify-between flex-wrap gap-2" style={{ borderColor: 'var(--border-color)' }}>
               <span className="font-bold text-sm">Reducción total proyectada</span>
               <span className="font-bold" style={{ color: 'var(--accent-green)' }}>-3,746 tCO₂e/año</span>
             </div>
-            <div className="border-t pt-3 mt-2 flex justify-between" style={{ borderColor: 'var(--border-color)' }}>
+            <div className="border-t pt-3 mt-2 flex justify-between flex-wrap gap-2" style={{ borderColor: 'var(--border-color)' }}>
               <span className="font-bold text-sm">Nuevas emisiones netas estimadas</span>
               <span className="font-bold text-primary">{Math.round(netEmissions - 3746).toLocaleString()} tCO₂e/año</span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-sm flex-wrap gap-2">
               <span>Nueva intensidad CPO</span>
               <span className="font-medium" style={{ color: 'var(--accent-blue)' }}>{((netEmissions - 3746) / (inputs.cpoProduction || 1)).toFixed(2)} tCO₂e/t CPO</span>
             </div>

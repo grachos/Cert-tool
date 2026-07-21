@@ -67,8 +67,8 @@ export default function Risks() {
     <div className="flex-col gap-6 animate-fade-in">
       
       {/* Header Controls */}
-      <div className="flex justify-between items-center bg-card p-4 rounded-lg border border-gray-200 shadow-sm">
-        <div className="flex gap-2">
+      <div className="flex justify-between items-center flex-wrap gap-3 bg-card p-4 rounded-lg border border-gray-200 shadow-sm">
+        <div className="flex gap-2 flex-wrap">
           <button 
             className={`btn btn-sm ${filter === 'Todos' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setFilter('Todos')}
@@ -85,7 +85,7 @@ export default function Risks() {
             </button>
           ))}
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <button className="btn btn-secondary" onClick={() => setShowMatrix(!showMatrix)}>
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px', marginRight: '4px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
             {showMatrix ? t('risks.viewList') : t('risks.viewMatrix')}
@@ -143,7 +143,8 @@ export default function Risks() {
         </div>
       ) : (
         <div className="card p-0 overflow-hidden animate-slide-up border border-gray-200">
-          <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left border-collapse min-w-[600px]">
             <thead>
               <tr className="bg-surface-1 border-b border-gray-200">
                 <th className="p-3 text-xs font-bold text-secondary uppercase tracking-wider">{t('risks.thRisk')}</th>
@@ -186,6 +187,7 @@ export default function Risks() {
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       )}
     </div>

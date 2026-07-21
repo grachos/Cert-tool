@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { useThemeLanguage } from './ThemeLanguageContext';
 
@@ -10,14 +10,11 @@ interface SidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   mobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
-interface NavItem {
-  id: ModuleId;
-  labelKey: any;
-  icon: ReactNode;
-  adminOnly?: boolean;
-}
+interface NavItem { id: ModuleId; labelKey: any; icon: ReactNode; adminOnly?: boolean; }
+interface NavSection { label: string; items: NavItem[]; }
 
 const Icons = {
   Dashboard: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
@@ -37,72 +34,142 @@ const Icons = {
   Plantations: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
 };
 
-const navItems: NavItem[] = [
+const topItems: NavItem[] = [
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: Icons.Dashboard },
-  { id: 'compliance', labelKey: 'nav.compliance', icon: Icons.Compliance },
-  { id: 'plantations', labelKey: 'nav.plantations', icon: Icons.Plantations },
-  { id: 'plant', labelKey: 'nav.plant', icon: Icons.Plant },
-  { id: 'scc', labelKey: 'nav.scc', icon: Icons.Scc },
-  { id: 'supply', labelKey: 'nav.supply', icon: Icons.Supply },
-  { id: 'ghg', labelKey: 'nav.ghg', icon: Icons.Ghg },
-  { id: 'documents', labelKey: 'nav.documents', icon: Icons.Documents },
-  { id: 'evidence', labelKey: 'nav.evidence', icon: Icons.Evidence },
-  { id: 'risks', labelKey: 'nav.risks', icon: Icons.Risks },
-  { id: 'automation', labelKey: 'nav.automation', icon: Icons.Automation },
-  { id: 'stakeholders', labelKey: 'nav.stakeholders', icon: Icons.Stakeholders },
-  { id: 'audits', labelKey: 'nav.audits', icon: Icons.Audits },
-  { id: 'alerts', labelKey: 'nav.alerts', icon: Icons.Alerts },
-  { id: 'users', labelKey: 'nav.users', icon: Icons.Users, adminOnly: true },
 ];
 
-export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleCollapse, mobileOpen }: SidebarProps) {
+const sections: NavSection[] = [
+  {
+    label: 'Certificación', items: [
+      { id: 'compliance', labelKey: 'nav.compliance', icon: Icons.Compliance },
+      { id: 'plantations', labelKey: 'nav.plantations', icon: Icons.Plantations },
+      { id: 'plant', labelKey: 'nav.plant', icon: Icons.Plant },
+      { id: 'scc', labelKey: 'nav.scc', icon: Icons.Scc },
+      { id: 'supply', labelKey: 'nav.supply', icon: Icons.Supply },
+      { id: 'ghg', labelKey: 'nav.ghg', icon: Icons.Ghg },
+    ]
+  },
+  {
+    label: 'Gestión', items: [
+      { id: 'documents', labelKey: 'nav.documents', icon: Icons.Documents },
+      { id: 'evidence', labelKey: 'nav.evidence', icon: Icons.Evidence },
+      { id: 'risks', labelKey: 'nav.risks', icon: Icons.Risks },
+      { id: 'automation', labelKey: 'nav.automation', icon: Icons.Automation },
+      { id: 'stakeholders', labelKey: 'nav.stakeholders', icon: Icons.Stakeholders },
+    ]
+  },
+  {
+    label: 'Control', items: [
+      { id: 'audits', labelKey: 'nav.audits', icon: Icons.Audits },
+      { id: 'alerts', labelKey: 'nav.alerts', icon: Icons.Alerts },
+      { id: 'users', labelKey: 'nav.users', icon: Icons.Users, adminOnly: true },
+    ]
+  },
+];
+
+export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleCollapse, mobileOpen, onCloseMobile }: SidebarProps) {
   const { user, logout } = useAuth();
   const { t } = useThemeLanguage();
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+
+  // On mobile the drawer must always render expanded (with labels);
+  // the desktop "collapsed" (icons-only) state makes no sense there.
+  const effectiveCollapsed = collapsed && !mobileOpen;
+
+  const toggleSection = (label: string) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      return next;
+    });
+  };
 
   return (
     <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
       <div className="sidebar-logo justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center bg-blue-600 text-white rounded font-bold" style={{ width: '28px', height: '28px', fontSize: '12px' }}>CTC</div>
-          {!collapsed && <span>Cert-TechCol</span>}
-        </div>
-        <button className="btn-icon" onClick={onToggleCollapse} style={{ padding: '4px' }}>
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px' }}>
-            <path strokeLinecap="round" strokeLinejoin="round" d={collapsed ? "M9 5l7 7-7 7" : "M15 19l-7-7 7-7"} />
+        {!effectiveCollapsed ? (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="logo-badge">CTC</span>
+              <span>Cert-TechCol</span>
+            </div>
+            <button className="btn-icon sidebar-collapse-btn" onClick={onToggleCollapse} title="Colapsar menú">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '18px', height: '18px' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          </>
+        ) : (
+          <div className="flex items-center justify-center w-full">
+            <button className="btn-icon sidebar-collapse-btn" onClick={onToggleCollapse} title="Restaurar menú">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
+        )}
+        <button className="btn-icon sidebar-close-mobile-btn d-lg-none" onClick={onCloseMobile} title="Cerrar menú">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
 
       <nav className="sidebar-nav">
-        {navItems
-          .filter(item => !item.adminOnly || user?.role === 'ADMIN')
-          .map((item) => (
-            <div
-              key={item.id}
-              className={`sidebar-item ${activeModule === item.id ? 'active' : ''}`}
-              onClick={() => onNavigate(item.id)}
-              title={collapsed ? t(item.labelKey as any) : undefined}
-            >
-              {item.icon}
-              {!collapsed && <span>{t(item.labelKey as any)}</span>}
+        {topItems.map((item) => (
+          <div key={item.id}
+            className={`sidebar-item ${activeModule === item.id ? 'active' : ''}`}
+            onClick={() => onNavigate(item.id)}
+            title={effectiveCollapsed ? t(item.labelKey as any) : undefined}>
+            {item.icon}
+            {!effectiveCollapsed && <span>{t(item.labelKey as any)}</span>}
+          </div>
+        ))}
+
+        {sections.map(section => {
+          const filtered = section.items.filter(i => !i.adminOnly || user?.role === 'ADMIN');
+          if (filtered.length === 0) return null;
+          const isCollapsed = collapsedSections.has(section.label);
+
+          return (
+            <div key={section.label}>
+              {!effectiveCollapsed && (
+                <div className="sidebar-section-header" onClick={() => toggleSection(section.label)}>
+                  <span className="sidebar-section-label">{section.label}</span>
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                    className={`sidebar-section-chevron ${isCollapsed ? '' : 'open'}`}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              )}
+              {!isCollapsed && filtered.map(item => (
+                <div key={item.id}
+                  className={`sidebar-item ${activeModule === item.id ? 'active' : ''}`}
+                  onClick={() => onNavigate(item.id)}
+                  title={effectiveCollapsed ? t(item.labelKey as any) : undefined}>
+                  {item.icon}
+                  {!effectiveCollapsed && <span>{t(item.labelKey as any)}</span>}
+                </div>
+              ))}
             </div>
-          ))}
+          );
+        })}
       </nav>
 
-      <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', padding: '1rem' }} className="flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-blue)', fontWeight: 'bold' }}>
+      <div className="sidebar-footer">
+        <div className="sidebar-user">
+          <div className="sidebar-avatar">
             {user?.name?.substring(0, 2).toUpperCase() || 'US'}
           </div>
-          {!collapsed && (
-            <div className="flex-col" style={{ overflow: 'hidden' }}>
-              <span className="text-sm font-semibold text-primary" style={{ lineHeight: '1.2' }}>{user?.name}</span>
-              <span className="text-xs text-muted truncate" style={{ maxWidth: '130px' }}>{user?.email}</span>
+          {!effectiveCollapsed && (
+            <div className="sidebar-user-info">
+              <div className="sidebar-user-name">{user?.name}</div>
+              <div className="sidebar-user-email">{user?.email}</div>
             </div>
           )}
         </div>
-        {!collapsed && (
-          <button className="btn btn-secondary w-full" onClick={logout} style={{ marginTop: '0.75rem', padding: '0.375rem', fontSize: '0.75rem' }}>
+        {!effectiveCollapsed && (
+          <button className="btn btn-secondary w-full sidebar-logout-btn" onClick={logout}>
             {t('nav.logout')}
           </button>
         )}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { standards } from '../data/standards';
 import { useThemeLanguage } from '../components/ThemeLanguageContext';
+import { useUoc } from '../components/UoCContext';
 import api from '../api';
 
 interface DashboardProps {
@@ -43,6 +44,7 @@ interface StandardCompliance {
 }
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
+  const { selectedUoc, selectedUocId, isPrincipleApplicable, uocs } = useUoc();
   const [stats, setStats] = useState<Stats | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [complianceStatuses, setComplianceStatuses] = useState<StandardCompliance[]>([]);
@@ -92,18 +94,34 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   };
 
   if (isLoading) {
-    return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Cargando...</div>;
+    return <div className="text-center text-muted" style={{ padding: '3rem' }}>Cargando...</div>;
   }
 
   return (
     <div className="flex-col gap-6 animate-fade-in">
       
-      {/* Stats Row */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+      <div className="hero-banner card">
+        <div className="flex justify-between items-start gap-4" style={{ flexWrap: 'wrap' }}>
+          <div>
+            <h2 className="text-xl font-bold mb-1">Cert-TechCol — RSPO P&C 2024</h2>
+            <p className="text-sm">La operación sostenible, conectada de principio a fin.</p>
+          </div>
+          <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+            <span className="badge hero-badge">146 indicadores</span>
+            <span className="badge hero-badge">7 principios</span>
+            <span className="badge hero-badge">3 UoCs</span>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4" style={{ flexWrap: 'wrap' }}>
+          <span className="hero-hint">Ctrl+K para búsqueda rápida</span>
+        </div>
+      </div>
+      
+      <div className="stats-grid">
         <div className="card">
           <div className="flex justify-between items-start mb-4">
             <span className="text-sm text-secondary font-medium uppercase tracking-wide">{t('dash.compliance')}</span>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+                         <svg className="stat-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
           </div>
           <div className="flex items-end justify-between">
             <span className="text-3xl font-bold text-primary">{stats?.overallCompliance}%</span>
@@ -117,7 +135,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         <div className="card">
           <div className="flex justify-between items-start mb-4">
             <span className="text-sm text-secondary font-medium uppercase tracking-wide">{t('dash.pendingDocs')}</span>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                         <svg className="stat-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
           </div>
           <div className="flex items-end justify-between">
             <span className="text-3xl font-bold text-primary">{stats?.pendingReviews}</span>
@@ -130,7 +148,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         <div className="card">
           <div className="flex justify-between items-start mb-4">
             <span className="text-sm text-secondary font-medium uppercase tracking-wide">{t('dash.activeRisks')}</span>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                         <svg className="stat-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
           </div>
           <div className="flex items-end justify-between">
             <span className="text-3xl font-bold text-primary">{stats?.activeRisks}</span>
@@ -143,7 +161,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         <div className="card">
           <div className="flex justify-between items-start mb-4">
             <span className="text-sm text-secondary font-medium uppercase tracking-wide">{t('dash.overdueActions')}</span>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                         <svg className="stat-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </div>
           <div className="flex items-end justify-between">
             <span className="text-3xl font-bold text-accent-red">{stats?.overdueActions}</span>
@@ -156,7 +174,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         <div className="card">
           <div className="flex justify-between items-start mb-4">
             <span className="text-sm text-secondary font-medium uppercase tracking-wide">{language === 'es' ? 'No Conformidades' : 'Non-Conformances'}</span>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                         <svg className="stat-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
           </div>
           <div className="flex items-end justify-between">
             <span className="text-3xl font-bold text-primary">{stats?.openFindings}</span>
@@ -169,7 +187,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         <div className="card">
           <div className="flex justify-between items-start mb-4">
             <span className="text-sm text-secondary font-medium uppercase tracking-wide">{language === 'es' ? 'Avance de Planes' : 'Plans Progress'}</span>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px', color: 'var(--text-muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                         <svg className="stat-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
           </div>
           <div className="flex items-end justify-between">
             <span className="text-3xl font-bold text-primary">{stats?.averagePlansProgress}%</span>
@@ -180,25 +198,126 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         </div>
       </div>
 
+      {/* Banner de Alcance de UoC Seleccionada */}
+      <div className="card p-4 flex justify-between items-center flex-wrap gap-3" style={{ background: selectedUocId === 'all' ? 'var(--accent-blue-light)' : 'var(--accent-green-bg)', borderColor: selectedUocId === 'all' ? 'var(--accent-blue)' : 'var(--accent-green)' }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full flex-center font-bold text-lg" style={{ background: selectedUocId === 'all' ? 'var(--accent-blue)' : 'var(--accent-green)', color: 'white' }}>
+            {selectedUocId === 'all' ? 'Σ' : 'UoC'}
+          </div>
+          <div>
+            <h4 className="font-bold text-sm text-primary">
+              {selectedUocId === 'all' 
+                ? `Vista Consolidada — Sumatoria de ${uocs.length} Unidades de Certificación` 
+                : `Evaluación Específica: ${selectedUoc?.name}`}
+            </h4>
+            <p className="text-xs text-secondary mt-0.5">
+              {selectedUocId === 'all' 
+                ? 'Agregación ponderada de indicadores, mediciones y riesgos para toda la organización' 
+                : `Empresa: ${selectedUoc?.companyName} • Alcance: ${selectedUoc?.appliesAll ? '100% Norma RSPO 2024' : `${selectedUoc?.applicablePrinciples.length} Principios Aplicables`}`}
+            </p>
+          </div>
+        </div>
+        {selectedUoc && !selectedUoc.appliesAll && (
+          <span className="badge" style={{ background: 'var(--accent-gold-bg)', color: 'var(--accent-gold)', fontWeight: 'bold' }}>
+            ⚙ Alcance Ajustado ({7 - selectedUoc.applicablePrinciples.length} Princ. N/A)
+          </span>
+        )}
+      </div>
+
+      {/* Tablero Ejecutivo por Principios RSPO P&C 2024 (M1-M7) */}
+      <div className="card p-0 overflow-hidden border border-gray-200 shadow-sm">
+        <div className="p-4 bg-surface-1 border-b border-gray-200 flex justify-between items-center flex-wrap gap-2">
+          <div>
+            <h3 className="text-base font-bold text-primary">RSPO P&C 2024 — Desglose Ejecutivo por Principios (M1 a M7)</h3>
+            <p className="text-xs text-secondary mt-0.5">Gestión de cumplimiento normativo versión 4.2 (162 indicadores oficiales)</p>
+          </div>
+          <span className="badge" style={{ background: 'var(--accent-blue-light)', color: 'var(--accent-blue)' }}>Aplicación 2026</span>
+        </div>
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left min-w-[700px]">
+            <thead>
+              <tr className="bg-white border-b border-gray-200 text-xs font-bold text-secondary uppercase">
+                <th className="p-3">Módulo Comercial</th>
+                <th className="p-3">Principio</th>
+                <th className="p-3 text-center">Indicadores</th>
+                <th className="p-3 text-center">Cumple</th>
+                <th className="p-3 text-center">Parcial</th>
+                <th className="p-3 text-center">No Cumple</th>
+                <th className="p-3 text-center">% Cumplimiento</th>
+                <th className="p-3 text-center">Críticos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { key: 'M1', module: 'M1 Gobierno, ética y DD. HH.', principle: 'Principio 1', total: 6, c: 5, p: 1, nc: 0, crit: 0 },
+                { key: 'M2', module: 'M2 Cumplimiento legal y terceros', principle: 'Principio 2', total: 13, c: 11, p: 2, nc: 0, crit: 0 },
+                { key: 'M3', module: 'M3 Estrategia, operación y trazabilidad', principle: 'Principio 3', total: 23, c: 20, p: 2, nc: 1, crit: 0 },
+                { key: 'M4', module: 'M4 Tierra, FPIC y comunidades', principle: 'Principio 4', total: 30, c: 24, p: 5, nc: 1, crit: 1 },
+                { key: 'M5', module: 'M5 Pequeños productores', principle: 'Principio 5', total: 7, c: 5, p: 2, nc: 0, crit: 0 },
+                { key: 'M6', module: 'M6 Trabajo decente y SST', principle: 'Principio 6', total: 44, c: 38, p: 4, nc: 2, crit: 1 },
+                { key: 'M7', module: 'M7 Ambiente, clima y biodiversidad', principle: 'Principio 7', total: 39, c: 32, p: 5, nc: 2, crit: 0 },
+              ].map((p, idx) => {
+                const isApp = isPrincipleApplicable(p.key);
+                const pct = Math.round(((p.c + (p.p * 0.5)) / p.total) * 100);
+                return (
+                  <tr key={idx} className="border-b border-gray-100 hover:bg-surface-1 text-sm" style={{ opacity: isApp ? 1 : 0.6 }}>
+                    <td className="p-3 font-semibold text-primary flex items-center gap-2">
+                      <span>{p.module}</span>
+                      {!isApp && <span className="badge text-[10px]" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}>N/A</span>}
+                    </td>
+                    <td className="p-3 text-secondary">{p.principle}</td>
+                    <td className="p-3 text-center font-mono font-medium">{p.total}</td>
+                    <td className="p-3 text-center font-semibold text-accent-green">{isApp ? p.c : '—'}</td>
+                    <td className="p-3 text-center font-semibold" style={{ color: 'var(--accent-gold)' }}>{isApp ? p.p : '—'}</td>
+                    <td className="p-3 text-center font-semibold text-accent-red">{isApp ? p.nc : '—'}</td>
+                    <td className="p-3 text-center">
+                      {isApp ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-16 bg-surface-2 h-1.5 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: pct >= 85 ? 'var(--accent-green)' : 'var(--accent-blue)' }} />
+                          </div>
+                          <span className="font-bold text-xs">{pct}%</span>
+                        </div>
+                      ) : (
+                        <span className="badge" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}>N/A (Excluido)</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-center">
+                      {!isApp ? (
+                        <span className="text-xs text-muted">N/A</span>
+                      ) : p.crit > 0 ? (
+                        <span className="badge" style={{ background: 'var(--accent-red-bg)', color: 'var(--accent-red)', fontWeight: 'bold' }}>{p.crit} Abierto</span>
+                      ) : (
+                        <span className="text-xs text-muted">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {sccStats && (
       <div>
         <h3 className="text-lg font-bold text-primary mb-4">RSPO — Cadena de Suministro (SCC)</h3>
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-          <div className="card" style={{ borderLeft: '4px solid #65a30d' }}>
+        <div className="stats-grid">
+          <div className="card" style={{ borderLeft: '4px solid var(--status-success)' }}>
             <span className="text-sm text-secondary font-medium uppercase tracking-wide">Unidades de Certificación</span>
             <div className="flex items-end justify-between mt-3">
               <span className="text-3xl font-bold text-primary">{sccStats.uocCount}</span>
               <span className="text-sm text-accent-green font-medium">UoCs activas</span>
             </div>
           </div>
-          <div className="card" style={{ borderLeft: '4px solid #2563eb' }}>
+          <div className="card" style={{ borderLeft: '4px solid var(--color-brand)' }}>
             <span className="text-sm text-secondary font-medium uppercase tracking-wide">Transacciones SCC</span>
             <div className="flex items-end justify-between mt-3">
               <span className="text-3xl font-bold text-primary">{sccStats.txCount}</span>
               <span className="text-sm text-accent-blue font-medium">IP · SG · MB · BC</span>
             </div>
           </div>
-          <div className="card" style={{ borderLeft: '4px solid #d97706' }}>
+          <div className="card" style={{ borderLeft: '4px solid var(--status-warning)' }}>
             <span className="text-sm text-secondary font-medium uppercase tracking-wide">Partes Interesadas</span>
             <div className="flex items-end justify-between mt-3">
               <span className="text-3xl font-bold text-primary">{sccStats.stCount}</span>
@@ -212,7 +331,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       {/* Compliance by Standard */}
       <div>
         <h3 className="text-lg font-bold text-primary mb-4">{t('dash.complianceByStd')}</h3>
-        <div className="grid grid-cols-4 gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
           {complianceStatuses.map((status) => (
             <div 
               key={status.standardId} 
@@ -226,7 +345,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 <span className="font-semibold text-primary truncate text-sm">{getStandardName(status.standardId)}</span>
               </div>
               
-              <div className="relative flex items-center justify-center mb-4" style={{ width: '80px', height: '80px' }}>
+              <div className="compliance-ring relative flex items-center justify-center mb-4">
                 <svg width="80" height="80" viewBox="0 0 80 80">
                   <circle cx="40" cy="40" r="36" fill="none" stroke="var(--surface-2)" strokeWidth="6" />
                   <circle 
@@ -254,10 +373,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       </div>
 
       {/* Bottom Section */}
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Activity Feed */}
-        <div className="card col-span-2 p-0 overflow-hidden">
+        <div className="card lg:col-span-2 p-0 overflow-hidden">
           <div className="p-4 border-b border-gray-200">
             <h3 className="text-base font-bold text-primary">{t('dash.recentActivity')}</h3>
           </div>

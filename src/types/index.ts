@@ -18,6 +18,8 @@ export interface Requirement {
   status: 'compliant' | 'non-compliant' | 'partial' | 'pending' | 'COMPLIANT' | 'NON_COMPLIANT' | 'PARTIAL' | 'PENDING';
   evidenceCount: number;
   lastReviewed?: string;
+  isCritical?: boolean;
+  principle?: string;
 }
 
 export interface Document {

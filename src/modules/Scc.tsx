@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
+import { useUoc, type UocType, type UocItem } from '../components/UoCContext';
 
-interface UoC { id: string; name: string; companyName: string; country: string; area: number; status: string; managerName?: string; }
 interface SccTransaction { id: string; uocId: string; type: string; productType: string; supplyModel: string; volumeMt: number; batchRef: string; counterparty: string; documentRef: string; greenhouseGas: number; transactionDate: string; notes: string; }
 interface SccDashboard { uocCount: number; volumes: { type: string; productType: string; supplyModel: string; totalVolume: number }[]; stock: { productType: string; supplyModel: string; balance: number }[]; }
 
@@ -10,36 +10,109 @@ const supplyModelLabels: Record<string, string> = { IP: 'Identity Preserved', SG
 const productLabels: Record<string, string> = { RFF: 'RFF (Fruto)', CPO: 'CPO (Aceite Crudo)', PK: 'PK (Almendra)', PKO: 'PKO (Aceite Almendra)', PKE: 'PKE (Expeller)', RBDPO: 'RBDPO (Aceite Refinado)', RBDPL: 'RBDPL (Oleína)', PFAD: 'PFAD' };
 const modelColors: Record<string, string> = { IP: '#2563eb', SG: '#16a34a', MB: '#d97706', BC: '#9333ea' };
 
+const ALL_PRINCIPLES = [
+  { id: 'M1', label: 'M1: Gobierno, ética y DD. HH.' },
+  { id: 'M2', label: 'M2: Cumplimiento legal y terceros' },
+  { id: 'M3', label: 'M3: Estrategia, operación y trazabilidad' },
+  { id: 'M4', label: 'M4: Tierra, FPIC y comunidades' },
+  { id: 'M5', label: 'M5: Pequeños productores' },
+  { id: 'M6', label: 'M6: Trabajo decente y SST' },
+  { id: 'M7', label: 'M7: Ambiente, clima y biodiversidad' },
+];
+
 export default function Scc() {
+  const { uocs, addUoc, updateUocScope, selectedUocId, setSelectedUocId } = useUoc();
   const [activeTab, setActiveTab] = useState<SccTab>('dashboard');
   const [dashboard, setDashboard] = useState<SccDashboard | null>(null);
-  const [uocs, setUocs] = useState<UoC[]>([]);
   const [transactions, setTransactions] = useState<SccTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState('');
-  const [selectedUoc, setSelectedUoc] = useState('');
+  const [selectedUocFilter] = useState(selectedUocId === 'all' ? '' : selectedUocId);
   const [showForm, setShowForm] = useState(false);
   const [formMode, setFormMode] = useState<'UOC' | 'TRANSACTION'>('TRANSACTION');
+  const [editingUoc, setEditingUoc] = useState<UocItem | null>(null);
+
+  // UOC Scope Form State
+  const [uocType, setUocType] = useState<UocType>('MIXED');
+  const [uocAppliesAll, setUocAppliesAll] = useState(true);
+  const [selectedPrinciples, setSelectedPrinciples] = useState<string[]>(['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']);
 
   const fetchAll = async () => {
     try {
-      const [d, u, t] = await Promise.all([api.get('/scc/dashboard'), api.get('/scc/uocs'), api.get('/scc/transactions', { params: { uocId: selectedUoc || undefined, type: filterType || undefined } })]);
-      setDashboard(d.data); setUocs(u.data); setTransactions(t.data);
+      const [d, t] = await Promise.all([
+        api.get('/scc/dashboard'),
+        api.get('/scc/transactions', { params: { uocId: selectedUocFilter || undefined, type: filterType || undefined } })
+      ]);
+      setDashboard(d.data);
+      setTransactions(t.data);
     } catch (e) { /* */ }
     setLoading(false);
   };
-  useEffect(() => { fetchAll(); }, [selectedUoc, filterType]);
+  useEffect(() => { fetchAll(); }, [selectedUocFilter, filterType]);
+
+  const openUocForm = (targetUoc?: UocItem) => {
+    setFormMode('UOC');
+    if (targetUoc) {
+      setEditingUoc(targetUoc);
+      setUocType(targetUoc.type);
+      setUocAppliesAll(targetUoc.appliesAll);
+      setSelectedPrinciples(targetUoc.applicablePrinciples || ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']);
+    } else {
+      setEditingUoc(null);
+      setUocType('MIXED');
+      setUocAppliesAll(true);
+      setSelectedPrinciples(['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']);
+    }
+    setShowForm(true);
+  };
+
+  const handleTogglePrinciple = (pId: string) => {
+    if (selectedPrinciples.includes(pId)) {
+      if (selectedPrinciples.length === 1) return; // keep at least 1
+      setSelectedPrinciples(selectedPrinciples.filter(p => p !== pId));
+    } else {
+      setSelectedPrinciples([...selectedPrinciples, pId]);
+    }
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
     const data = Object.fromEntries(new FormData(form));
+
+    if (formMode === 'UOC') {
+      const uocData: UocItem = {
+        id: editingUoc ? editingUoc.id : `uoc-${Date.now()}`,
+        name: data.name as string,
+        companyName: data.companyName as string,
+        country: (data.country as string) || 'Colombia',
+        area: parseFloat(data.area as string) || 0,
+        status: 'ACTIVE',
+        managerName: data.managerName as string,
+        type: uocType,
+        appliesAll: uocAppliesAll,
+        applicablePrinciples: uocAppliesAll ? ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'] : selectedPrinciples
+      };
+
+      if (editingUoc) {
+        updateUocScope(editingUoc.id, uocData);
+      } else {
+        addUoc(uocData);
+      }
+      setShowForm(false);
+      return;
+    }
+
     try {
-      const url = formMode === 'UOC' ? '/scc/uocs' : '/scc/transactions';
-      const body = formMode === 'UOC' ? { ...data, area: parseFloat(data.area as string) || 0 } : { ...data, volumeMt: parseFloat(data.volumeMt as string), greenhouseGas: parseFloat(data.greenhouseGas as string) || 0 };
-      await api.post(url, body);
-      setShowForm(false); fetchAll();
-    } catch (err) { alert('Error al guardar'); }
+      const body = {
+        ...data,
+        volumeMt: parseFloat(data.volumeMt as string),
+        greenhouseGas: parseFloat(data.greenhouseGas as string) || 0
+      };
+      await api.post('/scc/transactions', body);
+      setShowForm(false);
+      fetchAll();
+    } catch (err) { alert('Error al guardar transacción'); }
   };
 
   const vols = dashboard?.volumes || [];
@@ -75,7 +148,7 @@ export default function Scc() {
 
   return (
     <div className="flex-col gap-6 animate-fade-in">
-      <div className="flex gap-1" style={{ borderBottom: '2px solid var(--border-color)', paddingBottom: '0' }}>
+      <div className="flex gap-1 flex-wrap overflow-x-auto" style={{ borderBottom: '2px solid var(--border-color)', paddingBottom: '0' }}>
         {tabs.map(tab => (
           <button key={tab.id}
             className={activeTab === tab.id ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
@@ -97,12 +170,14 @@ export default function Scc() {
           </div>
           <div className="card p-0 overflow-hidden">
             <div className="p-4 border-b border-gray-200 bg-surface-1"><h3 className="text-base font-bold text-primary">Resumen por Modelo de Suministro</h3></div>
-            <table className="w-full text-left">
-              <thead><tr className="bg-white border-b border-gray-200"><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Modelo</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Recibido</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Producido</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Vendido</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Balance</th></tr></thead>
-              <tbody>
-                {Object.entries(supplyModelLabels).map(([m, l]) => { const bal = stockData.filter(s => s.supplyModel === m).reduce((a, s) => a + Number(s.balance), 0); return (<tr key={m} className="border-b border-gray-100 hover:bg-surface-1"><td className="p-4"><span className="font-semibold" style={{ color: modelColors[m] }}>{l}</span></td><td className="p-4">{sumVol('RECEPTION', m).toLocaleString()}</td><td className="p-4">{sumVol('PRODUCTION', m).toLocaleString()}</td><td className="p-4">{sumVol('SALE', m).toLocaleString()}</td><td className="p-4 font-bold" style={{ color: bal < 0 ? 'var(--accent-red)' : 'var(--accent-green)' }}>{bal.toLocaleString()}</td></tr>); })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left min-w-[600px]">
+                <thead><tr className="bg-white border-b border-gray-200"><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Modelo</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Recibido</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Producido</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Vendido</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Balance</th></tr></thead>
+                <tbody>
+                  {Object.entries(supplyModelLabels).map(([m, l]) => { const bal = stockData.filter(s => s.supplyModel === m).reduce((a, s) => a + Number(s.balance), 0); return (<tr key={m} className="border-b border-gray-100 hover:bg-surface-1"><td className="p-4"><span className="font-semibold" style={{ color: modelColors[m] }}>{l}</span></td><td className="p-4">{sumVol('RECEPTION', m).toLocaleString()}</td><td className="p-4">{sumVol('PRODUCTION', m).toLocaleString()}</td><td className="p-4">{sumVol('SALE', m).toLocaleString()}</td><td className="p-4 font-bold" style={{ color: bal < 0 ? 'var(--accent-red)' : 'var(--accent-green)' }}>{bal.toLocaleString()}</td></tr>); })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -111,28 +186,32 @@ export default function Scc() {
       {activeTab === 'stock' && (
         <div className="card p-0 overflow-hidden">
           <div className="p-4 border-b border-gray-200 bg-surface-1"><h3 className="text-base font-bold text-primary">Balance de Inventario por Producto y Modelo</h3></div>
-          <table className="w-full text-left"><thead><tr className="bg-white border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Producto</th><th className="p-4 text-xs font-bold text-secondary uppercase">Modelo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Balance (TM)</th></tr></thead><tbody>
-            {stockData.map((s, i) => <tr key={i} className="border-b hover:bg-surface-1"><td className="p-4">{productLabels[s.productType] || s.productType}</td><td className="p-4"><span style={{ color: modelColors[s.supplyModel] }} className="font-semibold">{supplyModelLabels[s.supplyModel]}</span></td><td className="p-4 font-bold" style={{ color: Number(s.balance) < 0 ? 'var(--accent-red)' : 'var(--accent-green)' }}>{Number(s.balance).toLocaleString()}</td></tr>)}
-            {stockData.length === 0 && <tr><td colSpan={3} className="p-4 text-center text-muted">Sin datos de inventario</td></tr>}
-          </tbody></table>
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left min-w-[500px]"><thead><tr className="bg-white border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Producto</th><th className="p-4 text-xs font-bold text-secondary uppercase">Modelo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Balance (TM)</th></tr></thead><tbody>
+              {stockData.map((s, i) => <tr key={i} className="border-b hover:bg-surface-1"><td className="p-4">{productLabels[s.productType] || s.productType}</td><td className="p-4"><span style={{ color: modelColors[s.supplyModel] }} className="font-semibold">{supplyModelLabels[s.supplyModel]}</span></td><td className="p-4 font-bold" style={{ color: Number(s.balance) < 0 ? 'var(--accent-red)' : 'var(--accent-green)' }}>{Number(s.balance).toLocaleString()}</td></tr>)}
+              {stockData.length === 0 && <tr><td colSpan={3} className="p-4 text-center text-muted">Sin datos de inventario</td></tr>}
+            </tbody></table>
+          </div>
         </div>
       )}
 
       {/* TRANSACTIONS */}
       {(activeTab === 'reception' || activeTab === 'production' || activeTab === 'sales') && (
         <div className="flex-col gap-4">
-          <div className="flex justify-between items-center">
-            <div className="flex gap-2">
-              <select value={selectedUoc} onChange={e => setSelectedUoc(e.target.value)} className="form-input" style={{ width: '220px' }}><option value="">Todas las UoCs</option>{uocs.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
-              <select value={filterType} onChange={e => setFilterType(e.target.value)} className="form-input" style={{ width: '160px' }}><option value="">Todos los tipos</option><option value="RECEPTION">Recepción</option><option value="PRODUCTION">Producción</option><option value="SALE">Venta</option><option value="TRANSFER">Transferencia</option></select>
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <select value={selectedUocId} onChange={e => setSelectedUocId(e.target.value)} className="form-input" style={{ width: '220px', maxWidth: '100%' }}><option value="all">Todas las UoCs</option>{uocs.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
+              <select value={filterType} onChange={e => setFilterType(e.target.value)} className="form-input" style={{ width: '160px', maxWidth: '100%' }}><option value="">Todos los tipos</option><option value="RECEPTION">Recepción</option><option value="PRODUCTION">Producción</option><option value="SALE">Venta</option><option value="TRANSFER">Transferencia</option></select>
             </div>
             <button className="btn btn-primary" onClick={() => { setShowForm(true); setFormMode('TRANSACTION'); }}>+ Nueva Transacción</button>
           </div>
           <div className="card p-0 overflow-hidden">
-            <table className="w-full text-left"><thead><tr className="bg-white border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Fecha</th><th className="p-4 text-xs font-bold text-secondary uppercase">Tipo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Producto</th><th className="p-4 text-xs font-bold text-secondary uppercase">Modelo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Vol. (TM)</th><th className="p-4 text-xs font-bold text-secondary uppercase">Lote</th><th className="p-4 text-xs font-bold text-secondary uppercase">Contraparte</th></tr></thead><tbody>
-            {filteredTxs.map(tx => <tr key={tx.id} className="border-b hover:bg-surface-1"><td className="p-4 text-sm text-secondary">{new Date(tx.transactionDate).toLocaleDateString('es-CO')}</td><td className="p-4">{getTypeBadge(tx.type)}</td><td className="p-4 text-sm">{productLabels[tx.productType] || tx.productType}</td><td className="p-4"><span className="font-semibold text-sm" style={{ color: modelColors[tx.supplyModel] }}>{tx.supplyModel}</span></td><td className="p-4 text-sm font-mono">{Number(tx.volumeMt).toLocaleString()}</td><td className="p-4 text-sm text-secondary">{tx.batchRef || '—'}</td><td className="p-4 text-sm text-secondary">{tx.counterparty || '—'}</td></tr>)}
-            {filteredTxs.length === 0 && <tr><td colSpan={7} className="p-4 text-center text-muted">Sin transacciones</td></tr>}
-          </tbody></table>
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left min-w-[700px]"><thead><tr className="bg-white border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Fecha</th><th className="p-4 text-xs font-bold text-secondary uppercase">Tipo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Producto</th><th className="p-4 text-xs font-bold text-secondary uppercase">Modelo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Vol. (TM)</th><th className="p-4 text-xs font-bold text-secondary uppercase">Lote</th><th className="p-4 text-xs font-bold text-secondary uppercase">Contraparte</th></tr></thead><tbody>
+              {filteredTxs.map(tx => <tr key={tx.id} className="border-b hover:bg-surface-1"><td className="p-4 text-sm text-secondary">{new Date(tx.transactionDate).toLocaleDateString('es-CO')}</td><td className="p-4">{getTypeBadge(tx.type)}</td><td className="p-4 text-sm">{productLabels[tx.productType] || tx.productType}</td><td className="p-4"><span className="font-semibold text-sm" style={{ color: modelColors[tx.supplyModel] }}>{tx.supplyModel}</span></td><td className="p-4 text-sm font-mono">{Number(tx.volumeMt).toLocaleString()}</td><td className="p-4 text-sm text-secondary">{tx.batchRef || '—'}</td><td className="p-4 text-sm text-secondary">{tx.counterparty || '—'}</td></tr>)}
+              {filteredTxs.length === 0 && <tr><td colSpan={7} className="p-4 text-center text-muted">Sin transacciones</td></tr>}
+            </tbody></table>
+            </div>
           </div>
         </div>
       )}
@@ -222,12 +301,72 @@ export default function Scc() {
       {/* UOCs */}
       {activeTab === 'uocs' && (
         <div className="flex-col gap-4">
-          <div className="flex justify-between items-center"><h3 className="text-lg font-bold text-primary">Unidades de Certificación</h3><button className="btn btn-primary" onClick={() => { setShowForm(true); setFormMode('UOC'); }}>+ Nueva UoC</button></div>
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <div>
+              <h3 className="text-lg font-bold text-primary">Unidades de Certificación (UoCs) y Definición de Alcance</h3>
+              <p className="text-xs text-secondary mt-0.5">Gestione las UoCs creadas y configure si aplica el 100% de la norma o alcance específico por unidad</p>
+            </div>
+            <button className="btn btn-primary" onClick={() => openUocForm()}>+ Nueva UoC</button>
+          </div>
           <div className="card p-0 overflow-hidden">
-            <table className="w-full text-left"><thead><tr className="bg-white border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Nombre</th><th className="p-4 text-xs font-bold text-secondary uppercase">Empresa</th><th className="p-4 text-xs font-bold text-secondary uppercase">País</th><th className="p-4 text-xs font-bold text-secondary uppercase">Área (ha)</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th><th className="p-4 text-xs font-bold text-secondary uppercase">Responsable</th></tr></thead><tbody>
-            {uocs.map(u => <tr key={u.id} className="border-b hover:bg-surface-1"><td className="p-4 font-semibold">{u.name}</td><td className="p-4 text-sm">{u.companyName}</td><td className="p-4 text-sm">{u.country}</td><td className="p-4 text-sm font-mono">{u.area.toLocaleString()}</td><td className="p-4"><span className="badge" style={{ background: 'var(--accent-green-bg)', color: 'var(--accent-green)' }}>{u.status}</span></td><td className="p-4 text-sm text-secondary">{u.managerName || '—'}</td></tr>)}
-            {uocs.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-muted">Sin UoCs registradas</td></tr>}
-          </tbody></table>
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left min-w-[700px]">
+                <thead>
+                  <tr className="bg-white border-b">
+                    <th className="p-4 text-xs font-bold text-secondary uppercase">Nombre / UoC</th>
+                    <th className="p-4 text-xs font-bold text-secondary uppercase">Tipo de Unidad</th>
+                    <th className="p-4 text-xs font-bold text-secondary uppercase">Empresa / País</th>
+                    <th className="p-4 text-xs font-bold text-secondary uppercase">Área (ha)</th>
+                    <th className="p-4 text-xs font-bold text-secondary uppercase">Alcance RSPO 2024</th>
+                    <th className="p-4 text-xs font-bold text-secondary uppercase">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {uocs.map(u => {
+                    const typeLabels: Record<string, string> = {
+                      MIXED: 'Plantación + Extractora',
+                      PLANTATION: 'Solo Plantación / Finca',
+                      MILL: 'Solo Planta Extractora',
+                      SMALLHOLDERS: 'Pequeños Productores'
+                    };
+                    return (
+                      <tr key={u.id} className="border-b hover:bg-surface-1">
+                        <td className="p-4">
+                          <div className="flex-col">
+                            <span className="font-semibold text-primary">{u.name}</span>
+                            <span className="text-xs text-secondary">{u.managerName || 'Sin responsable'}</span>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <span className="badge" style={{ background: 'var(--accent-blue-light)', color: 'var(--accent-blue)' }}>
+                            {typeLabels[u.type] || u.type}
+                          </span>
+                        </td>
+                        <td className="p-4 text-sm text-secondary">{u.companyName} ({u.country})</td>
+                        <td className="p-4 text-sm font-mono">{u.area.toLocaleString()} ha</td>
+                        <td className="p-4">
+                          {u.appliesAll ? (
+                            <span className="badge" style={{ background: 'var(--accent-green-bg)', color: 'var(--accent-green)' }}>
+                              ✓ Aplica 100% (M1-M7)
+                            </span>
+                          ) : (
+                            <span className="badge" style={{ background: 'var(--accent-gold-bg)', color: 'var(--accent-gold)' }}>
+                              ⚙ Personalizado ({u.applicablePrinciples?.length || 0} de 7)
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          <button className="btn btn-secondary btn-sm" onClick={() => openUocForm(u)}>
+                            ⚙ Configurar Alcance
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {uocs.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-muted">Sin UoCs registradas</td></tr>}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -235,15 +374,106 @@ export default function Scc() {
       {/* MODAL FORM */}
       {showForm && (
         <div className="modal-overlay flex-center" onClick={() => setShowForm(false)}>
-          <div className="modal card max-w-md w-full p-6 animate-scale-in" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-6"><h3 className="text-lg font-bold text-primary">{formMode === 'UOC' ? 'Nueva UoC' : 'Nueva Transacción SCC'}</h3><button className="btn-icon" onClick={() => setShowForm(false)}><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button></div>
+          <div className="modal card max-w-xl w-full p-6 animate-scale-in" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-primary">
+                {formMode === 'UOC' 
+                  ? (editingUoc ? `Configurar Alcance — ${editingUoc.name}` : 'Nueva Unidad de Certificación') 
+                  : 'Nueva Transacción SCC'}
+              </h3>
+              <button className="btn-icon" onClick={() => setShowForm(false)}>
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px' }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
             <form onSubmit={handleCreate} className="flex-col gap-4">
               {formMode === 'UOC' ? (<>
-                <div className="form-group flex-col gap-1"><label className="form-label font-semibold">Nombre</label><input name="name" className="form-input" required /></div>
-                <div className="form-group flex-col gap-1"><label className="form-label font-semibold">Empresa</label><input name="companyName" className="form-input" required /></div>
-                <div className="flex gap-2"><div className="form-group flex-col gap-1 flex-1"><label className="form-label font-semibold">País</label><input name="country" className="form-input" defaultValue="Colombia" /></div><div className="form-group flex-col gap-1 flex-1"><label className="form-label font-semibold">Área (ha)</label><input name="area" className="form-input" type="number" step="0.01" /></div></div>
-                <div className="form-group flex-col gap-1"><label className="form-label font-semibold">Responsable</label><input name="managerName" className="form-input" /></div>
-                <div className="form-group flex-col gap-1"><label className="form-label font-semibold">Email</label><input name="managerEmail" className="form-input" type="email" /></div>
+                <div className="form-group flex-col gap-1">
+                  <label className="form-label font-semibold">Nombre de la UoC</label>
+                  <input name="name" className="form-input" defaultValue={editingUoc?.name} required />
+                </div>
+                
+                <div className="flex gap-2">
+                  <div className="form-group flex-col gap-1 flex-1">
+                    <label className="form-label font-semibold">Empresa / Razón Social</label>
+                    <input name="companyName" className="form-input" defaultValue={editingUoc?.companyName} required />
+                  </div>
+                  <div className="form-group flex-col gap-1 flex-1">
+                    <label className="form-label font-semibold">Tipo de Unidad</label>
+                    <select 
+                      className="form-input" 
+                      value={uocType} 
+                      onChange={e => setUocType(e.target.value as UocType)}
+                    >
+                      <option value="MIXED">Plantación y Extractora (Mixta)</option>
+                      <option value="PLANTATION">Solo Plantación / Finca</option>
+                      <option value="MILL">Solo Planta Extractora</option>
+                      <option value="SMALLHOLDERS">Grupo de Pequeños Productores</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <div className="form-group flex-col gap-1 flex-1">
+                    <label className="form-label font-semibold">País</label>
+                    <input name="country" className="form-input" defaultValue={editingUoc?.country || 'Colombia'} />
+                  </div>
+                  <div className="form-group flex-col gap-1 flex-1">
+                    <label className="form-label font-semibold">Área Certificada (ha)</label>
+                    <input name="area" className="form-input" type="number" step="0.01" defaultValue={editingUoc?.area} />
+                  </div>
+                </div>
+
+                <div className="form-group flex-col gap-1">
+                  <label className="form-label font-semibold">Responsable de UoC</label>
+                  <input name="managerName" className="form-input" defaultValue={editingUoc?.managerName} />
+                </div>
+
+                {/* ALCANCE DE CERTIFICACIÓN RSPO */}
+                <div className="p-4 rounded-lg border flex-col gap-3 mt-2" style={{ background: 'var(--surface-1)', borderColor: 'var(--border-color)' }}>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="font-bold text-sm text-primary">¿Aplica el 100% de la Certificación RSPO 2024?</h4>
+                      <p className="text-xs text-secondary">Si desmarca esta opción, podrá seleccionar cuáles Principios aplican a esta UoC específica y cuáles se marcan N/A</p>
+                    </div>
+                    <input 
+                      type="checkbox" 
+                      style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                      checked={uocAppliesAll} 
+                      onChange={e => {
+                        setUocAppliesAll(e.target.checked);
+                        if (e.target.checked) {
+                          setSelectedPrinciples(['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {!uocAppliesAll && (
+                    <div className="flex-col gap-2 mt-2 pt-3 border-t border-gray-200">
+                      <p className="text-xs font-bold text-secondary uppercase tracking-wider mb-1">
+                        Seleccione los Principios Aplicables a esta UoC:
+                      </p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {ALL_PRINCIPLES.map(p => {
+                          const isChecked = selectedPrinciples.includes(p.id);
+                          return (
+                            <label key={p.id} className="flex items-center gap-2 p-2 rounded hover:bg-white border cursor-pointer text-xs" style={{ background: isChecked ? 'white' : 'transparent', borderColor: isChecked ? 'var(--accent-blue)' : 'var(--border-color)' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={isChecked} 
+                                onChange={() => handleTogglePrinciple(p.id)} 
+                              />
+                              <span className="font-semibold text-primary">{p.label}</span>
+                              {!isChecked && <span className="badge ml-auto text-[10px]" style={{ background: 'var(--accent-gold-bg)', color: 'var(--accent-gold)' }}>N/A (No Aplica)</span>}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>) : (<>
                 <div className="form-group flex-col gap-1"><label className="form-label font-semibold">UoC</label><select name="uocId" className="form-input" required><option value="">Seleccionar...</option>{uocs.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
                 <div className="flex gap-2"><div className="form-group flex-col gap-1 flex-1"><label className="form-label font-semibold">Tipo</label><select name="type" className="form-input" required><option value="">Tipo...</option><option value="RECEPTION">Recepción</option><option value="PRODUCTION">Producción</option><option value="SALE">Venta</option><option value="TRANSFER">Transferencia</option></select></div><div className="form-group flex-col gap-1 flex-1"><label className="form-label font-semibold">Producto</label><select name="productType" className="form-input" required><option value="">Producto...</option><option value="RFF">RFF</option><option value="CPO">CPO</option><option value="PK">PK</option><option value="PKO">PKO</option><option value="RBDPO">RBDPO</option></select></div></div>
@@ -253,7 +483,10 @@ export default function Scc() {
                 <div className="form-group flex-col gap-1"><label className="form-label font-semibold">Fecha</label><input name="transactionDate" className="form-input" type="date" /></div>
                 <div className="form-group flex-col gap-1"><label className="form-label font-semibold">Notas</label><textarea name="notes" className="form-input" rows={2} /></div>
               </>)}
-              <div className="flex gap-3 justify-end mt-4"><button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancelar</button><button type="submit" className="btn btn-primary">Guardar</button></div>
+              <div className="flex gap-3 justify-end mt-4">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary">Guardar Configuración</button>
+              </div>
             </form>
           </div>
         </div>
