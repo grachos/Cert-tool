@@ -331,7 +331,7 @@ export default function Compliance() {
             <div className="overflow-x-auto w-full">
               <table className="w-full text-left min-w-[600px]">
                 <thead>
-                  <tr className="bg-white border-b">
+                  <tr className="bg-surface-1 border-b">
                     <th className="p-3 text-xs font-bold text-secondary uppercase">Cláusula</th>
                     <th className="p-3 text-xs font-bold text-secondary uppercase">Indicador</th>
                     <th className="p-3 text-xs font-bold text-secondary uppercase">Estado</th>
@@ -492,7 +492,7 @@ export default function Compliance() {
               {selectedStandard === 'RSPO' ? renderRspoDetail() : (
               <table className="w-full text-left">
                 <thead>
-                  <tr className="bg-white border-b border-gray-200">
+                  <tr className="bg-surface-1 border-b">
                     <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('compliance.clause')}</th>
                     <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('compliance.requirement')}</th>
                     <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('compliance.status')}</th>

@@ -321,14 +321,14 @@ export default function Automation() {
             >
               <div className="flex justify-between items-center p-3 rounded-t-lg border-b-2" style={{ borderColor: col.headerColor, background: 'var(--surface-1)' }}>
                 <h3 className="font-bold text-sm uppercase tracking-wide" style={{ color: col.headerColor }}>{col.title}</h3>
-                <span className="bg-white text-xs font-bold px-2 py-1 rounded shadow-sm text-secondary border border-gray-200">{col.items.length}</span>
+                <span className="bg-surface-2 text-xs font-bold px-2 py-1 rounded shadow-sm text-secondary border border-color">{col.items.length}</span>
               </div>
               
-              <div className="flex-col gap-3 min-h-[500px] p-2 rounded-b-lg border border-gray-200" style={{ background: col.color }}>
+              <div className="flex-col gap-3 min-h-[500px] p-2 rounded-b-lg border border-color" style={{ background: 'var(--surface-1)' }}>
                 {col.items.map(item => (
                   <div 
                     key={item.id} 
-                    className="card p-3 cursor-grab active:cursor-grabbing hover:shadow-md border border-gray-200 bg-white"
+                    className="card p-3 cursor-grab active:cursor-grabbing hover:shadow-md border border-color"
                     draggable
                     onDragStart={(e) => handleDragStart(e, item.id)}
                     onClick={() => handleEditPlanClick(item)}

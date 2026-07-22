@@ -5,7 +5,7 @@ import { useUoc } from '../components/UoCContext';
 import api from '../api';
 
 interface DashboardProps {
-  onNavigate: (module: 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'users' | 'scc' | 'stakeholders') => void;
+  onNavigate: (module: 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations' | 'audits') => void;
 }
 
 interface Stats {
@@ -100,20 +100,96 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   return (
     <div className="flex-col gap-6 animate-fade-in">
       
-      <div className="hero-banner card">
-        <div className="flex justify-between items-start gap-4" style={{ flexWrap: 'wrap' }}>
-          <div>
-            <h2 className="text-xl font-bold mb-1">Cert-TechCol — RSPO P&C 2024</h2>
-            <p className="text-sm">La operación sostenible, conectada de principio a fin.</p>
-          </div>
-          <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-            <span className="badge hero-badge">146 indicadores</span>
-            <span className="badge hero-badge">7 principios</span>
-            <span className="badge hero-badge">3 UoCs</span>
-          </div>
+      {/* Hero Banner Estilo NEXOPALMA Certificación de Palma */}
+      <div 
+        className="card p-8 text-white overflow-hidden relative"
+        style={{
+          backgroundImage: `linear-gradient(135deg, rgba(6, 46, 33, 0.88) 0%, rgba(15, 61, 46, 0.75) 100%), url('/palm_plantation_hero.jpg')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          borderRadius: '16px',
+          boxShadow: '0 10px 25px -5px rgba(6, 46, 33, 0.4)',
+          minHeight: '260px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div className="max-w-2xl">
+          <span className="text-xs font-bold uppercase tracking-widest text-emerald-300 block mb-2">
+            🌱 {language === 'es' ? 'ECOSISTEMA DE CERTIFICACIÓN RSPO' : 'RSPO CERTIFICATION ECOSYSTEM'}
+          </span>
+          <h2 className="text-3xl font-extrabold mb-2 text-white leading-tight" style={{ fontFamily: 'var(--font-heading, inherit)' }}>
+            {language === 'es' ? 'La operación sostenible, conectada de principio a fin.' : 'Sustainable operations, connected end to end.'}
+          </h2>
+          <p className="text-sm text-emerald-100/90 leading-relaxed max-w-xl">
+            {language === 'es' 
+              ? 'Cert-TechCol integra la extracción, las plantaciones, las emisiones y la trazabilidad de aceite de palma en una sola vista.' 
+              : 'Cert-TechCol integrates extraction, plantations, GHG emissions, and supply chain traceability in a unified view.'}
+          </p>
         </div>
-        <div className="flex gap-2 mt-4" style={{ flexWrap: 'wrap' }}>
-          <span className="hero-hint">Ctrl+K para búsqueda rápida</span>
+
+        <div className="flex gap-2 mt-6 flex-wrap items-center">
+          <span className="badge px-3 py-1 text-xs font-semibold" style={{ background: 'rgba(255, 255, 255, 0.15)', backdropFilter: 'blur(4px)', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.25)' }}>
+            162 Indicadores
+          </span>
+          <span className="badge px-3 py-1 text-xs font-semibold" style={{ background: 'rgba(255, 255, 255, 0.15)', backdropFilter: 'blur(4px)', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.25)' }}>
+            7 Principios RSPO 2024
+          </span>
+          <span className="badge px-3 py-1 text-xs font-semibold" style={{ background: 'rgba(255, 255, 255, 0.15)', backdropFilter: 'blur(4px)', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.25)' }}>
+            3 UoCs Registradas
+          </span>
+          <span className="badge px-3 py-1 text-xs font-semibold" style={{ background: 'rgba(234, 179, 8, 0.25)', backdropFilter: 'blur(4px)', color: '#FEF08A', border: '1px solid rgba(234, 179, 8, 0.4)' }}>
+            🌴 Trazabilidad PalmTrace
+          </span>
+        </div>
+      </div>
+
+      {/* Saludo Personalizado */}
+      <div className="flex justify-between items-center flex-wrap gap-4 pt-2">
+        <div>
+          <h2 className="text-2xl font-bold text-primary">
+            {language === 'es' ? 'Buenos días, Administrador.' : 'Good morning, Admin.'}
+          </h2>
+          <p className="text-xs text-secondary mt-1">
+            {language === 'es' ? 'La certificación avanza bien. Hay 4 módulos prioritarios que requieren atención esta semana.' : 'Certification is progressing smoothly. 4 priority modules require attention this week.'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 bg-surface-1 px-3 py-1.5 rounded-full border border-color text-xs text-secondary">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>{language === 'es' ? 'Última actualización: Hoy' : 'Last update: Today'}</span>
+        </div>
+      </div>
+
+      {/* Acceso Rápido de Módulos */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="card p-3 flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors" onClick={() => onNavigate('plant')}>
+          <div className="flex items-center gap-3">
+            <span className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 flex-center font-bold">🏭</span>
+            <div><div className="text-xs font-bold text-primary">{language === 'es' ? 'Planta Extractora' : 'Palm Oil Mill'}</div><div className="text-[10px] text-secondary">P&C Extractora</div></div>
+          </div>
+          <span className="text-xs text-secondary">↗</span>
+        </div>
+        <div className="card p-3 flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors" onClick={() => onNavigate('plantations')}>
+          <div className="flex items-center gap-3">
+            <span className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 flex-center font-bold">🌴</span>
+            <div><div className="text-xs font-bold text-primary">{language === 'es' ? 'Plantaciones & BPA' : 'Plantation & GAP'}</div><div className="text-[10px] text-secondary">Sanidad y Suelos</div></div>
+          </div>
+          <span className="text-xs text-secondary">↗</span>
+        </div>
+        <div className="card p-3 flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors" onClick={() => onNavigate('scc')}>
+          <div className="flex items-center gap-3">
+            <span className="w-9 h-9 rounded-lg bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 flex-center font-bold">⚖</span>
+            <div><div className="text-xs font-bold text-primary">{language === 'es' ? 'Balance CPO / SCC' : 'CPO Balance / SCC'}</div><div className="text-[10px] text-secondary">IP, SG, MB, BC</div></div>
+          </div>
+          <span className="text-xs text-secondary">↗</span>
+        </div>
+        <div className="card p-3 flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors" onClick={() => onNavigate('ghg')}>
+          <div className="flex items-center gap-3">
+            <span className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 flex-center font-bold">🌐</span>
+            <div><div className="text-xs font-bold text-primary">{language === 'es' ? 'Calculadora PalmGHG' : 'PalmGHG Calculator'}</div><div className="text-[10px] text-secondary">Emisiones tCO2e/tCPO</div></div>
+          </div>
+          <span className="text-xs text-secondary">↗</span>
         </div>
       </div>
       
@@ -207,19 +283,19 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           <div>
             <h4 className="font-bold text-sm text-primary">
               {selectedUocId === 'all' 
-                ? `Vista Consolidada — Sumatoria de ${uocs.length} Unidades de Certificación` 
-                : `Evaluación Específica: ${selectedUoc?.name}`}
+                ? (language === 'es' ? `Vista Consolidada — Sumatoria de ${uocs.length} Unidades de Certificación` : `Consolidated View — Sum of ${uocs.length} Certification Units`)
+                : `${language === 'es' ? 'Evaluación Específica:' : 'Specific Evaluation:'} ${selectedUoc?.name}`}
             </h4>
             <p className="text-xs text-secondary mt-0.5">
               {selectedUocId === 'all' 
-                ? 'Agregación ponderada de indicadores, mediciones y riesgos para toda la organización' 
-                : `Empresa: ${selectedUoc?.companyName} • Alcance: ${selectedUoc?.appliesAll ? '100% Norma RSPO 2024' : `${selectedUoc?.applicablePrinciples.length} Principios Aplicables`}`}
+                ? (language === 'es' ? 'Agregación ponderada de indicadores, mediciones y riesgos para toda la organización' : 'Weighted aggregation of metrics & risks across the entire organization')
+                : `${language === 'es' ? 'Empresa' : 'Company'}: ${selectedUoc?.companyName} • ${language === 'es' ? 'Alcance' : 'Scope'}: ${selectedUoc?.appliesAll ? (language === 'es' ? '100% Norma RSPO 2024' : '100% RSPO 2024 Standard') : `${selectedUoc?.applicablePrinciples.length} ${language === 'es' ? 'Principios Aplicables' : 'Applicable Principles'}`}`}
             </p>
           </div>
         </div>
         {selectedUoc && !selectedUoc.appliesAll && (
           <span className="badge" style={{ background: 'var(--accent-gold-bg)', color: 'var(--accent-gold)', fontWeight: 'bold' }}>
-            ⚙ Alcance Ajustado ({7 - selectedUoc.applicablePrinciples.length} Princ. N/A)
+            ⚙ {language === 'es' ? `Alcance Ajustado (${7 - selectedUoc.applicablePrinciples.length} Princ. N/A)` : `Adjusted Scope (${7 - selectedUoc.applicablePrinciples.length} Princ. N/A)`}
           </span>
         )}
       </div>
@@ -228,23 +304,23 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       <div className="card p-0 overflow-hidden border border-gray-200 shadow-sm">
         <div className="p-4 bg-surface-1 border-b border-gray-200 flex justify-between items-center flex-wrap gap-2">
           <div>
-            <h3 className="text-base font-bold text-primary">RSPO P&C 2024 — Desglose Ejecutivo por Principios (M1 a M7)</h3>
-            <p className="text-xs text-secondary mt-0.5">Gestión de cumplimiento normativo versión 4.2 (162 indicadores oficiales)</p>
+            <h3 className="text-base font-bold text-primary">{language === 'es' ? 'RSPO P&C 2024 — Desglose Ejecutivo por Principios (M1 a M7)' : 'RSPO P&C 2024 — Executive Breakdown by Principles (M1 to M7)'}</h3>
+            <p className="text-xs text-secondary mt-0.5">{language === 'es' ? 'Gestión de cumplimiento normativo versión 4.2 (162 indicadores oficiales)' : 'Standard compliance management v4.2 (162 official indicators)'}</p>
           </div>
-          <span className="badge" style={{ background: 'var(--accent-blue-light)', color: 'var(--accent-blue)' }}>Aplicación 2026</span>
+          <span className="badge" style={{ background: 'var(--accent-blue-light)', color: 'var(--accent-blue)' }}>{language === 'es' ? 'Aplicación 2026' : 'Application 2026'}</span>
         </div>
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left min-w-[700px]">
             <thead>
-              <tr className="bg-white border-b border-gray-200 text-xs font-bold text-secondary uppercase">
-                <th className="p-3">Módulo Comercial</th>
-                <th className="p-3">Principio</th>
-                <th className="p-3 text-center">Indicadores</th>
-                <th className="p-3 text-center">Cumple</th>
-                <th className="p-3 text-center">Parcial</th>
-                <th className="p-3 text-center">No Cumple</th>
-                <th className="p-3 text-center">% Cumplimiento</th>
-                <th className="p-3 text-center">Críticos</th>
+              <tr className="bg-surface-1 border-b text-xs font-bold text-secondary uppercase">
+                <th className="p-3">{language === 'es' ? 'Módulo Comercial' : 'Module'}</th>
+                <th className="p-3">{language === 'es' ? 'Principio' : 'Principle'}</th>
+                <th className="p-3 text-center">{language === 'es' ? 'Indicadores' : 'Indicators'}</th>
+                <th className="p-3 text-center">{language === 'es' ? 'Cumple' : 'Compliant'}</th>
+                <th className="p-3 text-center">{language === 'es' ? 'Parcial' : 'Partial'}</th>
+                <th className="p-3 text-center">{language === 'es' ? 'No Cumple' : 'Non-Compliant'}</th>
+                <th className="p-3 text-center">{language === 'es' ? '% Cumplimiento' : '% Compliance'}</th>
+                <th className="p-3 text-center">{language === 'es' ? 'Críticos' : 'Critical'}</th>
               </tr>
             </thead>
             <tbody>

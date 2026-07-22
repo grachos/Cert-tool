@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useUoc } from '../components/UoCContext';
+import { useThemeLanguage } from '../components/ThemeLanguageContext';
 
 type PlantTab = 'panorama' | 'bpa' | 'mantenimiento' | 'sanidad' | 'documental';
 
@@ -61,12 +62,15 @@ const docs = [
 
 export default function PlantationCompliance() {
   const { selectedUoc } = useUoc();
+  const { t, language } = useThemeLanguage();
   const [activeTab, setActiveTab] = useState<PlantTab>('panorama');
 
   const tabs: { id: PlantTab; label: string }[] = [
-    { id: 'panorama', label: 'Panorama' }, { id: 'bpa', label: 'BPA' },
-    { id: 'mantenimiento', label: 'Mantenimiento' }, { id: 'sanidad', label: 'Sanidad Vegetal' },
-    { id: 'documental', label: 'Control Documental' },
+    { id: 'panorama', label: language === 'es' ? 'Panorama' : 'Overview' },
+    { id: 'bpa', label: language === 'es' ? 'BPA' : 'GAP' },
+    { id: 'mantenimiento', label: language === 'es' ? 'Mantenimiento' : 'Maintenance' },
+    { id: 'sanidad', label: language === 'es' ? 'Sanidad Vegetal' : 'Plant Health' },
+    { id: 'documental', label: language === 'es' ? 'Control Documental' : 'Document Control' },
   ];
 
   const getStatusBadge = (status: string) => {
@@ -88,21 +92,25 @@ export default function PlantationCompliance() {
         <div className="card p-4 flex items-center gap-3 border-l-4" style={{ background: 'var(--surface-2)', borderLeftColor: 'var(--accent-gold)' }}>
           <div className="text-xl">ℹ️</div>
           <div>
-            <h4 className="font-bold text-sm text-primary">Alcance N/A para esta Unidad de Certificación</h4>
-            <p className="text-xs text-secondary mt-0.5">La UoC seleccionada <b>"{selectedUoc?.name}"</b> es de tipo <b>Solo Planta Extractora</b>. Las labores agronómicas de campo se administran en sus UoCs proveedoras de frutos.</p>
+            <h4 className="font-bold text-sm text-primary">{t('plantations.naBannerTitle')}</h4>
+            <p className="text-xs text-secondary mt-0.5">
+              {language === 'es' 
+                ? <>La UoC seleccionada <b>"{selectedUoc?.name}"</b> es de tipo <b>Solo Planta Extractora</b>. Las labores agronómicas de campo se administran en sus UoCs proveedoras de frutos.</>
+                : <>Selected UoC <b>"{selectedUoc?.name}"</b> is <b>Mill Only</b>. Agronomic field operations are managed in supplying farm UoCs.</>}
+            </p>
           </div>
         </div>
       )}
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase">Plantaciones</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{plantations.length}</span><span className="text-sm text-muted">{totalArea.toLocaleString()} ha</span></div></div>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase">Cumplimiento Promedio</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-blue)' }}>{avgComp}%</span><span className="text-sm text-muted">P&C 2024</span></div></div>
-        <div className="card"><div className="text-sm font-medium uppercase" style={{ color: 'var(--accent-red)' }}>Asuntos Críticos</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-red)' }}>{totalCritical}</span><span className="text-sm text-muted">Pendientes</span></div></div>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase">En Riesgo</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-gold)' }}>{plantations.filter(p => p.status !== 'Lista').length}</span><span className="text-sm text-muted">Plantaciones</span></div></div>
+        <div className="card"><div className="text-sm text-secondary font-medium uppercase">{t('plantations.count')}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{plantations.length}</span><span className="text-sm text-muted">{totalArea.toLocaleString()} ha</span></div></div>
+        <div className="card"><div className="text-sm text-secondary font-medium uppercase">{t('plantations.avgCompliance')}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-blue)' }}>{avgComp}%</span><span className="text-sm text-muted">P&C 2024</span></div></div>
+        <div className="card"><div className="text-sm font-medium uppercase" style={{ color: 'var(--accent-red)' }}>{t('plantations.criticalIssues')}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-red)' }}>{totalCritical}</span><span className="text-sm text-muted">{language === 'es' ? 'Pendientes' : 'Pending'}</span></div></div>
+        <div className="card"><div className="text-sm text-secondary font-medium uppercase">{t('plantations.atRisk')}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-gold)' }}>{plantations.filter(p => p.status !== 'Lista').length}</span><span className="text-sm text-muted">{language === 'es' ? 'Plantaciones' : 'Farms'}</span></div></div>
       </div>
       <div className="card p-0 overflow-hidden">
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left min-w-[600px]">
-            <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Plantación</th><th className="p-4 text-xs font-bold text-secondary uppercase">Tipo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Área (ha)</th><th className="p-4 text-xs font-bold text-secondary uppercase">Cumplimiento</th><th className="p-4 text-xs font-bold text-secondary uppercase">Críticos</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
+            <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Plantación' : 'Plantation'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Tipo' : 'Type'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Área (ha)' : 'Area (ha)'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Cumplimiento' : 'Compliance'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Críticos' : 'Critical'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Estado' : 'Status'}</th></tr></thead>
             <tbody>
               {plantations.map(p => (
                 <tr key={p.id} className="border-b hover:bg-surface-1">
@@ -124,7 +132,7 @@ export default function PlantationCompliance() {
     <div className="card p-0 overflow-hidden">
       <div className="overflow-x-auto w-full">
         <table className="w-full text-left min-w-[700px]">
-          <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Labor</th><th className="p-4 text-xs font-bold text-secondary uppercase">Plantación</th><th className="p-4 text-xs font-bold text-secondary uppercase">Lote</th><th className="p-4 text-xs font-bold text-secondary uppercase">Área (ha)</th><th className="p-4 text-xs font-bold text-secondary uppercase">Cuadrilla</th><th className="p-4 text-xs font-bold text-secondary uppercase">Fecha</th><th className="p-4 text-xs font-bold text-secondary uppercase">Meta</th><th className="p-4 text-xs font-bold text-secondary uppercase">Resultado</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
+          <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Labor' : 'Task'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Plantación' : 'Plantation'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Lote' : 'Lot'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Área (ha)' : 'Area (ha)'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Cuadrilla' : 'Crew'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Fecha' : 'Date'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Meta' : 'Target'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Resultado' : 'Result'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Estado' : 'Status'}</th></tr></thead>
           <tbody>
             {records.map(r => (
               <tr key={r.id} className="border-b hover:bg-surface-1">
@@ -154,25 +162,25 @@ export default function PlantationCompliance() {
 
       {activeTab === 'bpa' && (
         <div className="flex-col gap-4">
-          <h3 className="text-lg font-bold text-primary">Buenas Prácticas Agrícolas</h3>
+          <h3 className="text-lg font-bold text-primary">{language === 'es' ? 'Buenas Prácticas Agrícolas (BPA)' : 'Good Agricultural Practices (GAP)'}</h3>
           {renderFieldTable(bpaRecords)}
         </div>
       )}
 
       {activeTab === 'mantenimiento' && (
         <div className="flex-col gap-4">
-          <h3 className="text-lg font-bold text-primary">Mantenimiento del Cultivo</h3>
+          <h3 className="text-lg font-bold text-primary">{language === 'es' ? 'Mantenimiento del Cultivo' : 'Crop Maintenance'}</h3>
           {renderFieldTable(maintRecords)}
         </div>
       )}
 
       {activeTab === 'sanidad' && (
         <div className="flex-col gap-4">
-          <h3 className="text-lg font-bold text-primary">Sanidad Vegetal</h3>
+          <h3 className="text-lg font-bold text-primary">{language === 'es' ? 'Sanidad Vegetal y Manejo de Plagas' : 'Plant Health & Pest Management'}</h3>
           <div className="card p-0 overflow-hidden">
             <div className="overflow-x-auto w-full">
               <table className="w-full text-left min-w-[600px]">
-                <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Producto / Insumo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Tipo</th><th className="p-4 text-xs font-bold text-secondary uppercase">Dosis</th><th className="p-4 text-xs font-bold text-secondary uppercase">Lote</th><th className="p-4 text-xs font-bold text-secondary uppercase">Responsable Técnico</th><th className="p-4 text-xs font-bold text-secondary uppercase">Fecha</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
+                <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Producto / Insumo' : 'Product / Input'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Tipo' : 'Type'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Dosis' : 'Dose'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Lote' : 'Lot'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Responsable Técnico' : 'Technician'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Fecha' : 'Date'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Estado' : 'Status'}</th></tr></thead>
                 <tbody>
                   {saniRecords.map(r => (
                     <tr key={r.id} className="border-b hover:bg-surface-1">
@@ -192,11 +200,11 @@ export default function PlantationCompliance() {
 
       {activeTab === 'documental' && (
         <div className="flex-col gap-4">
-          <h3 className="text-lg font-bold text-primary">Control Documental</h3>
+          <h3 className="text-lg font-bold text-primary">{language === 'es' ? 'Control Documental de Fincas' : 'Farm Document Control'}</h3>
           <div className="card p-0 overflow-hidden">
             <div className="overflow-x-auto w-full">
               <table className="w-full text-left min-w-[600px]">
-                <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">Documento</th><th className="p-4 text-xs font-bold text-secondary uppercase">Plantación</th><th className="p-4 text-xs font-bold text-secondary uppercase">Versión</th><th className="p-4 text-xs font-bold text-secondary uppercase">Vigencia</th><th className="p-4 text-xs font-bold text-secondary uppercase">Propietario</th><th className="p-4 text-xs font-bold text-secondary uppercase">Estado</th></tr></thead>
+                <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Documento' : 'Document'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Plantación' : 'Plantation'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Versión' : 'Version'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Vigencia' : 'Validity'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Propietario' : 'Owner'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Estado' : 'Status'}</th></tr></thead>
                 <tbody>
                   {docs.map(d => (
                     <tr key={d.id} className="border-b hover:bg-surface-1">

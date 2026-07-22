@@ -157,19 +157,28 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
       </nav>
 
       <div className="sidebar-footer">
+        {!effectiveCollapsed && (
+          <div className="p-2.5 rounded-lg border text-xs flex items-center gap-2 mb-1" style={{ background: 'rgba(255, 255, 255, 0.06)', borderColor: 'rgba(255, 255, 255, 0.12)' }}>
+            <span className="w-5 h-5 rounded-full flex-center text-[10px] font-bold" style={{ background: '#10b981', color: '#ffffff' }}>✓</span>
+            <div className="flex-col" style={{ overflow: 'hidden' }}>
+              <span className="font-bold text-white text-[10px] tracking-wide uppercase">ESTÁNDAR ACTIVO</span>
+              <span className="text-[10px]" style={{ color: '#a7f3d0' }}>RSPO P&C 2024 (Vigencia 2026)</span>
+            </div>
+          </div>
+        )}
         <div className="sidebar-user">
-          <div className="sidebar-avatar">
+          <div className="sidebar-avatar" style={{ background: 'rgba(255, 255, 255, 0.15)', color: '#ffffff', fontWeight: 700 }}>
             {user?.name?.substring(0, 2).toUpperCase() || 'US'}
           </div>
           {!effectiveCollapsed && (
             <div className="sidebar-user-info">
-              <div className="sidebar-user-name">{user?.name}</div>
-              <div className="sidebar-user-email">{user?.email}</div>
+              <div className="sidebar-user-name" style={{ color: '#ffffff' }}>{user?.name}</div>
+              <div className="sidebar-user-email" style={{ color: '#a7f3d0' }}>{user?.email}</div>
             </div>
           )}
         </div>
         {!effectiveCollapsed && (
-          <button className="btn btn-secondary w-full sidebar-logout-btn" onClick={logout}>
+          <button className="btn btn-secondary w-full sidebar-logout-btn" style={{ background: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)' }} onClick={logout}>
             {t('nav.logout')}
           </button>
         )}

@@ -214,7 +214,7 @@ export default function Evidence() {
                 </div>
                 <div className="flex-col gap-2">
                   {ev.linkedDocuments.map((docName, idx) => (
-                    <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded border border-gray-100 shadow-sm">
+                    <div key={idx} className="flex items-center gap-2 bg-card p-2 rounded border border-color shadow-sm">
                       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '14px', height: '14px', color: 'var(--text-muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
                       <span className="text-xs text-primary truncate" title={docName}>{docName}</span>
                     </div>

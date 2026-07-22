@@ -591,7 +591,7 @@ export default function Documents() {
             <div className="overflow-x-auto w-full">
               <table className="w-full text-left min-w-[700px]">
                 <thead>
-                  <tr className="bg-white border-b border-gray-200">
+                  <tr className="bg-surface-1 border-b">
                     <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Permiso / Licencia</th>
                     <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">Autoridad / Entidad</th>
                     <th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">No. Expediente</th>

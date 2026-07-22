@@ -10,6 +10,191 @@ interface HeaderProps {
   onNavigateNotifications?: () => void;
 }
 
+interface UocSearchSelectProps {
+  uocs: any[];
+  selectedUocId: string;
+  onSelectUoc: (id: string) => void;
+  language: 'es' | 'en';
+}
+
+function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language }: UocSearchSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  const selectedUoc = uocs.find(u => u.id === selectedUocId);
+
+  const filteredUocs = uocs.filter(u => {
+    const q = searchQuery.toLowerCase();
+    return u.name?.toLowerCase().includes(q) || u.companyName?.toLowerCase().includes(q) || u.type?.toLowerCase().includes(q);
+  });
+
+  const getUocIcon = (type: string) => {
+    switch (type) {
+      case 'PLANTATION': return '🌴';
+      case 'MILL': return '🏭';
+      case 'SMALLHOLDERS': return '🧑‍🌾';
+      default: return '🌿';
+    }
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '260px', maxWidth: '100%' }}>
+      {/* Trigger Bar (Search-bar styled input box) */}
+      <button
+        type="button"
+        className="uoc-search-trigger"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          width: '100%',
+          padding: '0.45rem 0.75rem',
+          fontSize: '0.8125rem',
+          background: 'var(--bg-surface-1)',
+          border: isOpen ? '1px solid var(--accent-blue)' : '1px solid var(--border-light)',
+          borderRadius: 'var(--radius-full)',
+          color: 'var(--text-primary)',
+          cursor: 'pointer',
+          boxShadow: isOpen ? '0 0 0 3px rgba(37, 99, 235, 0.15)' : 'var(--shadow-sm)',
+          transition: 'all 200ms ease',
+        }}
+      >
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '15px', height: '15px', color: 'var(--accent-blue)', flexShrink: 0 }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <div style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'left' }}>
+          {selectedUocId === 'all' || !selectedUoc ? (
+            <span className="font-semibold text-primary">
+              {language === 'es' ? 'Todas las UoCs' : 'All UoCs'}
+            </span>
+          ) : (
+            <span className="font-semibold text-primary">
+              {getUocIcon(selectedUoc.type)} {selectedUoc.name}
+            </span>
+          )}
+        </div>
+        <span className="badge text-[10px]" style={{ background: selectedUocId === 'all' ? 'var(--accent-blue-light)' : 'var(--accent-green-bg)', color: selectedUocId === 'all' ? 'var(--accent-blue)' : 'var(--accent-green)', padding: '2px 6px' }}>
+          {selectedUocId === 'all' ? 'Σ' : (selectedUoc?.appliesAll ? '100%' : `${7 - selectedUoc?.applicablePrinciples.length} N/A`)}
+        </span>
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '14px', height: '14px', color: 'var(--text-muted)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms ease', flexShrink: 0 }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Floating Search Popover */}
+      {isOpen && (
+        <div
+          className="card p-0 shadow-lg"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            right: 0,
+            width: '320px',
+            maxWidth: '90vw',
+            zIndex: 200,
+            borderRadius: 'var(--radius-xl)',
+            overflow: 'hidden',
+            border: '1px solid var(--border-light)',
+            background: 'var(--bg-card)',
+          }}
+        >
+          {/* Inner Search Field */}
+          <div className="p-2 border-b" style={{ borderColor: 'var(--border-light)', background: 'var(--bg-surface-1)' }}>
+            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-full" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '14px', height: '14px', color: 'var(--text-muted)' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder={language === 'es' ? 'Buscar UoC por nombre...' : 'Search UoC by name...'}
+                style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.775rem', width: '100%', color: 'var(--text-primary)' }}
+              />
+              {searchQuery && (
+                <button type="button" onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* List of UoCs */}
+          <div style={{ maxHeight: '280px', overflowY: 'auto', padding: '4px' }}>
+            {/* Option: Consolidado / All */}
+            <div
+              className={`p-2 rounded-lg flex items-center justify-between cursor-pointer transition-colors ${selectedUocId === 'all' ? 'bg-surface-2 font-bold' : 'hover:bg-surface-1'}`}
+              onClick={() => { onSelectUoc('all'); setIsOpen(false); setSearchQuery(''); }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full flex-center font-bold text-xs" style={{ background: 'var(--accent-blue-light)', color: 'var(--accent-blue)' }}>Σ</span>
+                <div className="flex-col">
+                  <span className="text-xs font-semibold text-primary">{language === 'es' ? 'Todas las UoCs (Consolidado)' : 'All UoCs (Consolidated)'}</span>
+                  <span className="text-[10px] text-secondary">{language === 'es' ? 'Sumatoria corporativa' : 'Corporate totals'}</span>
+                </div>
+              </div>
+              {selectedUocId === 'all' && <span className="text-xs font-bold text-accent-blue">✓</span>}
+            </div>
+
+            <div className="my-1 border-t" style={{ borderColor: 'var(--border-light)' }} />
+
+            {filteredUocs.length === 0 ? (
+              <div className="p-4 text-center text-xs text-muted">
+                {language === 'es' ? 'No se encontraron UoCs' : 'No UoCs found'}
+              </div>
+            ) : (
+              filteredUocs.map(u => {
+                const isSelected = u.id === selectedUocId;
+                return (
+                  <div
+                    key={u.id}
+                    className={`p-2 rounded-lg flex items-center justify-between cursor-pointer transition-colors ${isSelected ? 'bg-surface-2' : 'hover:bg-surface-1'}`}
+                    onClick={() => { onSelectUoc(u.id); setIsOpen(false); setSearchQuery(''); }}
+                  >
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <span className="text-base">{getUocIcon(u.type)}</span>
+                      <div className="flex-col overflow-hidden">
+                        <span className="text-xs font-semibold text-primary truncate">{u.name}</span>
+                        <span className="text-[10px] text-secondary truncate">{u.companyName || u.id}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                      <span className="badge text-[10px]" style={{ background: u.appliesAll ? 'var(--accent-green-bg)' : 'var(--accent-gold-bg)', color: u.appliesAll ? 'var(--accent-green)' : 'var(--accent-gold)' }}>
+                        {u.appliesAll ? '100%' : `${7 - u.applicablePrinciples.length} N/A`}
+                      </span>
+                      {isSelected && <span className="text-xs font-bold text-accent-blue">✓</span>}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Header({ title, subtitle, onToggleSidebar, onNavigateNotifications }: HeaderProps) {
   const { theme, toggleTheme, language, setLanguage } = useThemeLanguage();
   const { selectedUocId, uocs, setSelectedUocId } = useUoC();
@@ -69,18 +254,12 @@ export default function Header({ title, subtitle, onToggleSidebar, onNavigateNot
 
       <div className="header-right">
         {uocs.length > 0 && (
-          <select 
-            className="uoc-select" 
-            value={selectedUocId}
-            onChange={e => setSelectedUocId(e.target.value)}
-          >
-            <option value="all">Todas las UoCs (Consolidado)</option>
-            {uocs.map(u => (
-              <option key={u.id} value={u.id}>
-                {u.name} {u.appliesAll ? '(Aplica 100%)' : `(${u.applicablePrinciples.length} Princ. N/A)`}
-              </option>
-            ))}
-          </select>
+          <UocSearchSelect 
+            uocs={uocs}
+            selectedUocId={selectedUocId}
+            onSelectUoc={setSelectedUocId}
+            language={language}
+          />
         )}
 
         <button className="lang-btn" onClick={() => setLanguage(language === 'es' ? 'en' : 'es')}>

@@ -16,31 +16,35 @@ svg {
 }
 
 :root {
-  --color-brand: #2563eb;
-  --color-brand-hover: #1d4ed8;
-  --color-brand-light: #eff6ff;
+  --color-brand: #15803d;
+  --color-brand-hover: #166534;
+  --color-brand-light: #e6f4ea;
 
   /* Aliases referenced by inline styles across modules */
-  --accent-blue: var(--color-brand);
-  --accent-blue-hover: var(--color-brand-hover);
-  --accent-blue-light: var(--color-brand-light);
+  --accent-blue: #15803d;
+  --accent-blue-hover: #166534;
+  --accent-blue-light: #e6f4ea;
   --accent-green: #16a34a;
+  --accent-green-bg: #dcfce7;
+  --accent-gold: #d97706;
+  --accent-gold-bg: #fef3c7;
   --accent-red: #dc2626;
+  --accent-red-bg: #fee2e2;
   --accent-orange: #f97316;
-  --surface-1: #f1f5f9;
-  --surface-2: #e2e8f0;
-  --border-color: #e2e8f0;
+  --surface-1: #e9ece4;
+  --surface-2: #dfe4d8;
+  --border-color: #e1e7da;
 
-  --bg-page: #f8fafc;
-  --bg-secondary: #f1f5f9;
+  --bg-page: #f3f5ef;
+  --bg-secondary: #e9ece4;
   --bg-card: #ffffff;
-  --bg-sidebar: #ffffff;
-  --bg-surface-1: #f1f5f9;
-  --bg-surface-2: #e2e8f0;
+  --bg-sidebar: #063726;
+  --bg-surface-1: #f3f5ef;
+  --bg-surface-2: #e9ece4;
 
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #64748b;
+  --text-primary: #0a261c;
+  --text-secondary: #365045;
+  --text-muted: #5f7a6f;
 
   --status-success: #16a34a;
   --status-success-bg: #dcfce7;
@@ -49,13 +53,13 @@ svg {
   --status-warning: #d97706;
   --status-warning-bg: #fef3c7;
 
-  --border-light: #e2e8f0;
-  --border-medium: #cbd5e1;
+  --border-light: #e1e7da;
+  --border-medium: #c8d3c0;
 
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-glow: 0 4px 14px 0 rgba(37, 99, 235, 0.39);
+  --shadow-sm: 0 1px 2px 0 rgb(6 55 38 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(6 55 38 / 0.08), 0 2px 4px -2px rgb(6 55 38 / 0.08);
+  --shadow-lg: 0 10px 15px -3px rgb(6 55 38 / 0.12), 0 4px 6px -4px rgb(6 55 38 / 0.12);
+  --shadow-glow: 0 4px 14px 0 rgba(21, 128, 61, 0.35);
 
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -77,21 +81,21 @@ svg {
 }
 
 [data-theme="dark"] {
-  --bg-page: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-card: #1e293b;
-  --bg-sidebar: #0f172a;
-  --bg-surface-1: #1e293b;
-  --bg-surface-2: #334155;
-  --surface-1: #1e293b;
-  --surface-2: #334155;
-  --border-color: #334155;
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --border-light: #334155;
-  --border-medium: #475569;
-  --color-brand-light: rgba(37, 99, 235, 0.15);
+  --bg-page: #071f18;
+  --bg-secondary: #0e2b21;
+  --bg-card: #0e2920;
+  --bg-sidebar: #041a14;
+  --bg-surface-1: #12362b;
+  --bg-surface-2: #184537;
+  --surface-1: #12362b;
+  --surface-2: #184537;
+  --border-color: #1a4537;
+  --text-primary: #f0fdf4;
+  --text-secondary: #a7f3d0;
+  --text-muted: #6ee7b7;
+  --border-light: #1a4537;
+  --border-medium: #225947;
+  --color-brand-light: rgba(21, 128, 61, 0.25);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -171,10 +175,10 @@ body {
   align-items: center;
   gap: 0.75rem;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 1.125rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #ffffff;
   min-height: var(--header-height);
 }
 
@@ -191,9 +195,9 @@ body {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.55rem 0.75rem;
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  color: #c4f1de;
   cursor: pointer;
   font-weight: 500;
   font-size: 0.875rem;
@@ -201,13 +205,14 @@ body {
 }
 
 .sidebar-item:hover {
-  background: var(--bg-surface-1);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
 }
 
 .sidebar-item.active {
-  background: var(--color-brand-light);
-  color: var(--color-brand);
+  background: #114c37;
+  color: #ffffff;
+  box-shadow: inset 3px 0 0 0 #f59e0b;
 }
 
 .sidebar-item svg {
@@ -222,18 +227,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.4rem 0.75rem 0.1rem;
-  margin-top: 0.3rem;
+  padding: 0.5rem 0.75rem 0.15rem;
+  margin-top: 0.5rem;
   cursor: pointer;
   user-select: none;
 }
 
 .sidebar-section-label {
-  font-size: 0.7rem;
+  font-size: 0.6875rem;
   font-weight: 700;
-  color: var(--text-muted);
+  color: #6ee7b7;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
 }
 
 .sidebar-section-chevron {
