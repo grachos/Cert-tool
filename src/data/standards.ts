@@ -1,6 +1,6 @@
 import type { Standard } from '../types';
 
-export const standards: Standard[] = [
+const rawStandards: Standard[] = [
   {
     id: 'BASC',
     name: 'BASC',
@@ -116,3 +116,9 @@ export const standards: Standard[] = [
     ]
   }
 ];
+
+const enabledEnv = import.meta.env.VITE_ENABLED_STANDARDS;
+export const standards: Standard[] = enabledEnv
+  ? rawStandards.filter(s => enabledEnv.split(',').map((x: string) => x.trim().toUpperCase()).includes(s.id.toUpperCase()))
+  : rawStandards;
+

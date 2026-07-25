@@ -5,7 +5,8 @@ import cache from '../cache';
 
 export const getStandardsCompliance = async (req: Request, res: Response): Promise<void> => {
   try {
-    const cacheKey = 'compliance_standards';
+    const enabledStandardsEnv = process.env.ENABLED_STANDARDS;
+    const cacheKey = `compliance_standards_${enabledStandardsEnv || 'ALL'}`;
     const cachedCompliance = cache.get(cacheKey);
     if (cachedCompliance) {
       res.status(200).json(cachedCompliance);
@@ -16,7 +17,6 @@ export const getStandardsCompliance = async (req: Request, res: Response): Promi
     let standards = stdRows as any[];
 
     // Filter by environment variables if set (SaaS licensing check)
-    const enabledStandardsEnv = process.env.ENABLED_STANDARDS;
     if (enabledStandardsEnv) {
       const allowedIds = enabledStandardsEnv.split(',').map(s => s.trim().toUpperCase());
       standards = standards.filter(std => allowedIds.includes(std.id.toUpperCase()));

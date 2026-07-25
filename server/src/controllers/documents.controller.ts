@@ -279,7 +279,8 @@ ${documentText}
 
 export const getDocuments = async (req: Request, res: Response): Promise<void> => {
   try {
-    const cacheKey = 'documents_all';
+    const enabledStandardsEnv = process.env.ENABLED_STANDARDS;
+    const cacheKey = `documents_all_${enabledStandardsEnv || 'ALL'}`;
     const cachedData = cache.get(cacheKey);
     
     if (cachedData) {
@@ -287,7 +288,16 @@ export const getDocuments = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const [docRows] = await db.query('SELECT * FROM Document ORDER BY uploadDate DESC');
+    let query = 'SELECT * FROM Document';
+    let params: any[] = [];
+    if (enabledStandardsEnv) {
+      const allowedIds = enabledStandardsEnv.split(',').map(s => s.trim().toUpperCase());
+      query += ' WHERE UPPER(standardId) IN (?)';
+      params.push(allowedIds);
+    }
+    query += ' ORDER BY uploadDate DESC';
+
+    const [docRows] = await db.query(query, params);
     const documents = docRows as any[];
     
     // Map with standard details and findings
