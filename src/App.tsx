@@ -16,6 +16,10 @@ import PlantExtractora from './modules/PlantExtractora';
 import GhgCalculator from './modules/GhgCalculator';
 import SupplyBase from './modules/SupplyBase';
 import PlantationCompliance from './modules/PlantationCompliance';
+import Traceability from './modules/Traceability';
+import Prisma from './modules/Prisma';
+import ActionPlans from './modules/ActionPlans';
+import Findings from './modules/Findings';
 import Toast from './components/Toast';
 import Login from './modules/Login';
 import { ToastProvider, useToast } from './components/ToastContext';
@@ -24,7 +28,7 @@ import { ThemeLanguageProvider, useThemeLanguage } from './components/ThemeLangu
 import { UocProvider } from './components/UoCContext';
 import QuickSearch from './components/QuickSearch';
 
-type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations';
+type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations' | 'traceability' | 'prisma' | 'actionPlans' | 'findings';
 
 function AppContent() {
   const [activeModule, setActiveModule] = useState<ModuleId>('dashboard');
@@ -55,10 +59,14 @@ function AppContent() {
       scc: { title: 'Cadena de Suministro SCC', subtitle: 'Trazabilidad y modelos de suministro RSPO (IP, SG, MB, BC)' },
       stakeholders: { title: 'Gestión de Partes Interesadas', subtitle: 'Matriz de diálogo social, canales FPIC/CLPI y atención a comunidades' },
       alerts: { title: 'Alertas y Notificaciones', subtitle: 'Centro de control de eventos críticos, hallazgos y alertas tempranas' },
-      plant: { title: 'Planta Extractora', subtitle: 'Control operacional de procesamiento de RFF, tasas de extracción (OER/KER) y laboratorio' },
+      plant: { title: 'P&C Planta Extractora', subtitle: 'Mapa de cumplimiento P&C 2024 y gestión integral de la planta' },
       ghg: { title: 'Calculadora GHG / PalmGHG', subtitle: 'Monitoreo de emisiones tCO2e/tCPO, alcances 1, 2 y 3' },
       supply: { title: 'Base de Suministro', subtitle: 'Registro de predios propios, terceros, grupos de pequeños productores y evaluación de riesgo' },
       plantations: { title: 'Cumplimiento Agrícola', subtitle: 'Monitoreo de campo, sanidad vegetal, labores agronómicas y registro por lotes' },
+      traceability: { title: 'Trazabilidad RFF', subtitle: 'Origen, elegibilidad, báscula y alertas de fruto fresco' },
+      prisma: { title: 'PRISMA by RSPO', subtitle: 'Control interno de anuncios, confirmaciones y ajustes' },
+      actionPlans: { title: 'Planes de acción', subtitle: 'Correcciones, causas, responsables y verificación de eficacia' },
+      findings: { title: 'Hallazgos', subtitle: 'No conformidades y observaciones consolidadas' },
     };
     return titles[activeModule];
   };
@@ -97,6 +105,10 @@ function AppContent() {
           {activeModule === 'ghg' && <GhgCalculator />}
           {activeModule === 'supply' && <SupplyBase />}
           {activeModule === 'plantations' && <PlantationCompliance />}
+          {activeModule === 'traceability' && <Traceability />}
+          {activeModule === 'prisma' && <Prisma />}
+          {activeModule === 'actionPlans' && <ActionPlans />}
+          {activeModule === 'findings' && <Findings onNavigate={setActiveModule} />}
         </div>
       </div>
       <div className="toast-container">

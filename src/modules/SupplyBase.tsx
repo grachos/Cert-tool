@@ -44,6 +44,7 @@ export default function SupplyBase() {
 
   return (
     <div className="flex-col gap-6 animate-fade-in">
+      <div className="integration-note"><strong>Prototipo sin conexión:</strong> esta vista conserva el conjunto demostrativo existente. Aún no hay tabla ni endpoint de predios, polígonos, productores y elegibilidad; consulte la propuesta técnica antes de usarla como registro oficial.</div>
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
         <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">{language === 'es' ? 'Área Total' : 'Total Area'}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{totalArea.toLocaleString()}</span><span className="text-sm text-muted">{language === 'es' ? 'hectáreas' : 'hectares'}</span></div></div>
         <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">{language === 'es' ? 'Predios Activos' : 'Active Farms'}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{totalPredios}</span><span className="text-sm text-muted">{units.length} {language === 'es' ? 'unidades' : 'units'}</span></div></div>

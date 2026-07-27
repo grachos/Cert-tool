@@ -5,7 +5,7 @@ import { useUoc } from '../components/UoCContext';
 import api from '../api';
 
 interface DashboardProps {
-  onNavigate: (module: 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations' | 'audits') => void;
+  onNavigate: (module: 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations' | 'audits' | 'traceability' | 'prisma' | 'actionPlans' | 'findings') => void;
 }
 
 interface Stats {
@@ -124,8 +124,8 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           </h2>
           <p className="text-sm text-emerald-100/90 leading-relaxed max-w-xl">
             {language === 'es' 
-              ? 'Cert-TechCol integra la extracción, las plantaciones, las emisiones y la trazabilidad de aceite de palma en una sola vista.' 
-              : 'Cert-TechCol integrates extraction, plantations, GHG emissions, and supply chain traceability in a unified view.'}
+              ? 'RSPO TECH integra la extracción, las plantaciones, las emisiones y la trazabilidad de aceite de palma en una sola vista.'
+              : 'RSPO TECH integrates extraction, plantations, GHG emissions, and supply chain traceability in a unified view.'}
           </p>
         </div>
 
@@ -149,7 +149,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       <div className="flex justify-between items-center flex-wrap gap-4 pt-2">
         <div>
           <h2 className="text-2xl font-bold text-primary">
-            {language === 'es' ? 'Buenos días, Administrador.' : 'Good morning, Admin.'}
+            {language === 'es' ? 'Hola, Viviana.' : 'Hello, Viviana.'}
           </h2>
           <p className="text-xs text-secondary mt-1">
             {language === 'es' ? 'La certificación avanza bien. Hay 4 módulos prioritarios que requieren atención esta semana.' : 'Certification is progressing smoothly. 4 priority modules require attention this week.'}
@@ -160,6 +160,28 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           <span>{language === 'es' ? 'Última actualización: Hoy' : 'Last update: Today'}</span>
         </div>
       </div>
+
+      <section>
+        <div className="flex-between mb-3"><h3 className="text-lg font-bold">Módulos RSPO TECH</h3><span className="text-xs text-secondary">Acceso directo</span></div>
+        <div className="module-access-grid">
+          {[
+            ['plant', '🏭', 'P&C Planta Extractora'],
+            ['plantations', '🌴', 'Cumplimiento de plantaciones'],
+            ['supply', '🗺', 'Base de suministro'],
+            ['traceability', '🚚', 'Trazabilidad RFF'],
+            ['ghg', '🌐', 'Calculadora GHG'],
+            ['scc', '⚖', 'Cadena de suministro'],
+            ['prisma', '↗', 'PRISMA by RSPO'],
+            ['evidence', '📎', 'Evidencias'],
+            ['actionPlans', '✓', 'Planes de acción'],
+            ['findings', '!', 'Hallazgos'],
+          ].map(([id, icon, label]) => (
+            <button key={id} className="module-access-card" onClick={() => onNavigate(id as Parameters<typeof onNavigate>[0])}>
+              <span className="module-access-icon">{icon}</span><span>{label}</span><b>→</b>
+            </button>
+          ))}
+        </div>
+      </section>
 
       {/* Acceso Rápido de Módulos */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">

@@ -151,6 +151,7 @@ export default function PlantationCompliance() {
 
   return (
     <div className="flex-col gap-6 animate-fade-in">
+      <div className="integration-note"><strong>Alcance actual:</strong> el detalle agrícola de esta vista es demostrativo y todavía no cuenta con endpoints propios. Evidencias, auditorías y planes de acción sí se gestionan en sus módulos conectados.</div>
       <div className="flex gap-1 flex-wrap overflow-x-auto" style={{ borderBottom: '2px solid var(--border-color)', paddingBottom: '0' }}>
         {tabs.map(tab => (
           <button key={tab.id} className={activeTab === tab.id ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}

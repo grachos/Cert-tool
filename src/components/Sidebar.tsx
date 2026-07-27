@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { useThemeLanguage } from './ThemeLanguageContext';
 
-type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations';
+type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations' | 'traceability' | 'prisma' | 'actionPlans' | 'findings';
 
 interface SidebarProps {
   activeModule: ModuleId;
@@ -35,26 +35,29 @@ const Icons = {
 };
 
 const topItems: NavItem[] = [
-  { id: 'dashboard', labelKey: 'nav.dashboard', icon: Icons.Dashboard },
+  { id: 'dashboard', labelKey: 'Resumen', icon: Icons.Dashboard },
+  { id: 'plant', labelKey: 'P&C Planta Extractora', icon: Icons.Plant },
+  { id: 'plantations', labelKey: 'Cumplimiento de plantaciones', icon: Icons.Plantations },
+  { id: 'supply', labelKey: 'Base de suministro', icon: Icons.Supply },
+  { id: 'traceability', labelKey: 'Trazabilidad RFF', icon: Icons.Scc },
+  { id: 'ghg', labelKey: 'Calculadora GHG', icon: Icons.Ghg },
+  { id: 'scc', labelKey: 'Cadena de suministro', icon: Icons.Scc },
+  { id: 'prisma', labelKey: 'PRISMA by RSPO', icon: Icons.Stakeholders },
+  { id: 'evidence', labelKey: 'Evidencias', icon: Icons.Evidence },
+  { id: 'actionPlans', labelKey: 'Planes de acción', icon: Icons.Automation },
+  { id: 'findings', labelKey: 'Hallazgos', icon: Icons.Alerts },
 ];
 
 const sections: NavSection[] = [
   {
     label: 'Certificación', items: [
       { id: 'compliance', labelKey: 'nav.compliance', icon: Icons.Compliance },
-      { id: 'plantations', labelKey: 'nav.plantations', icon: Icons.Plantations },
-      { id: 'plant', labelKey: 'nav.plant', icon: Icons.Plant },
-      { id: 'scc', labelKey: 'nav.scc', icon: Icons.Scc },
-      { id: 'supply', labelKey: 'nav.supply', icon: Icons.Supply },
-      { id: 'ghg', labelKey: 'nav.ghg', icon: Icons.Ghg },
     ]
   },
   {
     label: 'Gestión', items: [
       { id: 'documents', labelKey: 'nav.documents', icon: Icons.Documents },
-      { id: 'evidence', labelKey: 'nav.evidence', icon: Icons.Evidence },
       { id: 'risks', labelKey: 'nav.risks', icon: Icons.Risks },
-      { id: 'automation', labelKey: 'nav.automation', icon: Icons.Automation },
       { id: 'stakeholders', labelKey: 'nav.stakeholders', icon: Icons.Stakeholders },
     ]
   },
@@ -75,6 +78,7 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
   // On mobile the drawer must always render expanded (with labels);
   // the desktop "collapsed" (icons-only) state makes no sense there.
   const effectiveCollapsed = collapsed && !mobileOpen;
+  const itemLabel = (item: NavItem) => item.labelKey.startsWith('nav.') ? t(item.labelKey as any) : item.labelKey;
 
   const toggleSection = (label: string) => {
     setCollapsedSections(prev => {
@@ -90,8 +94,8 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
         {!effectiveCollapsed ? (
           <>
             <div className="flex items-center gap-2">
-              <span className="logo-badge">CTC</span>
-              <span>Cert-TechCol</span>
+              <span className="logo-badge">RT</span>
+              <span>RSPO TECH</span>
             </div>
             <button className="btn-icon sidebar-collapse-btn" onClick={onToggleCollapse} title="Colapsar menú">
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '18px', height: '18px' }}>
@@ -120,9 +124,9 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
           <div key={item.id}
             className={`sidebar-item ${activeModule === item.id ? 'active' : ''}`}
             onClick={() => onNavigate(item.id)}
-            title={effectiveCollapsed ? t(item.labelKey as any) : undefined}>
+            title={effectiveCollapsed ? itemLabel(item) : undefined}>
             {item.icon}
-            {!effectiveCollapsed && <span>{t(item.labelKey as any)}</span>}
+            {!effectiveCollapsed && <span>{itemLabel(item)}</span>}
           </div>
         ))}
 
