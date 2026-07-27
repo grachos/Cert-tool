@@ -4,6 +4,7 @@ import type { StandardId, Evidence as EvidenceType } from '../types';
 import { useThemeLanguage } from '../components/ThemeLanguageContext';
 import api from '../api';
 import { useUoc } from '../components/UoCContext';
+import { useAuth } from '../components/AuthContext';
 
 export default function Evidence() {
   const [evidence, setEvidence] = useState<EvidenceType[]>([]);
@@ -12,6 +13,7 @@ export default function Evidence() {
   const [activeStandards, setActiveStandards] = useState<any[]>([]);
   const { t, language } = useThemeLanguage();
   const { selectedUoc, selectedUocId } = useUoc();
+  const { user } = useAuth();
 
   // Modal & Form States
   const [showModal, setShowModal] = useState(false);
@@ -25,6 +27,10 @@ export default function Evidence() {
   const [responsible, setResponsible] = useState('');
   const [indicator, setIndicator] = useState('');
   const [observations, setObservations] = useState('');
+  const [supplySourceId, setSupplySourceId] = useState('');
+  const [farmPlotId, setFarmPlotId] = useState('');
+  const [sources, setSources] = useState<any[]>([]);
+  const [plots, setPlots] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchEvidence = async () => {
@@ -58,6 +64,12 @@ export default function Evidence() {
       setIsLoading(false);
     });
   }, []);
+  useEffect(() => {
+    if (!selectedUocId || selectedUocId === 'all') { setSources([]); setPlots([]); return; }
+    Promise.all([api.get('/rspo/supply-sources'), api.get('/rspo/farm-plots')])
+      .then(([s, p]) => { setSources(s.data); setPlots(p.data); })
+      .catch(() => { setSources([]); setPlots([]); });
+  }, [selectedUocId]);
 
   // Polling para actualizar las evidencias en revisión por la IA en tiempo real
   useEffect(() => {
@@ -122,13 +134,15 @@ export default function Evidence() {
         title: `${title}|${compoundName}`,
         description: description || (language === 'es' ? 'Cargado por el usuario' : 'Uploaded by user'),
         standardId: activeTab,
-        clause: selectedClause,
+        clause: activeStandard?.requirements.find(r => r.id === selectedClause)?.clause || '',
         type: evidenceType,
         expiryDate: expiryDate || null,
         status: 'PENDING_REVIEW'
         ,uocId: selectedUocId,
         companyName: selectedUoc?.companyName,
         requirementId: selectedClause,
+        supplySourceId: supplySourceId || null,
+        farmPlotId: farmPlotId || null,
         indicator,
         responsible,
         observations,
@@ -169,6 +183,14 @@ export default function Evidence() {
       setErrorMsg(language === 'es' ? 'No fue posible abrir el archivo.' : 'The file could not be opened.');
     }
   };
+  const review = async (ev: EvidenceType, status: 'VALID' | 'EXPIRED') => {
+    try {
+      await api.put(`/evidence/${ev.id}/review`, { status });
+      await fetchEvidence();
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.error || 'No fue posible guardar la revisión.');
+    }
+  };
 
   const resetForm = () => {
     setSelectedClause('');
@@ -179,6 +201,8 @@ export default function Evidence() {
     setResponsible('');
     setIndicator('');
     setObservations('');
+    setSupplySourceId('');
+    setFarmPlotId('');
     setErrorMsg('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -264,6 +288,12 @@ export default function Evidence() {
                 </div>
               )}
             </div>
+            {['ADMIN','MANAGER','AUDITOR'].includes(user?.role || '') && (
+              <div className="flex gap-2">
+                <button className="btn btn-secondary btn-sm" onClick={() => review(ev, 'VALID')}>Aprobar</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => review(ev, 'EXPIRED')}>Rechazar</button>
+              </div>
+            )}
           </div>
         ))}
 
@@ -300,7 +330,7 @@ export default function Evidence() {
                 >
                   <option value="">{language === 'es' ? '-- Seleccione cláusula --' : '-- Select clause --'}</option>
                   {activeStandard?.requirements.map(r => (
-                    <option key={r.id} value={r.clause}>
+                    <option key={r.id} value={r.id}>
                       {r.clause} - {r.title}
                     </option>
                   ))}
@@ -353,6 +383,21 @@ export default function Evidence() {
                   onChange={(e) => setExpiryDate(e.target.value)}
                   className="form-input"
                 />
+              </div>
+
+              <div className="form-grid">
+                <div className="form-group flex-col gap-1">
+                  <label className="form-label font-semibold">Fuente de suministro</label>
+                  <select className="form-input" value={supplySourceId} onChange={e => { setSupplySourceId(e.target.value); setFarmPlotId(''); }}>
+                    <option value="">No aplica</option>{sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group flex-col gap-1">
+                  <label className="form-label font-semibold">Plantación / predio</label>
+                  <select className="form-input" value={farmPlotId} onChange={e => setFarmPlotId(e.target.value)}>
+                    <option value="">No aplica</option>{plots.filter(p => !supplySourceId || p.supplySourceId === supplySourceId).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
               </div>
 
               <div className="form-grid">

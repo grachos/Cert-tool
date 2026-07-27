@@ -1,4 +1,28 @@
 -- Incremental, non-destructive RSPO TECH core migration.
+DELIMITER $$
+DROP PROCEDURE IF EXISTS add_column_if_missing$$
+CREATE PROCEDURE add_column_if_missing(IN p_table VARCHAR(64), IN p_column VARCHAR(64), IN p_definition TEXT)
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = p_table AND COLUMN_NAME = p_column
+  ) THEN
+    SET @ddl = CONCAT('ALTER TABLE `', p_table, '` ADD COLUMN `', p_column, '` ', p_definition);
+    PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+  END IF;
+END$$
+DROP PROCEDURE IF EXISTS add_index_if_missing$$
+CREATE PROCEDURE add_index_if_missing(IN p_table VARCHAR(64), IN p_index VARCHAR(64), IN p_columns TEXT)
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = p_table AND INDEX_NAME = p_index
+  ) THEN
+    SET @ddl = CONCAT('ALTER TABLE `', p_table, '` ADD INDEX `', p_index, '` (', p_columns, ')');
+    PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+  END IF;
+END$$
+DELIMITER ;
 CREATE TABLE IF NOT EXISTS UserCertificationUnit (
   userId VARCHAR(36) NOT NULL,
   uocId VARCHAR(36) NOT NULL,
@@ -8,16 +32,18 @@ CREATE TABLE IF NOT EXISTS UserCertificationUnit (
   CONSTRAINT fk_ucu_uoc FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE CASCADE
 );
 
-ALTER TABLE CertificationUnit ADD COLUMN IF NOT EXISTS type ENUM('MIXED','PLANTATION','MILL','SMALLHOLDERS') DEFAULT 'MIXED';
-ALTER TABLE CertificationUnit ADD COLUMN IF NOT EXISTS appliesAll BOOLEAN DEFAULT TRUE;
-ALTER TABLE CertificationUnit ADD COLUMN IF NOT EXISTS applicablePrinciples JSON NULL;
+CALL add_column_if_missing('CertificationUnit','type','ENUM(''MIXED'',''PLANTATION'',''MILL'',''SMALLHOLDERS'') DEFAULT ''MIXED''');
+CALL add_column_if_missing('CertificationUnit','appliesAll','BOOLEAN DEFAULT TRUE');
+CALL add_column_if_missing('CertificationUnit','applicablePrinciples','JSON NULL');
 
-ALTER TABLE ActionPlan ADD COLUMN IF NOT EXISTS brecha TEXT NULL;
-ALTER TABLE ActionPlan ADD COLUMN IF NOT EXISTS causaRaiz TEXT NULL;
-ALTER TABLE ActionPlan ADD COLUMN IF NOT EXISTS correccion TEXT NULL;
-ALTER TABLE ActionPlan ADD COLUMN IF NOT EXISTS eficacia TEXT NULL;
-ALTER TABLE ActionPlan ADD COLUMN IF NOT EXISTS closedAt TIMESTAMP NULL;
-ALTER TABLE ActionPlan ADD COLUMN IF NOT EXISTS uocId VARCHAR(36) NULL;
+CALL add_column_if_missing('ActionPlan','brecha','TEXT NULL');
+CALL add_column_if_missing('ActionPlan','causaRaiz','TEXT NULL');
+CALL add_column_if_missing('ActionPlan','correccion','TEXT NULL');
+CALL add_column_if_missing('ActionPlan','eficacia','TEXT NULL');
+CALL add_column_if_missing('ActionPlan','closedAt','TIMESTAMP NULL');
+CALL add_column_if_missing('ActionPlan','uocId','VARCHAR(36) NULL');
+CALL add_column_if_missing('ActionPlan','evidenceId','VARCHAR(36) NULL');
+CALL add_index_if_missing('ActionPlan','idx_action_uoc','`uocId`');
 
 CREATE TABLE IF NOT EXISTS SupplySource (
   id VARCHAR(36) PRIMARY KEY,
@@ -37,6 +63,7 @@ CREATE TABLE IF NOT EXISTS SupplySource (
   lastEvaluation DATE NULL,
   expiryDate DATE NULL,
   notes TEXT NULL,
+  status ENUM('ACTIVE','ARCHIVED') DEFAULT 'ACTIVE',
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_supply_identifier_uoc (uocId, identifier),
@@ -59,6 +86,19 @@ CREATE TABLE IF NOT EXISTS FarmPlot (
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE CASCADE,
   FOREIGN KEY (supplySourceId) REFERENCES SupplySource(id) ON DELETE CASCADE
+);
+CALL add_column_if_missing('SupplySource','status','ENUM(''ACTIVE'',''ARCHIVED'') DEFAULT ''ACTIVE''');
+
+CREATE TABLE IF NOT EXISTS SupplySourceHistory (
+  id VARCHAR(36) PRIMARY KEY,
+  supplySourceId VARCHAR(36) NOT NULL,
+  uocId VARCHAR(36) NOT NULL,
+  changedBy VARCHAR(36) NOT NULL,
+  changesJson JSON NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (supplySourceId) REFERENCES SupplySource(id) ON DELETE CASCADE,
+  FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE CASCADE,
+  FOREIGN KEY (changedBy) REFERENCES User(id)
 );
 
 CREATE TABLE IF NOT EXISTS PlantationActivity (
@@ -180,14 +220,90 @@ CREATE TABLE IF NOT EXISTS PrismaAttachment (
   FOREIGN KEY (evidenceId) REFERENCES Evidence(id) ON DELETE CASCADE
 );
 
-ALTER TABLE Evidence ADD COLUMN IF NOT EXISTS uocId VARCHAR(36) NULL;
-ALTER TABLE Evidence ADD COLUMN IF NOT EXISTS companyName VARCHAR(255) NULL;
-ALTER TABLE Evidence ADD COLUMN IF NOT EXISTS supplySourceId VARCHAR(36) NULL;
-ALTER TABLE Evidence ADD COLUMN IF NOT EXISTS farmPlotId VARCHAR(36) NULL;
-ALTER TABLE Evidence ADD COLUMN IF NOT EXISTS requirementId VARCHAR(36) NULL;
-ALTER TABLE Evidence ADD COLUMN IF NOT EXISTS indicator VARCHAR(255) NULL;
-ALTER TABLE Evidence ADD COLUMN IF NOT EXISTS responsible VARCHAR(255) NULL;
-ALTER TABLE Evidence ADD COLUMN IF NOT EXISTS fileName VARCHAR(255) NULL;
-ALTER TABLE Evidence ADD COLUMN IF NOT EXISTS originalFileName VARCHAR(255) NULL;
-ALTER TABLE Evidence ADD COLUMN IF NOT EXISTS mimeType VARCHAR(100) NULL;
-ALTER TABLE Evidence ADD COLUMN IF NOT EXISTS observations TEXT NULL;
+CREATE TABLE IF NOT EXISTS PlantRecord (
+  id VARCHAR(36) PRIMARY KEY,
+  uocId VARCHAR(36) NOT NULL,
+  section ENUM('contratistas','sst','ambiente','avc','social','negocios') NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  status VARCHAR(50) DEFAULT 'PENDING',
+  responsible VARCHAR(255) NULL,
+  date DATE NULL,
+  meta VARCHAR(255) NULL,
+  result VARCHAR(255) NULL,
+  extra JSON NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_plant_record_uoc (uocId),
+  FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE CASCADE
+);
+CALL add_column_if_missing('PlantRecord','uocId','VARCHAR(36) NULL');
+CALL add_index_if_missing('PlantRecord','idx_plant_record_uoc','`uocId`');
+
+CREATE TABLE IF NOT EXISTS ActionPlanHistory (
+  id VARCHAR(36) PRIMARY KEY,
+  actionPlanId VARCHAR(36) NOT NULL,
+  uocId VARCHAR(36) NOT NULL,
+  changedBy VARCHAR(36) NOT NULL,
+  changesJson JSON NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (actionPlanId) REFERENCES ActionPlan(id) ON DELETE CASCADE,
+  FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE CASCADE,
+  FOREIGN KEY (changedBy) REFERENCES User(id)
+);
+
+CALL add_column_if_missing('Evidence','uocId','VARCHAR(36) NULL');
+CALL add_column_if_missing('Evidence','companyName','VARCHAR(255) NULL');
+CALL add_column_if_missing('Evidence','supplySourceId','VARCHAR(36) NULL');
+CALL add_column_if_missing('Evidence','farmPlotId','VARCHAR(36) NULL');
+CALL add_column_if_missing('Evidence','requirementId','VARCHAR(36) NULL');
+CALL add_column_if_missing('Evidence','indicator','VARCHAR(255) NULL');
+CALL add_column_if_missing('Evidence','responsible','VARCHAR(255) NULL');
+CALL add_column_if_missing('Evidence','fileName','VARCHAR(255) NULL');
+CALL add_column_if_missing('Evidence','originalFileName','VARCHAR(255) NULL');
+CALL add_column_if_missing('Evidence','mimeType','VARCHAR(100) NULL');
+CALL add_column_if_missing('Evidence','observations','TEXT NULL');
+CALL add_column_if_missing('Evidence','reviewedBy','VARCHAR(36) NULL');
+CALL add_column_if_missing('Evidence','reviewedAt','TIMESTAMP NULL');
+CALL add_index_if_missing('Evidence','idx_evidence_uoc','`uocId`');
+
+CALL add_column_if_missing('Activity','uocId','VARCHAR(36) NULL');
+CALL add_column_if_missing('Risk','uocId','VARCHAR(36) NULL');
+CALL add_column_if_missing('Audit','uocId','VARCHAR(36) NULL');
+CALL add_column_if_missing('NonConformance','uocId','VARCHAR(36) NULL');
+CALL add_column_if_missing('Stakeholder','uocId','VARCHAR(36) NULL');
+CALL add_index_if_missing('Activity','idx_activity_uoc','`uocId`');
+CALL add_index_if_missing('Risk','idx_risk_uoc','`uocId`');
+CALL add_index_if_missing('Audit','idx_audit_uoc','`uocId`');
+CALL add_index_if_missing('NonConformance','idx_nc_uoc','`uocId`');
+CALL add_index_if_missing('Stakeholder','idx_stakeholder_uoc','`uocId`');
+
+DELIMITER $$
+DROP PROCEDURE IF EXISTS add_fk_if_missing$$
+CREATE PROCEDURE add_fk_if_missing(IN p_table VARCHAR(64), IN p_name VARCHAR(64), IN p_sql TEXT)
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.TABLE_CONSTRAINTS
+    WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = p_table AND CONSTRAINT_NAME = p_name
+  ) THEN
+    SET @ddl = CONCAT('ALTER TABLE `', p_table, '` ADD CONSTRAINT `', p_name, '` ', p_sql);
+    PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+  END IF;
+END$$
+DELIMITER ;
+CALL add_fk_if_missing('ActionPlan','fk_action_uoc','FOREIGN KEY (`uocId`) REFERENCES `CertificationUnit`(`id`) ON DELETE RESTRICT');
+CALL add_fk_if_missing('ActionPlan','fk_action_evidence','FOREIGN KEY (`evidenceId`) REFERENCES `Evidence`(`id`) ON DELETE SET NULL');
+CALL add_fk_if_missing('Evidence','fk_evidence_uoc','FOREIGN KEY (`uocId`) REFERENCES `CertificationUnit`(`id`) ON DELETE RESTRICT');
+CALL add_fk_if_missing('Evidence','fk_evidence_source','FOREIGN KEY (`supplySourceId`) REFERENCES `SupplySource`(`id`) ON DELETE SET NULL');
+CALL add_fk_if_missing('Evidence','fk_evidence_plot','FOREIGN KEY (`farmPlotId`) REFERENCES `FarmPlot`(`id`) ON DELETE SET NULL');
+CALL add_fk_if_missing('Evidence','fk_evidence_requirement','FOREIGN KEY (`requirementId`) REFERENCES `Requirement`(`id`) ON DELETE SET NULL');
+CALL add_fk_if_missing('Evidence','fk_evidence_reviewer','FOREIGN KEY (`reviewedBy`) REFERENCES `User`(`id`) ON DELETE SET NULL');
+CALL add_fk_if_missing('Activity','fk_activity_uoc','FOREIGN KEY (`uocId`) REFERENCES `CertificationUnit`(`id`) ON DELETE RESTRICT');
+CALL add_fk_if_missing('Risk','fk_risk_uoc','FOREIGN KEY (`uocId`) REFERENCES `CertificationUnit`(`id`) ON DELETE RESTRICT');
+CALL add_fk_if_missing('Audit','fk_audit_uoc','FOREIGN KEY (`uocId`) REFERENCES `CertificationUnit`(`id`) ON DELETE RESTRICT');
+CALL add_fk_if_missing('NonConformance','fk_nc_uoc','FOREIGN KEY (`uocId`) REFERENCES `CertificationUnit`(`id`) ON DELETE RESTRICT');
+CALL add_fk_if_missing('Stakeholder','fk_stakeholder_uoc','FOREIGN KEY (`uocId`) REFERENCES `CertificationUnit`(`id`) ON DELETE RESTRICT');
+CALL add_fk_if_missing('PlantRecord','fk_plant_record_uoc','FOREIGN KEY (`uocId`) REFERENCES `CertificationUnit`(`id`) ON DELETE RESTRICT');
+DROP PROCEDURE IF EXISTS add_fk_if_missing;
+DROP PROCEDURE IF EXISTS add_index_if_missing;
+DROP PROCEDURE IF EXISTS add_column_if_missing;

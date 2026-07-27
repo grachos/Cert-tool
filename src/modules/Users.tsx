@@ -3,7 +3,8 @@ import api from '../api';
 import { useToast } from '../components/ToastContext';
 import { useThemeLanguage } from '../components/ThemeLanguageContext';
 
-interface User { id: string; name: string; email: string; role: string; createdAt: string; }
+interface Uoc { id: string; name: string }
+interface User { id: string; name: string; email: string; role: string; createdAt: string; assignedUocs?: Uoc[]; }
 
 export default function Users() {
   const [users, setUsers] = useState<User[]>([]);
@@ -18,9 +19,38 @@ export default function Users() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('USER');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uocs, setUocs] = useState<Uoc[]>([]);
+  const [assignmentUser, setAssignmentUser] = useState<User | null>(null);
+  const [assignedIds, setAssignedIds] = useState<string[]>([]);
 
-  const fetchUsers = async () => { try { setIsLoading(true); const { data } = await api.get('/users'); setUsers(data); } catch (e) { /* */ } setIsLoading(false); };
-  useEffect(() => { fetchUsers(); }, []);
+  const fetchUsers = async () => { try { setIsLoading(true); const { data } = await api.get('/users'); setUsers(data.map((u:any)=>({...u,assignedUocs:typeof u.assignedUocs==='string'?JSON.parse(u.assignedUocs):u.assignedUocs}))); } catch { addToast({type:'error',title:'Error',message:'No fue posible cargar usuarios.'}); } setIsLoading(false); };
+  useEffect(() => { fetchUsers(); api.get('/scc/uocs').then(({ data }) => setUocs(data)).catch(() => undefined); }, []);
+
+  const openAssignments = async (user: User) => {
+    try {
+      const { data } = await api.get(`/users/${user.id}/uocs`);
+      setAssignedIds(data.map((u: Uoc) => u.id));
+      setAssignmentUser(user);
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'Error', message: err.response?.data?.error || 'No fue posible consultar asignaciones.' });
+    }
+  };
+
+  const toggleAssignment = async (uocId: string) => {
+    if (!assignmentUser) return;
+    try {
+      if (assignedIds.includes(uocId)) {
+        await api.delete(`/users/${assignmentUser.id}/uocs/${uocId}`);
+        setAssignedIds(ids => ids.filter(id => id !== uocId));
+      } else {
+        await api.post(`/users/${assignmentUser.id}/uocs`, { uocId });
+        setAssignedIds(ids => [...ids, uocId]);
+      }
+      await fetchUsers();
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'Error', message: err.response?.data?.error || 'No fue posible modificar la asignación.' });
+    }
+  };
 
   const openNew = () => { setEditingUser(null); setName(''); setEmail(''); setPassword(''); setRole('USER'); setShowModal(true); };
   const openEdit = (u: User) => { setEditingUser(u); setName(u.name); setEmail(u.email); setPassword(''); setRole(u.role); setShowModal(true); };
@@ -68,15 +98,16 @@ export default function Users() {
         {isLoading ? <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('users.loading')}</div> : (
           <div className="overflow-x-auto w-full">
             <table className="w-full text-left min-w-[600px]">
-              <thead><tr className="bg-surface-1 border-b border-gray-200"><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thName')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thEmail')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thRole')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thDate')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thActions')}</th></tr></thead>
+              <thead><tr className="bg-surface-1 border-b border-gray-200"><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thName')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thEmail')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thRole')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">UoC asignadas</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thDate')}</th><th className="p-4 text-xs font-bold text-secondary uppercase tracking-wider">{t('users.thActions')}</th></tr></thead>
               <tbody>
                 {users.map(u => (
                   <tr key={u.id} className="border-b border-gray-100 hover:bg-surface-1">
                     <td className="p-4 font-semibold text-primary">{u.name}</td>
                     <td className="p-4 text-secondary">{u.email}</td>
                     <td className="p-4">{roleBadge(u.role)}</td>
+                    <td className="p-4 text-sm text-secondary">{(u.assignedUocs || []).filter(Boolean).map(x => x.name).join(', ') || 'Sin UoC'}</td>
                     <td className="p-4 text-secondary text-sm">{new Date(u.createdAt).toLocaleDateString()}</td>
-                    <td className="p-4"><div className="flex gap-1"><button className="btn btn-ghost btn-sm" onClick={() => openEdit(u)}>✏️ Editar</button><button className="btn btn-ghost btn-sm" style={{ color: 'var(--accent-red)' }} onClick={() => handleDelete(u.id)}>🗑️</button></div></td>
+                    <td className="p-4"><div className="flex gap-1 flex-wrap"><button className="btn btn-ghost btn-sm" onClick={() => openEdit(u)}>✏️ Editar</button><button className="btn btn-ghost btn-sm" onClick={() => openAssignments(u)}>UoC</button><button className="btn btn-ghost btn-sm" style={{ color: 'var(--accent-red)' }} onClick={() => handleDelete(u.id)}>🗑️</button></div></td>
                   </tr>
                 ))}
               </tbody>
@@ -96,6 +127,18 @@ export default function Users() {
               <div className="form-group flex-col gap-1"><label className="form-label font-semibold">Rol</label><select className="form-input" value={role} onChange={e => setRole(e.target.value)}><option value="USER">Usuario Estándar</option><option value="REVIEWER">Revisor / Jefe de Área</option><option value="AUDITOR">Auditor Interno</option><option value="COORDINATOR">Coordinador RSPO</option><option value="MANAGER">Gerencia</option><option value="ADMIN">Administrador</option></select></div>
               <div className="flex gap-3 justify-end mt-4"><button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button><button type="submit" className="btn btn-primary" disabled={isSubmitting}>{isSubmitting ? 'Guardando...' : editingUser ? 'Actualizar' : 'Crear'}</button></div>
             </form>
+          </div>
+        </div>
+      )}
+      {assignmentUser && (
+        <div className="modal-overlay flex-center" onClick={() => setAssignmentUser(null)}>
+          <div className="modal card max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4"><h3 className="font-bold">UoC de {assignmentUser.name}</h3><button className="btn-icon" onClick={() => setAssignmentUser(null)}>×</button></div>
+            <p className="text-sm text-secondary mb-4">Los usuarios sin asignaciones no pueden consultar información operativa.</p>
+            <div className="flex-col gap-2">
+              {uocs.map(uoc => <label key={uoc.id} className="flex items-center gap-2"><input type="checkbox" checked={assignedIds.includes(uoc.id)} onChange={() => toggleAssignment(uoc.id)} /> {uoc.name}</label>)}
+              {!uocs.length && <p className="text-sm text-muted">No existen UoC disponibles.</p>}
+            </div>
           </div>
         </div>
       )}

@@ -201,7 +201,7 @@ export const getEvidence = async (req: Request, res: Response): Promise<void> =>
 
 export const createEvidence = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { title, description, standardId, clause, type, status, expiryDate, uocId, companyName, supplySourceId, farmPlotId, requirementId, indicator, responsible, observations, mimeType } = req.body;
+    const { title, description, standardId, clause, type, status, expiryDate, companyName, supplySourceId, farmPlotId, requirementId, indicator, responsible, observations, mimeType } = req.body;
     const authReq = req as any;
     const userId = authReq.user?.id;
 
@@ -213,6 +213,18 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
     const evId = uuidv4();
     const parsedExpiryDate = expiryDate ? new Date(expiryDate) : null;
     const evStatus = status || 'PENDING_REVIEW';
+    const scopedUocId = (req as any).uocId;
+    if (!requirementId) { res.status(400).json({ error: 'Debe seleccionar un requisito válido.' }); return; }
+    const [requirements] = await db.query('SELECT id FROM Requirement WHERE id=? AND standardId=?', [requirementId, standardId]);
+    if (!(requirements as any[]).length) { res.status(400).json({ error: 'El requisito seleccionado no es válido.' }); return; }
+    if (supplySourceId) {
+      const [sources] = await db.query('SELECT id FROM SupplySource WHERE id=? AND uocId=?', [supplySourceId, scopedUocId]);
+      if (!(sources as any[]).length) { res.status(400).json({ error: 'La fuente no pertenece a la UoC.' }); return; }
+    }
+    if (farmPlotId) {
+      const [plots] = await db.query('SELECT id FROM FarmPlot WHERE id=? AND uocId=? AND (? IS NULL OR supplySourceId=?)', [farmPlotId, scopedUocId, supplySourceId || null, supplySourceId || null]);
+      if (!(plots as any[]).length) { res.status(400).json({ error: 'La plantación no pertenece a la UoC o fuente seleccionada.' }); return; }
+    }
 
     const parts = title.split('|');
     const originalFileName = parts[1] || null;
@@ -220,7 +232,7 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
     await db.query(
       `INSERT INTO Evidence (id,title,description,standardId,clause,type,status,expiryDate,uocId,companyName,supplySourceId,farmPlotId,requirementId,indicator,responsible,fileName,originalFileName,mimeType,observations)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [evId, title, description, standardId, clause, type, evStatus, parsedExpiryDate, uocId, companyName || null, supplySourceId || null, farmPlotId || null, requirementId || null, indicator || null, responsible || null, fileName, originalFileName, mimeType || null, observations || null]
+      [evId, title, description, standardId, clause, type, evStatus, parsedExpiryDate, scopedUocId, companyName || null, supplySourceId || null, farmPlotId || null, requirementId, indicator || null, responsible || null, fileName, originalFileName, mimeType || null, observations || null]
     );
 
     const [evRows] = await db.query('SELECT * FROM Evidence WHERE id = ?', [evId]);
@@ -242,4 +254,17 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
     console.error(error);
     res.status(500).json({ error: 'Error al subir evidencia.' });
   }
+};
+
+export const reviewEvidence = async (req: Request, res: Response): Promise<void> => {
+  const { status, observations } = req.body;
+  if (!['VALID','EXPIRED','PENDING_REVIEW'].includes(status)) { res.status(400).json({ error: 'Estado de revisión inválido.' }); return; }
+  const authReq = req as any;
+  const [result]: any = await db.query(
+    'UPDATE Evidence SET status=?,observations=COALESCE(?,observations),reviewedBy=?,reviewedAt=NOW() WHERE id=? AND uocId=?',
+    [status, observations ?? null, authReq.user.id, req.params.id, authReq.uocId]
+  );
+  if (!result.affectedRows) { res.status(404).json({ error: 'Evidencia no encontrada.' }); return; }
+  const [rows] = await db.query('SELECT * FROM Evidence WHERE id=? AND uocId=?', [req.params.id, authReq.uocId]);
+  res.json((rows as any[])[0]);
 };

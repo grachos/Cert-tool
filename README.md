@@ -8,8 +8,8 @@ Requisitos: Node.js 20+, npm y MySQL 8.
 
 1. Copie `.env.example` como `.env` y configure `DATABASE_URL`, `JWT_SECRET`, `CORS_ORIGINS` y `VITE_API_URL`.
 2. Instale dependencias con `npm install` y `npm install --prefix server`.
-3. Cree la base inicial con `server/schema.sql`.
-4. Aplique, en orden, los archivos de `server/migrations/`; la migración `001_rspo_tech_core.sql` es incremental y no elimina datos.
+3. Cree la base inicial con `mysql --database SU_BASE < server/schema.sql`.
+4. Aplique, en orden, los archivos de `server/migrations/` con el cliente MySQL (procesa `DELIMITER`): `mysql --database SU_BASE < server/migrations/001_rspo_tech_core.sql`. La migración consulta `information_schema`, es incremental y no elimina datos.
 5. Inicie el backend con `npm run dev --prefix server`.
 6. Inicie el frontend con `npm run dev`.
 
@@ -42,6 +42,23 @@ npm run typecheck --prefix server
 npm test --prefix server
 npm run lint
 ```
+
+## Datos de prueba reproducibles
+
+El seed solo acepta `TEST_DATABASE_URL`; nunca usa la base productiva. Los correos, nombres e identificadores están marcados como `TEST` y la contraseña se recibe por entorno para almacenarla únicamente como hash bcrypt.
+
+```powershell
+$env:TEST_DATABASE_URL="mysql://usuario:clave@localhost:3306/rspo_tech_test"
+$env:TEST_SEED_PASSWORD=Read-Host "Contraseña temporal para usuarios TEST"
+npm run test:seed --prefix server
+npm run test:seed:count --prefix server
+npm test --prefix server
+npm run test:seed:clean --prefix server
+```
+
+El seed idempotente crea 2 UoC, 4 usuarios, 3 asignaciones, 6 fuentes, 2 predios, 2 actividades, 2 entregas RFF, 1 transacción SCC, 1 evidencia, 1 auditoría, 1 hallazgo, 1 plan, 1 operación PRISMA y 3 entradas de historial PRISMA. Puede cargarse varias veces sin duplicar identificadores.
+
+Los usuarios existentes no se asignan automáticamente a todas las UoC, porque eso vulneraría el aislamiento. Después de aplicar la migración, un ADMIN debe abrir Usuarios → UoC y asignar el alcance de MANAGER, AUDITOR y USER antes de habilitarles el acceso operativo.
 
 Las pruebas cubren los cálculos críticos de peso RFF y las reglas de alcance administrativo por UoC. Para una validación integrada se requiere una base MySQL preparada con el esquema y las migraciones.
 

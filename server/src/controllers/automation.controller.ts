@@ -191,11 +191,20 @@ export const createActionPlan = async (req: Request, res: Response): Promise<voi
     const planId = uuidv4();
     const dueDate = new Date(data.dueDate);
     const progress = data.progress || 0;
+    const uocId = (req as any).uocId;
+    if (data.nonConformanceId) {
+      const [linked] = await db.query('SELECT id FROM NonConformance WHERE id=? AND uocId=?', [data.nonConformanceId, uocId]);
+      if (!(linked as any[]).length) { res.status(400).json({ error: 'El hallazgo no pertenece a la UoC.' }); return; }
+    }
+    if (data.riskId) {
+      const [linked] = await db.query('SELECT id FROM Risk WHERE id=? AND uocId=?', [data.riskId, uocId]);
+      if (!(linked as any[]).length) { res.status(400).json({ error: 'El riesgo no pertenece a la UoC.' }); return; }
+    }
     
     await db.query(
       `INSERT INTO ActionPlan (id, title, description, type, status, priority, assigneeId, dueDate, progress, nonConformanceId, riskId, brecha, causaRaiz, correccion, eficacia, closedAt, uocId)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [planId, data.title, data.description, data.type, data.status || 'PENDING', data.priority, data.assigneeId, dueDate, progress, data.nonConformanceId || null, data.riskId || null, data.brecha || null, data.causaRaiz || null, data.correccion || null, data.eficacia || null, data.closedAt || null, data.uocId]
+      [planId, data.title, data.description, data.type, data.status || 'PENDING', data.priority, data.assigneeId, dueDate, progress, data.nonConformanceId || null, data.riskId || null, data.brecha || null, data.causaRaiz || null, data.correccion || null, data.eficacia || null, data.closedAt || null, uocId]
     );
 
     // Fetch new plan with assignee
@@ -203,8 +212,8 @@ export const createActionPlan = async (req: Request, res: Response): Promise<voi
       `SELECT p.*, u.name AS assigneeName, u.email AS assigneeEmail
        FROM ActionPlan p
        JOIN User u ON p.assigneeId = u.id
-       WHERE p.id = ?`,
-      [planId]
+       WHERE p.id = ? AND p.uocId=?`,
+      [planId, uocId]
     );
     const newPlan = (rows as any[])[0];
 
@@ -253,7 +262,8 @@ export const updateActionPlan = async (req: Request, res: Response): Promise<voi
     const userId = authReq.user?.id || 'system';
 
     // Get current plan to handle optional fields
-    const [currentRows] = await db.query('SELECT * FROM ActionPlan WHERE id = ?', [id]);
+    const uocId = authReq.uocId;
+    const [currentRows] = await db.query('SELECT * FROM ActionPlan WHERE id = ? AND uocId = ?', [id, uocId]);
     const current = (currentRows as any[])[0];
 
     if (!current) {
@@ -277,13 +287,20 @@ export const updateActionPlan = async (req: Request, res: Response): Promise<voi
     const updatedCorreccion = correccion !== undefined ? correccion : current.correccion;
     const updatedEficacia = eficacia !== undefined ? eficacia : current.eficacia;
     const updatedClosedAt = closedAt !== undefined ? closedAt : (updatedStatus === 'COMPLETED' ? current.closedAt || new Date() : current.closedAt);
+    if (updatedStatus === 'COMPLETED' && (!updatedBrecha || !updatedCausaRaiz || !updatedCorreccion || !updatedDescription || !updatedEficacia)) {
+      res.status(400).json({ error: 'Para cerrar el plan complete brecha, corrección inmediata, causa raíz, acción correctiva y evaluación de eficacia.' });
+      return;
+    }
 
-    await db.query(
+    const [updateResult]: any = await db.query(
       `UPDATE ActionPlan 
        SET title = ?, description = ?, type = ?, status = ?, priority = ?, assigneeId = ?, dueDate = ?, progress = ?, evidenceName = ?, riskId = ?, brecha = ?, causaRaiz = ?, correccion = ?, eficacia = ?, closedAt = ?
-       WHERE id = ? AND (uocId = ? OR (? = 'ADMIN' AND ? IS NULL))`,
-      [updatedTitle, updatedDescription, updatedType, updatedStatus, updatedPriority, updatedAssigneeId, updatedDueDate, updatedProgress, updatedEvidenceName, updatedRiskId, updatedBrecha, updatedCausaRaiz, updatedCorreccion, updatedEficacia, updatedClosedAt, id, (req as any).uocId, (req as any).user?.role, (req as any).uocId]
+       WHERE id = ? AND uocId = ?`,
+      [updatedTitle, updatedDescription, updatedType, updatedStatus, updatedPriority, updatedAssigneeId, updatedDueDate, updatedProgress, updatedEvidenceName, updatedRiskId, updatedBrecha, updatedCausaRaiz, updatedCorreccion, updatedEficacia, updatedClosedAt, id, uocId]
     );
+    if (!updateResult.affectedRows) { res.status(404).json({ error: 'Plan de acción no encontrado.' }); return; }
+    await db.query('INSERT INTO ActionPlanHistory (id,actionPlanId,uocId,changedBy,changesJson) VALUES (?,?,?,?,?)',
+      [uuidv4(), id, uocId, userId, JSON.stringify(req.body)]);
 
     // If new evidence was uploaded, trigger AI evaluation (and block/wait for it)
     if (evidenceName && evidenceName !== current.evidenceName) {
@@ -295,8 +312,8 @@ export const updateActionPlan = async (req: Request, res: Response): Promise<voi
       `SELECT p.*, u.name AS assigneeName, u.email AS assigneeEmail
        FROM ActionPlan p
        JOIN User u ON p.assigneeId = u.id
-       WHERE p.id = ?`,
-      [id]
+       WHERE p.id = ? AND p.uocId=?`,
+      [id, uocId]
     );
     const updated = (rows as any[])[0];
 
@@ -321,6 +338,7 @@ export const updateActionPlan = async (req: Request, res: Response): Promise<voi
       causaRaiz: updated.causaRaiz,
       correccion: updated.correccion,
       eficacia: updated.eficacia,
+      closedAt: updated.closedAt,
       assignee: {
         name: updated.assigneeName,
         email: updated.assigneeEmail

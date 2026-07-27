@@ -7,9 +7,10 @@ interface SupplySource {
   id: string; name: string; identifier: string; sourceType: string; totalArea: number; plantedArea: number;
   certifiedArea: number; polygonStatus: string; riskLevel: string; eligibilityStatus: string;
   certificationStatus: string; responsible?: string; lastEvaluation?: string; expiryDate?: string;
+  status?: string;
 }
 
-const emptyForm = { name:'', identifier:'', sourceType:'OWN', totalArea:'', plantedArea:'', certifiedArea:'', polygonStatus:'PENDING', riskLevel:'MEDIUM', eligibilityStatus:'PENDING', certificationStatus:'PENDING', responsible:'', lastEvaluation:'', expiryDate:'' };
+const emptyForm = { name:'', identifier:'', sourceType:'OWN', totalArea:'', plantedArea:'', certifiedArea:'', polygonReference:'', polygonStatus:'PENDING', riskLevel:'MEDIUM', eligibilityStatus:'PENDING', certificationStatus:'PENDING', responsible:'', lastEvaluation:'', expiryDate:'', notes:'' };
 
 export default function SupplyBase() {
   const { selectedUocId } = useUoc();
@@ -19,6 +20,7 @@ export default function SupplyBase() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
+  const [editingId, setEditingId] = useState('');
   const canEdit = user?.role === 'ADMIN' || user?.role === 'MANAGER';
 
   const load = () => {
@@ -38,10 +40,13 @@ export default function SupplyBase() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setError('');
     try {
-      await api.post('/rspo/supply-sources', { ...form, uocId: selectedUocId, totalArea:Number(form.totalArea), plantedArea:Number(form.plantedArea), certifiedArea:Number(form.certifiedArea) });
-      setForm(emptyForm); setShowForm(false); load();
+      const body={ ...form, uocId: selectedUocId, totalArea:Number(form.totalArea), plantedArea:Number(form.plantedArea), certifiedArea:Number(form.certifiedArea) };
+      if(editingId) await api.put(`/rspo/supply-sources/${editingId}`,body); else await api.post('/rspo/supply-sources',body);
+      setForm(emptyForm); setEditingId(''); setShowForm(false); load();
     } catch (e: any) { setError(e.response?.data?.error || 'No fue posible guardar el registro.'); }
   };
+  const edit=(row:SupplySource)=>{setEditingId(row.id);setForm({...emptyForm,...row,totalArea:String(row.totalArea),plantedArea:String(row.plantedArea),certifiedArea:String(row.certifiedArea)} as any);setShowForm(true);};
+  const archive=async(row:SupplySource)=>{try{await api.put(`/rspo/supply-sources/${row.id}`,{status:row.status==='ARCHIVED'?'ACTIVE':'ARCHIVED'});load();}catch(e:any){setError(e.response?.data?.error||'No fue posible cambiar el estado.');}};
 
   if (!selectedUocId || selectedUocId === 'all') return <div className="empty-state card"><h3>Seleccione una UoC</h3><p>La Base de suministro siempre se consulta dentro de una unidad autorizada.</p></div>;
   return <div className="flex-col gap-5 animate-fade-in">
@@ -60,12 +65,18 @@ export default function SupplyBase() {
       <input className="form-input" type="number" min="0" step="0.01" placeholder="Área total (ha)" value={form.totalArea} onChange={e=>setForm({...form,totalArea:e.target.value})}/>
       <input className="form-input" type="number" min="0" step="0.01" placeholder="Área sembrada (ha)" value={form.plantedArea} onChange={e=>setForm({...form,plantedArea:e.target.value})}/>
       <input className="form-input" type="number" min="0" step="0.01" placeholder="Área certificada (ha)" value={form.certifiedArea} onChange={e=>setForm({...form,certifiedArea:e.target.value})}/>
+      <input className="form-input" placeholder="Referencia geográfica / polígono" value={form.polygonReference} onChange={e=>setForm({...form,polygonReference:e.target.value})}/>
+      <select className="form-select" value={form.polygonStatus} onChange={e=>setForm({...form,polygonStatus:e.target.value})}><option value="PENDING">Polígono pendiente</option><option value="VALID">Polígono válido</option><option value="INVALID">Polígono inválido</option></select>
       <select className="form-select" value={form.riskLevel} onChange={e=>setForm({...form,riskLevel:e.target.value})}><option value="LOW">Riesgo bajo</option><option value="MEDIUM">Riesgo medio</option><option value="HIGH">Riesgo alto</option><option value="CRITICAL">Riesgo crítico</option></select>
       <select className="form-select" value={form.eligibilityStatus} onChange={e=>setForm({...form,eligibilityStatus:e.target.value})}><option value="PENDING">Elegibilidad pendiente</option><option value="ELIGIBLE">Elegible</option><option value="CONDITIONAL">Condicionada</option><option value="INELIGIBLE">No elegible</option></select>
       <input className="form-input" placeholder="Responsable" value={form.responsible} onChange={e=>setForm({...form,responsible:e.target.value})}/>
-      <button className="btn btn-primary" type="submit">Guardar fuente</button>
+      <input className="form-input" type="date" value={form.lastEvaluation} onChange={e=>setForm({...form,lastEvaluation:e.target.value})} title="Última evaluación"/>
+      <input className="form-input" type="date" value={form.expiryDate} onChange={e=>setForm({...form,expiryDate:e.target.value})} title="Vencimiento"/>
+      <textarea className="form-input" placeholder="Notas" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/>
+      <select className="form-select" value={form.certificationStatus} onChange={e=>setForm({...form,certificationStatus:e.target.value})}><option value="PENDING">Certificación pendiente</option><option value="CERTIFIED">Certificada</option><option value="CONVENTIONAL">Convencional</option><option value="SUSPENDED">Suspendida</option></select>
+      <button className="btn btn-primary" type="submit">{editingId?'Actualizar fuente':'Guardar fuente'}</button>
     </form>}
     {loading ? <div className="card">Cargando…</div> : rows.length === 0 ? <div className="empty-state card"><h3>No hay fuentes registradas</h3><p>Cree el primer registro para comenzar a calcular los indicadores de esta UoC.</p>{canEdit && <button className="btn btn-primary" onClick={()=>setShowForm(true)}>Crear primer registro</button>}</div> :
-      <div className="card p-0 overflow-hidden"><div className="table-responsive"><table className="w-full text-left min-w-[900px]"><thead><tr className="bg-surface-1"><th className="p-4">Fuente</th><th>Tipo</th><th>Áreas total / certificada</th><th>Polígono</th><th>Riesgo</th><th>Elegibilidad</th><th>Certificación</th><th>Responsable</th></tr></thead><tbody>{rows.map(row=><tr key={row.id} className="border-b"><td className="p-4"><strong>{row.name}</strong><br/><small>{row.identifier}</small></td><td>{row.sourceType}</td><td>{Number(row.totalArea)} / {Number(row.certifiedArea)} ha</td><td>{row.polygonStatus}</td><td>{row.riskLevel}</td><td>{row.eligibilityStatus}</td><td>{row.certificationStatus}</td><td>{row.responsible || '—'}</td></tr>)}</tbody></table></div></div>}
+      <div className="card p-0 overflow-hidden"><div className="table-responsive"><table className="w-full text-left min-w-[1000px]"><thead><tr className="bg-surface-1"><th className="p-4">Fuente</th><th>Tipo</th><th>Áreas total / certificada</th><th>Polígono</th><th>Riesgo</th><th>Elegibilidad</th><th>Certificación</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{rows.map(row=><tr key={row.id} className="border-b"><td className="p-4"><strong>{row.name}</strong><br/><small>{row.identifier}</small></td><td>{row.sourceType}</td><td>{Number(row.totalArea)} / {Number(row.certifiedArea)} ha</td><td>{row.polygonStatus}</td><td>{row.riskLevel}</td><td>{row.eligibilityStatus}</td><td>{row.certificationStatus}</td><td>{row.status||'ACTIVE'}</td><td>{canEdit&&<div className="flex gap-1"><button className="btn btn-sm btn-secondary" onClick={()=>edit(row)}>Editar</button><button className="btn btn-sm btn-secondary" onClick={()=>archive(row)}>{row.status==='ARCHIVED'?'Activar':'Archivar'}</button></div>}</td></tr>)}</tbody></table></div></div>}
   </div>;
 }

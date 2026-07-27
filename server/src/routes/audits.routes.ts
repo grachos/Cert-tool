@@ -9,10 +9,12 @@ import {
   getAllFindings
 } from '../controllers/audits.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
+import { requireUocAccess } from '../middleware/uoc.middleware';
 
 const router = Router();
 
 router.use(authenticateToken);
+router.use(requireUocAccess());
 
 router.get('/', getAudits);
 router.post('/', createAudit);

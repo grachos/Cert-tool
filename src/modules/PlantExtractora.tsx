@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useUoc } from '../components/UoCContext';
 import { useThemeLanguage } from '../components/ThemeLanguageContext';
 import api from '../api';
+import { useAuth } from '../components/AuthContext';
 
 interface PlantRecord {
   id: string; section: string; title: string; description: string;
@@ -13,9 +14,15 @@ type PlantTab = 'contratistas' | 'sst' | 'ambiente' | 'avc' | 'social' | 'negoci
 export default function PlantExtractora({ onNavigate }: { onNavigate: (module: 'plantations' | 'evidence' | 'findings' | 'actionPlans' | 'audits') => void }) {
   const { selectedUoc } = useUoc();
   const { t, language } = useThemeLanguage();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<PlantTab>('contratistas');
   const [records, setRecords] = useState<PlantRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title:'', description:'', responsible:'', status:'PENDING' });
+  const canCreate = ['ADMIN','MANAGER'].includes(user?.role || '');
+  const canUpdate = ['ADMIN','MANAGER','AUDITOR'].includes(user?.role || '');
 
   const isPlantationOnly = selectedUoc?.type === 'PLANTATION';
 
@@ -38,8 +45,20 @@ export default function PlantExtractora({ onNavigate }: { onNavigate: (module: '
       const params = section ? { section } : {};
       const { data } = await api.get('/plant/records', { params });
       setRecords(data);
-    } catch (e) { /* */ }
+    } catch (e: any) { setError(e.response?.data?.error || 'No fue posible cargar los registros.'); }
     setLoading(false);
+  };
+  const createRecord = async (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      await api.post('/plant/records', { ...form, section: activeTab });
+      setForm({ title:'', description:'', responsible:'', status:'PENDING' });
+      setShowForm(false); fetch(activeTab);
+    } catch (e: any) { setError(e.response?.data?.error || 'No fue posible guardar el registro.'); }
+  };
+  const changeStatus = async (id: string, status: string) => {
+    try { await api.put(`/plant/records/${id}`, { status }); fetch(activeTab); }
+    catch (e: any) { setError(e.response?.data?.error || 'No fue posible actualizar el registro.'); }
   };
 
   useEffect(() => { fetch(activeTab); }, [activeTab]);
@@ -106,6 +125,13 @@ export default function PlantExtractora({ onNavigate }: { onNavigate: (module: '
       </div>
 
       <h3 className="text-lg font-bold text-primary" style={{ color: sectionColors[activeTab] }}>{t('plant.title')} — {sectionLabels[activeTab]}</h3>
+      <div className="flex-between">{error && <div className="integration-note">{error}</div>}{canCreate && <button className="btn btn-primary" onClick={() => setShowForm(v => !v)}>{showForm ? 'Cancelar' : '+ Nuevo registro'}</button>}</div>
+      {showForm && <form className="card form-grid" onSubmit={createRecord}>
+        <input className="form-input" required placeholder="Título / indicador" value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/>
+        <input className="form-input" placeholder="Descripción" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/>
+        <input className="form-input" placeholder="Responsable" value={form.responsible} onChange={e=>setForm({...form,responsible:e.target.value})}/>
+        <button className="btn btn-primary">Guardar</button>
+      </form>}
 
       {loading ? <div className="text-center text-muted" style={{ padding: '2rem' }}>{language === 'es' ? 'Cargando...' : 'Loading...'}</div> : (
         <div className="card p-0 overflow-hidden">
@@ -120,7 +146,7 @@ export default function PlantExtractora({ onNavigate }: { onNavigate: (module: '
                     <td className="p-4 text-sm text-secondary">{r.responsible}</td>
                     <td className="p-4 text-sm font-mono">{r.meta || '—'}</td>
                     <td className="p-4 text-sm font-medium">{r.result || '—'}</td>
-                    <td className="p-4">{getStatusBadge(r.status)}</td>
+                    <td className="p-4">{canUpdate ? <select className="form-select" value={r.status} onChange={e=>changeStatus(r.id,e.target.value)}><option>PENDING</option><option>OK</option><option>WARN</option><option>COMPLIANT</option><option>PARTIAL</option></select> : getStatusBadge(r.status)}</td>
                   </tr>
                 ))}
                 {records.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-muted">{language === 'es' ? 'Sin registros para esta sección' : 'No records for this section'}</td></tr>}

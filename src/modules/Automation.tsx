@@ -47,6 +47,8 @@ export default function Automation() {
   const [editProgress, setEditProgress] = useState(0);
   const [editStatus, setEditStatus] = useState<string>('PENDING');
   const [editEvidenceFile, setEditEvidenceFile] = useState<File | null>(null);
+  const [editEfficacy, setEditEfficacy] = useState('');
+  const [editClosedAt, setEditClosedAt] = useState('');
   const [isEvaluatingEvidence, setIsEvaluatingEvidence] = useState(false);
 
   // Drag over state to highlight column
@@ -204,6 +206,8 @@ export default function Automation() {
     setEditProgress(plan.progress);
     setEditStatus(plan.status);
     setEditEvidenceFile(null);
+    setEditEfficacy(plan.eficacia || '');
+    setEditClosedAt(plan.closedAt ? String(plan.closedAt).slice(0,10) : '');
     setShowEditModal(true);
   };
 
@@ -227,6 +231,8 @@ export default function Automation() {
       await api.put(`/automation/${selectedPlan.id}`, {
         status: editStatus,
         progress: editProgress,
+        eficacia: editEfficacy,
+        closedAt: editClosedAt || null,
         ...(evidenceName && { evidenceName })
       });
       
@@ -660,14 +666,15 @@ export default function Automation() {
                     <span className="text-green-700">{(selectedPlan as any).correccion}</span>
                   </div>
                 )}
+                {(selectedPlan as any).eficacia && <div className="integration-note"><strong>Evaluación de eficacia:</strong> {(selectedPlan as any).eficacia}</div>}
+                {(selectedPlan as any).closedAt && <div className="text-sm text-secondary"><strong>Fecha de cierre:</strong> {new Date((selectedPlan as any).closedAt).toLocaleDateString()}</div>}
 
                 <div className="form-group">
-                  <label className="form-label">{language === 'es' ? 'Estado (Gestionado por IA)' : 'Status (AI Managed)'}</label>
+                  <label className="form-label">{language === 'es' ? 'Estado' : 'Status'}</label>
                   <select 
-                    className="form-select opacity-70 cursor-not-allowed bg-gray-100"
+                    className="form-select"
                     value={editStatus}
-                    disabled
-                    onChange={() => {}}
+                    onChange={e => setEditStatus(e.target.value)}
                   >
                     <option value="PENDING">{language === 'es' ? 'Pendiente' : 'Pending'}</option>
                     <option value="IN_PROGRESS">{language === 'es' ? 'En Progreso' : 'In Progress'}</option>
@@ -678,7 +685,7 @@ export default function Automation() {
 
                 <div className="form-group">
                   <div className="flex justify-between items-center mb-1">
-                    <label className="form-label">{language === 'es' ? 'Progreso (Gestionado por IA)' : 'Progress (AI Managed)'}</label>
+                    <label className="form-label">{language === 'es' ? 'Progreso' : 'Progress'}</label>
                     <span className="text-xs font-bold text-blue-500">{editProgress}%</span>
                   </div>
                   <input 
@@ -686,12 +693,13 @@ export default function Automation() {
                     min="0" 
                     max="100" 
                     step="5"
-                    className="w-full cursor-not-allowed opacity-75 accent-blue-500" 
+                    className="w-full accent-blue-500"
                     value={editProgress}
-                    disabled
-                    onChange={() => {}}
+                    onChange={e => setEditProgress(Number(e.target.value))}
                   />
                 </div>
+                <div className="form-group"><label className="form-label">Evaluación de eficacia</label><textarea className="form-input" value={editEfficacy} onChange={e=>setEditEfficacy(e.target.value)} /></div>
+                <div className="form-group"><label className="form-label">Fecha de cierre</label><input type="date" className="form-input" value={editClosedAt} onChange={e=>setEditClosedAt(e.target.value)} /></div>
 
                 {(selectedPlan as any).aiFeedback && (
                   <div className="form-group bg-blue-50/50 p-3 rounded-lg border border-blue-100 flex-col gap-1.5 animate-fade-in">

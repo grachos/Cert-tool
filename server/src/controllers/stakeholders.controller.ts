@@ -4,7 +4,7 @@ import pool from '../db';
 
 export const getStakeholders = async (req: Request, res: Response) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM Stakeholder ORDER BY name ASC');
+    const [rows] = await pool.query('SELECT * FROM Stakeholder WHERE uocId=? ORDER BY name ASC', [(req as any).uocId]);
     res.json(rows);
   } catch (error) {
     console.error('Error getting stakeholders:', error);
@@ -17,8 +17,8 @@ export const createStakeholder = async (req: Request, res: Response) => {
   const id = uuidv4();
   try {
     await pool.query(
-      'INSERT INTO Stakeholder (id, name, type, location, interest, influence, engagementChannel, lastEngagement, responsibleName, responsibleEmail, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-      [id, name, type, location, interest, influence || 'MEDIUM', engagementChannel, lastEngagement, responsibleName, responsibleEmail, notes]
+      'INSERT INTO Stakeholder (id, name, type, location, interest, influence, engagementChannel, lastEngagement, responsibleName, responsibleEmail, notes,uocId) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      [id, name, type, location, interest, influence || 'MEDIUM', engagementChannel, lastEngagement, responsibleName, responsibleEmail, notes, (req as any).uocId]
     );
     const [rows]: any = await pool.query('SELECT * FROM Stakeholder WHERE id = ?', [id]);
     res.status(201).json(rows[0]);
@@ -33,8 +33,8 @@ export const updateStakeholder = async (req: Request, res: Response) => {
   const { name, type, location, interest, influence, engagementChannel, lastEngagement, nextEngagement, responsibleName, responsibleEmail, status, notes } = req.body;
   try {
     await pool.query(
-      'UPDATE Stakeholder SET name=?, type=?, location=?, interest=?, influence=?, engagementChannel=?, lastEngagement=?, nextEngagement=?, responsibleName=?, responsibleEmail=?, status=?, notes=? WHERE id=?',
-      [name, type, location, interest, influence, engagementChannel, lastEngagement, nextEngagement, responsibleName, responsibleEmail, status, notes, id]
+      'UPDATE Stakeholder SET name=?, type=?, location=?, interest=?, influence=?, engagementChannel=?, lastEngagement=?, nextEngagement=?, responsibleName=?, responsibleEmail=?, status=?, notes=? WHERE id=? AND uocId=?',
+      [name, type, location, interest, influence, engagementChannel, lastEngagement, nextEngagement, responsibleName, responsibleEmail, status, notes, id, (req as any).uocId]
     );
     const [rows]: any = await pool.query('SELECT * FROM Stakeholder WHERE id = ?', [id]);
     res.json(rows[0]);
@@ -47,7 +47,7 @@ export const updateStakeholder = async (req: Request, res: Response) => {
 export const deleteStakeholder = async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
-    await pool.query('DELETE FROM Stakeholder WHERE id = ?', [id]);
+    await pool.query('DELETE FROM Stakeholder WHERE id = ? AND uocId=?', [id, (req as any).uocId]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting stakeholder:', error);

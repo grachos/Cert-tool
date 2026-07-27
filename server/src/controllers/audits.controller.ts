@@ -5,7 +5,7 @@ import pool from '../db';
 // Get all audits
 export const getAudits = async (req: Request, res: Response) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM Audit ORDER BY createdAt DESC');
+    const [rows] = await pool.query('SELECT * FROM Audit WHERE uocId=? ORDER BY createdAt DESC', [(req as any).uocId]);
     res.json(rows);
   } catch (error) {
     console.error('Error in getAudits:', error);
@@ -30,8 +30,8 @@ export const createAudit = async (req: Request, res: Response) => {
   const id = uuidv4();
   try {
     await pool.query(
-      'INSERT INTO Audit (id, title, date, type, auditorName, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, title, new Date(date), type, auditorName, 'SCHEDULED']
+      'INSERT INTO Audit (id, title, date, type, auditorName, status,uocId) VALUES (?, ?, ?, ?, ?, ?,?)',
+      [id, title, new Date(date), type, auditorName, 'SCHEDULED', (req as any).uocId]
     );
     const [rows]: any = await pool.query('SELECT * FROM Audit WHERE id = ?', [id]);
     res.status(201).json(rows[0]);
@@ -49,9 +49,9 @@ export const getAuditFindings = async (req: Request, res: Response) => {
       SELECT nc.*, r.clause, r.title as requirementTitle, r.standardId 
       FROM NonConformance nc
       JOIN Requirement r ON nc.requirementId = r.id
-      WHERE nc.auditId = ?
+      WHERE nc.auditId = ? AND nc.uocId=?
       ORDER BY nc.createdAt DESC
-    `, [id]);
+    `, [id, (req as any).uocId]);
     res.json(rows);
   } catch (error) {
     console.error('Error in getAuditFindings:', error);
@@ -66,8 +66,8 @@ export const createFinding = async (req: Request, res: Response) => {
   const id = uuidv4();
   try {
     await pool.query(
-      'INSERT INTO NonConformance (id, auditId, requirementId, type, description, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, auditId, requirementId, type, description, 'OPEN']
+      'INSERT INTO NonConformance (id, auditId, requirementId, type, description, status,uocId) SELECT ?,?,?,?,?,?,? FROM Audit WHERE id=? AND uocId=?',
+      [id, auditId, requirementId, type, description, 'OPEN', (req as any).uocId, auditId, (req as any).uocId]
     );
     const [rows]: any = await pool.query('SELECT * FROM NonConformance WHERE id = ?', [id]);
     res.status(201).json(rows[0]);
@@ -82,7 +82,7 @@ export const verifyFindingClosure = async (req: Request, res: Response): Promise
   const { id } = req.params;
 
   try {
-    const [ncRows] = await pool.query('SELECT * FROM NonConformance WHERE id = ?', [id]);
+    const [ncRows] = await pool.query('SELECT * FROM NonConformance WHERE id = ? AND uocId=?', [id, (req as any).uocId]);
     const findings = ncRows as any[];
 
     if (findings.length === 0) {
@@ -92,7 +92,7 @@ export const verifyFindingClosure = async (req: Request, res: Response): Promise
 
     const finding = findings[0];
 
-    const [planRows] = await pool.query('SELECT status, progress FROM ActionPlan WHERE nonConformanceId = ?', [id]);
+    const [planRows] = await pool.query('SELECT status, progress FROM ActionPlan WHERE nonConformanceId = ? AND uocId=?', [id, (req as any).uocId]);
     const plans = planRows as any[];
 
     let isApproved = false;
@@ -108,7 +108,7 @@ export const verifyFindingClosure = async (req: Request, res: Response): Promise
         isApproved = true;
         aiJustification = `La IA ha validado exitosamente el cierre de la No Conformidad. Se encontró evidencia de ${plans.length} plan(es) de acción asociado(s) completado(s) al 100%, cumpliendo con la resolución del hallazgo.`;
         
-        await pool.query('UPDATE NonConformance SET status = ? WHERE id = ?', ['CLOSED', id]);
+        await pool.query('UPDATE NonConformance SET status = ? WHERE id = ? AND uocId=?', ['CLOSED', id, (req as any).uocId]);
       } else {
         isApproved = false;
         const pendingPlans = plans.filter(p => p.status !== 'COMPLETED' && p.progress < 100).length;
@@ -131,8 +131,9 @@ export const getAllFindings = async (req: Request, res: Response) => {
       FROM NonConformance n 
       LEFT JOIN Requirement r ON n.requirementId = r.id
       LEFT JOIN Audit a ON n.auditId = a.id
+      WHERE n.uocId=?
       ORDER BY n.createdAt DESC
-    `);
+    `, [(req as any).uocId]);
     res.json(rows);
   } catch (error) {
     console.error('Error in getAllFindings:', error);

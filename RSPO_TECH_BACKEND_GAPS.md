@@ -11,6 +11,10 @@
 - Preparación interna PRISMA (`PrismaOperation`, `PrismaAdjustment`, `PrismaAttachment`) con trazabilidad de cambios.
 - Evidencias ampliadas y aisladas por UoC; carga y descarga autenticadas, límite de tamaño y lista de tipos permitidos.
 - Planes de acción con brecha, corrección inmediata, causa raíz, acción correctiva, eficacia y fecha de cierre.
+- Administración de asignaciones UoC por usuario, exclusiva para ADMIN.
+- Planta Extractora persistente por UoC mediante `PlantRecord`.
+- Historial de fuentes, planes y operaciones internas PRISMA.
+- Seed idempotente y pruebas de integración condicionadas a `TEST_DATABASE_URL`.
 - `VITE_API_URL`, CORS por entorno, secreto JWT obligatorio y respuestas internas de error no expuestas.
 
 ## Endpoints RSPO
@@ -38,7 +42,7 @@ Todos los endpoints operativos anteriores requieren JWT; los asociados con UoC v
 
 ## Validación adicional recomendada antes de producción
 
-- Ejecutar pruebas de integración contra una copia anonimizada de MySQL con la migración aplicada.
+- Ejecutar las pruebas de integración con `TEST_DATABASE_URL`; este entorno de desarrollo no proporcionó una instancia MySQL para ejecutar los escenarios de base nueva y base existente.
 - Validar permisos con usuarios reales de cada rol y UoC.
 - Realizar prueba de carga, respaldo/restauración, análisis de dependencias y revisión de seguridad.
 - Confirmar las reglas de negocio de elegibilidad y tolerancia de producción con el responsable RSPO.

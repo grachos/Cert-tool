@@ -5,12 +5,12 @@ import db from '../db';
 export const getRisks = async (req: Request, res: Response): Promise<void> => {
   try {
     const { standardId } = req.query;
-    let query = 'SELECT * FROM Risk';
-    let params: any[] = [];
+    let query = 'SELECT * FROM Risk WHERE uocId=?';
+    let params: any[] = [(req as any).uocId];
     
     if (standardId) {
-      query = 'SELECT * FROM Risk WHERE standardId = ?';
-      params = [standardId];
+      query += ' AND standardId = ?';
+      params.push(standardId);
     }
     
     const [rows] = await db.query(query, params);
@@ -47,12 +47,12 @@ export const createRisk = async (req: Request, res: Response): Promise<void> => 
     const ownerName = authReq.user?.name || data.owner || 'Anonimo';
     
     await db.query(
-      `INSERT INTO Risk (id, title, description, category, standardId, probability, impact, level, status, owner)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [riskId, data.title, data.description, data.category, data.standardId, data.probability, data.impact, level, data.status || 'OPEN', ownerName]
+      `INSERT INTO Risk (id, title, description, category, standardId, probability, impact, level, status, owner,uocId)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)`,
+      [riskId, data.title, data.description, data.category, data.standardId, data.probability, data.impact, level, data.status || 'OPEN', ownerName, authReq.uocId]
     );
     
-    const [riskRows] = await db.query('SELECT * FROM Risk WHERE id = ?', [riskId]);
+    const [riskRows] = await db.query('SELECT * FROM Risk WHERE id = ? AND uocId=?', [riskId, authReq.uocId]);
     const newRisk = (riskRows as any[])[0];
     
     res.status(201).json(newRisk);
