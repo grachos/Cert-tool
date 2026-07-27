@@ -20,12 +20,23 @@ export const getUocs = async (req: AuthRequest, res: Response) => {
 };
 
 export const createUoc = async (req: Request, res: Response) => {
-  const { name, companyName, country, area, managerName, managerEmail } = req.body;
+  const { name, companyName, country, area, managerName, managerEmail, type } = req.body;
+  const validTypes = ['MIXED', 'PLANTATION', 'MILL', 'SMALLHOLDERS'];
+  if (!name?.trim() || !companyName?.trim()) {
+    res.status(400).json({ error: 'El nombre de la UoC y la empresa son obligatorios.' });
+    return;
+  }
+  if (type && !validTypes.includes(type)) {
+    res.status(400).json({ error: 'El tipo de UoC no es válido.' });
+    return;
+  }
   const id = uuidv4();
   try {
     await pool.query(
-      'INSERT INTO CertificationUnit (id, name, companyName, country, area, managerName, managerEmail) VALUES (?,?,?,?,?,?,?)',
-      [id, name, companyName, country || 'Colombia', area || 0, managerName, managerEmail]
+      `INSERT INTO CertificationUnit
+       (id, name, companyName, country, area, managerName, managerEmail, type, appliesAll, applicablePrinciples)
+       VALUES (?,?,?,?,?,?,?,?,TRUE,?)`,
+      [id, name.trim(), companyName.trim(), country || 'Colombia', Number(area) || 0, managerName || null, managerEmail || null, type || 'MIXED', JSON.stringify(['M1','M2','M3','M4','M5','M6','M7'])]
     );
     const [rows]: any = await pool.query('SELECT * FROM CertificationUnit WHERE id = ?', [id]);
     res.status(201).json(rows[0]);

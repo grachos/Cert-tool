@@ -23,7 +23,7 @@ interface UocContextType {
   setSelectedUocId: (id: string) => void;
   selectedUoc: UocItem | null;
   updateUocScope: (id: string, scopeData: Partial<UocItem>) => void;
-  addUoc: (newUoc: UocItem) => void;
+  addUoc: (newUoc: Partial<UocItem>) => Promise<UocItem>;
   isPrincipleApplicable: (principleKey: string) => boolean;
 }
 
@@ -73,8 +73,20 @@ export const UocProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUocs(prev => prev.map(u => u.id === id ? { ...u, ...scopeData } : u));
   };
 
-  const addUoc = (newUoc: UocItem) => {
-    api.post('/scc/uocs', newUoc).then(({ data }) => setUocs(prev => [...prev, data]));
+  const addUoc = async (newUoc: Partial<UocItem>) => {
+    const { data } = await api.post('/scc/uocs', newUoc);
+    const normalized: UocItem = {
+      ...data,
+      area: Number(data.area || 0),
+      type: data.type || newUoc.type || 'MIXED',
+      appliesAll: data.appliesAll == null ? true : Boolean(data.appliesAll),
+      applicablePrinciples: Array.isArray(data.applicablePrinciples)
+        ? data.applicablePrinciples
+        : ['M1','M2','M3','M4','M5','M6','M7']
+    };
+    setUocs(prev => [...prev, normalized]);
+    setSelectedUocId(normalized.id);
+    return normalized;
   };
 
   const isPrincipleApplicable = (principleKey: string): boolean => {
