@@ -140,7 +140,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             {uocs.length} UoCs autorizadas
           </span>
           <span className="badge px-3 py-1 text-xs font-semibold" style={{ background: 'rgba(234, 179, 8, 0.25)', backdropFilter: 'blur(4px)', color: '#FEF08A', border: '1px solid rgba(234, 179, 8, 0.4)' }}>
-            🌴 Trazabilidad PalmTrace
+            ↗ Control interno PRISMA
           </span>
         </div>
       </div>
