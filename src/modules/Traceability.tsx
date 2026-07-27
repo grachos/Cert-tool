@@ -1,44 +1,39 @@
 import { useEffect, useState } from 'react';
 import api from '../api';
+import { useUoc } from '../components/UoCContext';
+import { useAuth } from '../components/AuthContext';
 
-interface Transaction {
-  id: string;
-  transactionDate: string;
-  batchRef?: string;
-  counterparty?: string;
-  documentRef?: string;
-  volumeMt: number;
-  supplyModel: string;
-}
+const initial = { supplySourceId:'', farmPlotId:'', deliveredAt:'', agriculturalLot:'', traceabilityLot:'', vehicle:'', plate:'', driverName:'', weighTicket:'', grossWeightKg:'', tareWeightKg:'', supplyModel:'MB', fruitCondition:'CONVENTIONAL', estimatedProductionMt:'', documentRef:'', observations:'' };
 
 export default function Traceability() {
-  const [rows, setRows] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    api.get('/scc/transactions', { params: { type: 'RECEPTION' } })
-      .then(({ data }) => setRows(data.filter((row: Transaction & { productType: string }) => row.productType === 'RFF')))
-      .catch(() => setError('No fue posible consultar las recepciones RFF.'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  return (
-    <div className="flex-col gap-4 animate-fade-in">
-      <div className="card traceability-summary">
-        <div><span className="eyebrow">CONTROL DE ORIGEN</span><h2 className="text-2xl font-bold mt-2">Trazabilidad RFF</h2><p className="text-secondary mt-2">Recepciones conectadas al libro transaccional SCC existente.</p></div>
-        <div className="status-panel"><span className="status-dot success" /><div><strong>{rows.length}</strong><small> recepciones consultadas</small></div></div>
-      </div>
-      <div className="integration-note"><strong>Alcance actual:</strong> lote, fecha, tiquete/documento, volumen, contraparte y modelo se leen del backend. Vehículo, peso de báscula, elegibilidad predial y comparación producción–entrega requieren ampliar el modelo de datos.</div>
-      <div className="card p-0 overflow-hidden"><div className="table-responsive"><table className="w-full text-left min-w-[820px]">
-        <thead><tr className="bg-surface-1 border-b"><th className="p-4">Fecha</th><th className="p-4">Plantación / origen</th><th className="p-4">Lote</th><th className="p-4">Tiquete</th><th className="p-4">Peso neto (TM)</th><th className="p-4">Condición</th><th className="p-4">Elegibilidad</th></tr></thead>
-        <tbody>
-          {loading && <tr><td className="p-6 text-center" colSpan={7}>Cargando trazabilidad…</td></tr>}
-          {error && <tr><td className="p-6 text-center text-secondary" colSpan={7}>{error}</td></tr>}
-          {!loading && !error && rows.map(row => <tr key={row.id} className="border-b"><td className="p-4">{new Date(row.transactionDate).toLocaleDateString('es-CO')}</td><td className="p-4 font-semibold">{row.counterparty || 'Sin registrar'}</td><td className="p-4 mono">{row.batchRef || '—'}</td><td className="p-4">{row.documentRef || '—'}</td><td className="p-4 font-bold">{Number(row.volumeMt).toLocaleString('es-CO')}</td><td className="p-4"><span className="badge badge-success">{row.supplyModel}</span></td><td className="p-4"><span className="badge badge-pending">Pendiente de dato</span></td></tr>)}
-          {!loading && !error && rows.length === 0 && <tr><td className="p-6 text-center text-secondary" colSpan={7}>No hay recepciones RFF registradas.</td></tr>}
-        </tbody>
-      </table></div></div>
-    </div>
-  );
+  const { selectedUocId } = useUoc(); const { user } = useAuth();
+  const [rows,setRows]=useState<any[]>([]); const [sources,setSources]=useState<any[]>([]); const [plots,setPlots]=useState<any[]>([]);
+  const [alerts,setAlerts]=useState<any[]>([]); const [form,setForm]=useState(initial); const [show,setShow]=useState(false); const [error,setError]=useState('');
+  const canEdit=user?.role==='ADMIN'||user?.role==='MANAGER';
+  const load=()=>{ if(!selectedUocId||selectedUocId==='all') return; const params={uocId:selectedUocId}; Promise.all([api.get('/rspo/deliveries',{params}),api.get('/rspo/supply-sources',{params}),api.get('/rspo/farm-plots',{params}),api.get('/rspo/traceability-alerts',{params})]).then(([a,b,c,d])=>{setRows(a.data);setSources(b.data);setPlots(c.data);setAlerts(d.data);}).catch(e=>setError(e.response?.data?.error||'No fue posible cargar trazabilidad.'));};
+  useEffect(load,[selectedUocId]);
+  const submit=async(e:React.FormEvent)=>{e.preventDefault();setError('');try{await api.post('/rspo/deliveries',{...form,uocId:selectedUocId,grossWeightKg:Number(form.grossWeightKg),tareWeightKg:Number(form.tareWeightKg),estimatedProductionMt:Number(form.estimatedProductionMt)});setForm(initial);setShow(false);load();}catch(err:any){setError(err.response?.data?.error||'No fue posible guardar la entrega.');}};
+  if(!selectedUocId||selectedUocId==='all') return <div className="empty-state card"><h3>Seleccione una UoC</h3><p>La trazabilidad RFF no permite consultas globales.</p></div>;
+  return <div className="flex-col gap-5 animate-fade-in">
+    <div className="traceability-summary card"><div><span className="eyebrow">CAMPO → BÁSCULA</span><h2 className="text-2xl font-bold">Trazabilidad RFF</h2><p className="text-secondary">Pesos reales de báscula, origen, elegibilidad y libro SCC.</p></div><div className="status-panel"><strong>{rows.length}</strong> entregas · <strong>{alerts.filter(a=>a.status==='OPEN').length}</strong> alertas</div></div>
+    <div className="flex-between">{error?<div className="integration-note">{error}</div>:<span/>}{canEdit&&<button className="btn btn-primary" onClick={()=>setShow(v=>!v)}>{show?'Cancelar':'+ Registrar recepción'}</button>}</div>
+    {show&&<form className="card form-grid" onSubmit={submit}>
+      <select required className="form-select" value={form.supplySourceId} onChange={e=>setForm({...form,supplySourceId:e.target.value})}><option value="">Plantación / proveedor</option>{sources.map(s=><option value={s.id} key={s.id}>{s.name}</option>)}</select>
+      <select className="form-select" value={form.farmPlotId} onChange={e=>setForm({...form,farmPlotId:e.target.value})}><option value="">Predio / lote opcional</option>{plots.filter(p=>!form.supplySourceId||p.supplySourceId===form.supplySourceId).map(p=><option value={p.id} key={p.id}>{p.farmName||p.name} — {p.name}</option>)}</select>
+      <input required type="datetime-local" className="form-input" value={form.deliveredAt} onChange={e=>setForm({...form,deliveredAt:e.target.value})}/>
+      <input required className="form-input" placeholder="Lote de trazabilidad" value={form.traceabilityLot} onChange={e=>setForm({...form,traceabilityLot:e.target.value})}/>
+      <input className="form-input" placeholder="Lote agrícola" value={form.agriculturalLot} onChange={e=>setForm({...form,agriculturalLot:e.target.value})}/>
+      <input required className="form-input" placeholder="Tiquete de báscula" value={form.weighTicket} onChange={e=>setForm({...form,weighTicket:e.target.value})}/>
+      <input required className="form-input" placeholder="Placa" value={form.plate} onChange={e=>setForm({...form,plate:e.target.value})}/>
+      <input className="form-input" placeholder="Vehículo" value={form.vehicle} onChange={e=>setForm({...form,vehicle:e.target.value})}/>
+      <input className="form-input" placeholder="Conductor" value={form.driverName} onChange={e=>setForm({...form,driverName:e.target.value})}/>
+      <input required type="number" min="0" step=".001" className="form-input" placeholder="Peso bruto kg" value={form.grossWeightKg} onChange={e=>setForm({...form,grossWeightKg:e.target.value})}/>
+      <input required type="number" min="0" step=".001" className="form-input" placeholder="Tara kg" value={form.tareWeightKg} onChange={e=>setForm({...form,tareWeightKg:e.target.value})}/>
+      <select className="form-select" value={form.supplyModel} onChange={e=>setForm({...form,supplyModel:e.target.value})}><option>IP</option><option>SG</option><option>MB</option></select>
+      <select className="form-select" value={form.fruitCondition} onChange={e=>setForm({...form,fruitCondition:e.target.value})}><option value="CERTIFIED">Certificada</option><option value="CONVENTIONAL">Convencional</option></select>
+      <input type="number" min="0" step=".001" className="form-input" placeholder="Producción estimada TM" value={form.estimatedProductionMt} onChange={e=>setForm({...form,estimatedProductionMt:e.target.value})}/>
+      <button className="btn btn-primary">Guardar recepción</button>
+    </form>}
+    {rows.length===0?<div className="empty-state card"><h3>No hay recepciones RFF</h3><p>Registre la primera operación de báscula para esta UoC.</p></div>:<div className="card p-0"><div className="table-responsive"><table className="w-full min-w-[1050px]"><thead><tr><th>Fecha</th><th>Origen</th><th>Lote</th><th>Tiquete</th><th>Vehículo</th><th>Bruto</th><th>Tara</th><th>Neto</th><th>Condición</th><th>Elegible</th><th>Alertas</th></tr></thead><tbody>{rows.map(r=><tr key={r.id}><td>{new Date(r.deliveredAt).toLocaleString('es-CO')}</td><td>{r.sourceName}</td><td>{r.traceabilityLot}</td><td>{r.weighTicket}</td><td>{r.plate}</td><td>{Number(r.grossWeightKg)} kg</td><td>{Number(r.tareWeightKg)} kg</td><td><strong>{Number(r.netWeightKg)} kg</strong></td><td>{r.fruitCondition}</td><td>{r.eligibleAtDelivery?'Sí':'No'}</td><td>{r.openAlerts||0}</td></tr>)}</tbody></table></div></div>}
+  </div>;
 }

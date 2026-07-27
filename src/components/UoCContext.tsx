@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import api from '../api';
+import { useAuth } from './AuthContext';
 
 export type UocType = 'MIXED' | 'PLANTATION' | 'MILL' | 'SMALLHOLDERS';
 
@@ -25,60 +27,39 @@ interface UocContextType {
   isPrincipleApplicable: (principleKey: string) => boolean;
 }
 
-const defaultUocs: UocItem[] = [
-  {
-    id: 'uoc-1',
-    name: 'Finca El Paraíso',
-    companyName: 'AgroPalma S.A.',
-    country: 'Colombia',
-    area: 1200,
-    status: 'ACTIVE',
-    managerName: 'Juan Torres',
-    type: 'PLANTATION',
-    appliesAll: false,
-    applicablePrinciples: ['M1', 'M2', 'M3', 'M4', 'M6', 'M7'] // M5 (Pequeños productores) is N/A for owned plantation
-  },
-  {
-    id: 'uoc-2',
-    name: 'Extractora PalmCol S.A.S.',
-    companyName: 'PalmCol Group',
-    country: 'Colombia',
-    area: 4500.75,
-    status: 'ACTIVE',
-    managerName: 'Carlos Mendez',
-    type: 'MILL',
-    appliesAll: false,
-    applicablePrinciples: ['M1', 'M2', 'M3', 'M6', 'M7'] // M4 (Tierra/FPIC) and M5 (Pequeños productores) N/A for industrial mill
-  },
-  {
-    id: 'uoc-3',
-    name: 'Plantación Hacienda La Palma',
-    companyName: 'PalmCol Group',
-    country: 'Colombia',
-    area: 2300.50,
-    status: 'ACTIVE',
-    managerName: 'Maria Rojas',
-    type: 'MIXED',
-    appliesAll: true,
-    applicablePrinciples: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']
-  }
-];
-
 const UocContext = createContext<UocContextType | undefined>(undefined);
 
 export const UocProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [uocs, setUocs] = useState<UocItem[]>(() => {
-    const saved = localStorage.getItem('ctc_uocs');
-    return saved ? JSON.parse(saved) : defaultUocs;
-  });
+  const { user } = useAuth();
+  const [uocs, setUocs] = useState<UocItem[]>([]);
 
   const [selectedUocId, setSelectedUocId] = useState<string>(() => {
     return localStorage.getItem('ctc_selected_uoc_id') || 'all';
   });
 
   useEffect(() => {
-    localStorage.setItem('ctc_uocs', JSON.stringify(uocs));
-  }, [uocs]);
+    if (!user) { setUocs([]); return; }
+    api.get('/scc/uocs').then(({ data }) => {
+      const normalized = data.map((u: any) => ({
+        ...u,
+        area: Number(u.area || 0),
+        type: u.type || 'MIXED',
+        appliesAll: Boolean(u.appliesAll),
+        applicablePrinciples: (() => {
+          if (Array.isArray(u.applicablePrinciples)) return u.applicablePrinciples;
+          if (typeof u.applicablePrinciples === 'string') {
+            try { return JSON.parse(u.applicablePrinciples); } catch { return []; }
+          }
+          return ['M1','M2','M3','M4','M5','M6','M7'];
+        })()
+      }));
+      setUocs(normalized);
+      const saved = localStorage.getItem('ctc_selected_uoc_id');
+      const validSaved = saved && normalized.some((u: UocItem) => u.id === saved);
+      if (user.role !== 'ADMIN' && !validSaved) setSelectedUocId(normalized[0]?.id || '');
+      if (user.role === 'ADMIN' && !saved) setSelectedUocId('all');
+    }).catch(() => setUocs([]));
+  }, [user]);
 
   useEffect(() => {
     localStorage.setItem('ctc_selected_uoc_id', selectedUocId);
@@ -93,7 +74,7 @@ export const UocProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addUoc = (newUoc: UocItem) => {
-    setUocs(prev => [...prev, newUoc]);
+    api.post('/scc/uocs', newUoc).then(({ data }) => setUocs(prev => [...prev, data]));
   };
 
   const isPrincipleApplicable = (principleKey: string): boolean => {

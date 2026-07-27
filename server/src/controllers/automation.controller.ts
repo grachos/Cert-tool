@@ -139,11 +139,15 @@ Sigue estas reglas estrictas:
 
 export const getActionPlans = async (req: Request, res: Response): Promise<void> => {
   try {
+    const uocId = (req as any).uocId;
+    const isAll = (req as any).user?.role === 'ADMIN' && !uocId;
     const [rows] = await db.query(
       `SELECT p.*, u.name AS assigneeName, u.email AS assigneeEmail
        FROM ActionPlan p
        JOIN User u ON p.assigneeId = u.id
+       ${isAll ? '' : 'WHERE p.uocId = ?'}
        ORDER BY p.dueDate ASC`
+      , isAll ? [] : [uocId]
     );
     const plans = rows as any[];
     
@@ -167,6 +171,7 @@ export const getActionPlans = async (req: Request, res: Response): Promise<void>
       causaRaiz: p.causaRaiz,
       correccion: p.correccion,
       eficacia: p.eficacia,
+      closedAt: p.closedAt,
       assignee: {
         name: p.assigneeName,
         email: p.assigneeEmail
@@ -188,9 +193,9 @@ export const createActionPlan = async (req: Request, res: Response): Promise<voi
     const progress = data.progress || 0;
     
     await db.query(
-      `INSERT INTO ActionPlan (id, title, description, type, status, priority, assigneeId, dueDate, progress, nonConformanceId, riskId, brecha, causaRaiz, correccion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [planId, data.title, data.description, data.type, data.status || 'PENDING', data.priority, data.assigneeId, dueDate, progress, data.nonConformanceId || null, data.riskId || null, data.brecha || null, data.causaRaiz || null, data.correccion || null]
+      `INSERT INTO ActionPlan (id, title, description, type, status, priority, assigneeId, dueDate, progress, nonConformanceId, riskId, brecha, causaRaiz, correccion, eficacia, closedAt, uocId)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [planId, data.title, data.description, data.type, data.status || 'PENDING', data.priority, data.assigneeId, dueDate, progress, data.nonConformanceId || null, data.riskId || null, data.brecha || null, data.causaRaiz || null, data.correccion || null, data.eficacia || null, data.closedAt || null, data.uocId]
     );
 
     // Fetch new plan with assignee
@@ -243,7 +248,7 @@ export const createActionPlan = async (req: Request, res: Response): Promise<voi
 export const updateActionPlan = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;
-    const { title, description, type, status, priority, assigneeId, dueDate, progress, evidenceName, riskId, brecha, causaRaiz, correccion, eficacia } = req.body;
+    const { title, description, type, status, priority, assigneeId, dueDate, progress, evidenceName, riskId, brecha, causaRaiz, correccion, eficacia, closedAt } = req.body;
     const authReq = req as any;
     const userId = authReq.user?.id || 'system';
 
@@ -271,12 +276,13 @@ export const updateActionPlan = async (req: Request, res: Response): Promise<voi
     const updatedCausaRaiz = causaRaiz !== undefined ? causaRaiz : current.causaRaiz;
     const updatedCorreccion = correccion !== undefined ? correccion : current.correccion;
     const updatedEficacia = eficacia !== undefined ? eficacia : current.eficacia;
+    const updatedClosedAt = closedAt !== undefined ? closedAt : (updatedStatus === 'COMPLETED' ? current.closedAt || new Date() : current.closedAt);
 
     await db.query(
       `UPDATE ActionPlan 
-       SET title = ?, description = ?, type = ?, status = ?, priority = ?, assigneeId = ?, dueDate = ?, progress = ?, evidenceName = ?, riskId = ?, brecha = ?, causaRaiz = ?, correccion = ?, eficacia = ?
-       WHERE id = ?`,
-      [updatedTitle, updatedDescription, updatedType, updatedStatus, updatedPriority, updatedAssigneeId, updatedDueDate, updatedProgress, updatedEvidenceName, updatedRiskId, updatedBrecha, updatedCausaRaiz, updatedCorreccion, updatedEficacia, id]
+       SET title = ?, description = ?, type = ?, status = ?, priority = ?, assigneeId = ?, dueDate = ?, progress = ?, evidenceName = ?, riskId = ?, brecha = ?, causaRaiz = ?, correccion = ?, eficacia = ?, closedAt = ?
+       WHERE id = ? AND (uocId = ? OR (? = 'ADMIN' AND ? IS NULL))`,
+      [updatedTitle, updatedDescription, updatedType, updatedStatus, updatedPriority, updatedAssigneeId, updatedDueDate, updatedProgress, updatedEvidenceName, updatedRiskId, updatedBrecha, updatedCausaRaiz, updatedCorreccion, updatedEficacia, updatedClosedAt, id, (req as any).uocId, (req as any).user?.role, (req as any).uocId]
     );
 
     // If new evidence was uploaded, trigger AI evaluation (and block/wait for it)

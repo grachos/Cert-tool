@@ -3,6 +3,7 @@ import { standards } from '../data/standards';
 import type { StandardId, Evidence as EvidenceType } from '../types';
 import { useThemeLanguage } from '../components/ThemeLanguageContext';
 import api from '../api';
+import { useUoc } from '../components/UoCContext';
 
 export default function Evidence() {
   const [evidence, setEvidence] = useState<EvidenceType[]>([]);
@@ -10,6 +11,7 @@ export default function Evidence() {
   const [activeTab, setActiveTab] = useState<StandardId>('BASC');
   const [activeStandards, setActiveStandards] = useState<any[]>([]);
   const { t, language } = useThemeLanguage();
+  const { selectedUoc, selectedUocId } = useUoc();
 
   // Modal & Form States
   const [showModal, setShowModal] = useState(false);
@@ -20,6 +22,9 @@ export default function Evidence() {
   const [expiryDate, setExpiryDate] = useState('');
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [responsible, setResponsible] = useState('');
+  const [indicator, setIndicator] = useState('');
+  const [observations, setObservations] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchEvidence = async () => {
@@ -110,7 +115,7 @@ export default function Evidence() {
       const uploadRes = await api.post('/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      const { name: compoundName } = uploadRes.data;
+      const { name: compoundName, mimeType } = uploadRes.data;
 
       // 2. Registrar evidencia en la base de datos
       const docRes = await api.post('/evidence', {
@@ -121,6 +126,13 @@ export default function Evidence() {
         type: evidenceType,
         expiryDate: expiryDate || null,
         status: 'PENDING_REVIEW'
+        ,uocId: selectedUocId,
+        companyName: selectedUoc?.companyName,
+        requirementId: selectedClause,
+        indicator,
+        responsible,
+        observations,
+        mimeType
       });
 
       setEvidence([docRes.data, ...evidence]);
@@ -146,12 +158,27 @@ export default function Evidence() {
     fileInputRef.current?.click();
   };
 
+  const openProtectedFile = async (ev: EvidenceType) => {
+    if (!ev.fileName) return;
+    try {
+      const response = await api.get(`/files/${encodeURIComponent(ev.fileName)}`, { responseType: 'blob' });
+      const url = URL.createObjectURL(response.data);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      setErrorMsg(language === 'es' ? 'No fue posible abrir el archivo.' : 'The file could not be opened.');
+    }
+  };
+
   const resetForm = () => {
     setSelectedClause('');
     setTitle('');
     setDescription('');
     setEvidenceType('DOCUMENT');
     setExpiryDate('');
+    setResponsible('');
+    setIndicator('');
+    setObservations('');
     setErrorMsg('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -216,7 +243,7 @@ export default function Evidence() {
                   {ev.linkedDocuments.map((docName, idx) => (
                     <div key={idx} className="flex items-center gap-2 bg-card p-2 rounded border border-color shadow-sm">
                       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '14px', height: '14px', color: 'var(--text-muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                      <span className="text-xs text-primary truncate" title={docName}>{docName}</span>
+                      <button type="button" className="text-xs text-primary truncate" title={docName} onClick={() => openProtectedFile(ev)}>{docName}</button>
                     </div>
                   ))}
                 </div>
@@ -326,6 +353,21 @@ export default function Evidence() {
                   onChange={(e) => setExpiryDate(e.target.value)}
                   className="form-input"
                 />
+              </div>
+
+              <div className="form-grid">
+                <div className="form-group flex-col gap-1">
+                  <label className="form-label font-semibold">Responsable</label>
+                  <input className="form-input" value={responsible} onChange={e => setResponsible(e.target.value)} placeholder="Nombre o cargo" />
+                </div>
+                <div className="form-group flex-col gap-1">
+                  <label className="form-label font-semibold">Indicador</label>
+                  <input className="form-input" value={indicator} onChange={e => setIndicator(e.target.value)} placeholder="Indicador relacionado" />
+                </div>
+              </div>
+              <div className="form-group flex-col gap-1">
+                <label className="form-label font-semibold">Observaciones</label>
+                <textarea className="form-input" rows={2} value={observations} onChange={e => setObservations(e.target.value)} placeholder="Contexto, fuente o notas de verificación" />
               </div>
 
               <input

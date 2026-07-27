@@ -38,7 +38,9 @@ export default function Automation() {
     riskId: '',
     brecha: '',
     causaRaiz: '',
-    correccion: ''
+    correccion: '',
+    eficacia: '',
+    closedAt: ''
   });
 
   // Edit progress / status state
@@ -170,7 +172,9 @@ export default function Automation() {
         riskId: newPlanForm.riskId || null,
         brecha: newPlanForm.brecha,
         causaRaiz: newPlanForm.causaRaiz,
-        correccion: newPlanForm.correccion
+        correccion: newPlanForm.correccion,
+        eficacia: newPlanForm.eficacia,
+        closedAt: newPlanForm.closedAt || null
       });
       fetchPlans();
       setShowNewModal(false);
@@ -186,7 +190,9 @@ export default function Automation() {
         riskId: '',
         brecha: '',
         causaRaiz: '',
-        correccion: ''
+        correccion: '',
+        eficacia: '',
+        closedAt: ''
       });
     } catch (err) {
       console.error(err);
@@ -460,7 +466,17 @@ export default function Automation() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">{language === 'es' ? 'Descripción' : 'Description'}</label>
+                  <label className="form-label">Evaluación de eficacia</label>
+                  <textarea className="form-input" rows={2} value={newPlanForm.eficacia} onChange={e => setNewPlanForm({ ...newPlanForm, eficacia: e.target.value })} placeholder="Criterio y resultado de la verificación de eficacia" />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Fecha de cierre (si aplica)</label>
+                  <input className="form-input" type="date" value={newPlanForm.closedAt} onChange={e => setNewPlanForm({ ...newPlanForm, closedAt: e.target.value })} />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">{language === 'es' ? 'Acción correctiva' : 'Corrective action'}</label>
                   <textarea 
                     className="form-input" 
                     style={{ minHeight: '80px' }}

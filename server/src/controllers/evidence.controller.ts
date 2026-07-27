@@ -11,7 +11,7 @@ import mammoth from 'mammoth';
 const runEvidenceAiAnalysis = async (evidenceId: string, compoundTitle: string, standardId: string, clause: string, userId: string) => {
   const parts = compoundTitle.split('|');
   const cleanTitle = parts[0];
-  const filename = parts[1];
+  const filename = parts[2] || parts[1];
 
   if (!filename) {
     console.log(`[Evidence AI] No file attached to evidence ${evidenceId}. Skipping AI review.`);
@@ -108,10 +108,8 @@ Devuelve un JSON estrictamente estructurado según el siguiente formato:
         feedback = result.feedback || 'Evidencia analizada.';
       }
     } else {
-      console.log(`[Evidence AI] No GEMINI_API_KEY. Simulating review...`);
-      await new Promise(resolve => setTimeout(resolve, 4000));
-      status = 'VALID';
-      feedback = 'Evidencia de auditoría simulada aprobada con éxito.';
+      status = 'PENDING_REVIEW';
+      feedback = 'Pendiente de revisión manual; el servicio externo de análisis no está configurado.';
     }
 
     // 4. Update the DB under transaction
@@ -162,14 +160,15 @@ Devuelve un JSON estrictamente estructurado según el siguiente formato:
 
 export const getEvidence = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { standardId } = req.query;
+    const { standardId, uocId } = req.query;
     
-    let query = 'SELECT * FROM Evidence ORDER BY uploadDate DESC';
-    let params: any[] = [];
+    let query = 'SELECT * FROM Evidence WHERE uocId = ?';
+    let params: any[] = [uocId];
     if (standardId) {
-      query = 'SELECT * FROM Evidence WHERE standardId = ? ORDER BY uploadDate DESC';
-      params = [standardId];
+      query += ' AND standardId = ?';
+      params.push(standardId);
     }
+    query += ' ORDER BY uploadDate DESC';
 
     const [evRows] = await db.query(query, params);
     const evidence = evRows as any[];
@@ -178,7 +177,8 @@ export const getEvidence = async (req: Request, res: Response): Promise<void> =>
     const formattedEvidence = await Promise.all(evidence.map(async (ev) => {
       const parts = ev.title.split('|');
       const cleanTitle = parts[0];
-      const filename = parts[1] || '';
+      const originalFileName = ev.originalFileName || parts[1] || '';
+      const filename = ev.fileName || parts[2] || parts[1] || '';
       
       const [stdRows] = await db.query('SELECT * FROM Standard WHERE id = ?', [ev.standardId]);
       
@@ -186,7 +186,9 @@ export const getEvidence = async (req: Request, res: Response): Promise<void> =>
         ...ev,
         title: cleanTitle,
         standard: (stdRows as any[])[0] || null,
-        linkedDocuments: filename ? [filename.split('-').slice(2).join('-') || filename] : []
+        fileName: filename,
+        originalFileName,
+        linkedDocuments: filename ? [originalFileName || filename] : []
       };
     }));
     
@@ -199,7 +201,7 @@ export const getEvidence = async (req: Request, res: Response): Promise<void> =>
 
 export const createEvidence = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { title, description, standardId, clause, type, status, expiryDate } = req.body;
+    const { title, description, standardId, clause, type, status, expiryDate, uocId, companyName, supplySourceId, farmPlotId, requirementId, indicator, responsible, observations, mimeType } = req.body;
     const authReq = req as any;
     const userId = authReq.user?.id;
 
@@ -212,9 +214,13 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
     const parsedExpiryDate = expiryDate ? new Date(expiryDate) : null;
     const evStatus = status || 'PENDING_REVIEW';
 
+    const parts = title.split('|');
+    const originalFileName = parts[1] || null;
+    const fileName = parts[2] || parts[1] || null;
     await db.query(
-      'INSERT INTO Evidence (id, title, description, standardId, clause, type, status, expiryDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [evId, title, description, standardId, clause, type, evStatus, parsedExpiryDate]
+      `INSERT INTO Evidence (id,title,description,standardId,clause,type,status,expiryDate,uocId,companyName,supplySourceId,farmPlotId,requirementId,indicator,responsible,fileName,originalFileName,mimeType,observations)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [evId, title, description, standardId, clause, type, evStatus, parsedExpiryDate, uocId, companyName || null, supplySourceId || null, farmPlotId || null, requirementId || null, indicator || null, responsible || null, fileName, originalFileName, mimeType || null, observations || null]
     );
 
     const [evRows] = await db.query('SELECT * FROM Evidence WHERE id = ?', [evId]);
@@ -224,11 +230,13 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
     runEvidenceAiAnalysis(newEvidence.id, title, standardId, clause, userId);
     
     // Format response before sending
-    const parts = newEvidence.title.split('|');
+    const responseParts = newEvidence.title.split('|');
     res.status(201).json({
       ...newEvidence,
-      title: parts[0],
-      linkedDocuments: parts[1] ? [parts[1]] : []
+      title: responseParts[0],
+      fileName,
+      originalFileName,
+      linkedDocuments: fileName ? [originalFileName || fileName] : []
     });
   } catch (error) {
     console.error(error);

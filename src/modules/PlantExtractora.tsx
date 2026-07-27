@@ -10,7 +10,7 @@ interface PlantRecord {
 
 type PlantTab = 'contratistas' | 'sst' | 'ambiente' | 'avc' | 'social' | 'negocios';
 
-export default function PlantExtractora() {
+export default function PlantExtractora({ onNavigate }: { onNavigate: (module: 'plantations' | 'evidence' | 'findings' | 'actionPlans' | 'audits') => void }) {
   const { selectedUoc } = useUoc();
   const { t, language } = useThemeLanguage();
   const [activeTab, setActiveTab] = useState<PlantTab>('contratistas');
@@ -79,6 +79,17 @@ export default function PlantExtractora() {
           </div>
         </div>
       )}
+
+      <div className="card">
+        <h3 className="font-bold text-primary mb-3">Accesos operativos de la UoC</h3>
+        <div className="flex gap-2 flex-wrap">
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('plantations')}>Mapa, fincas y evaluación</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('evidence')}>Evidencias</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('findings')}>Hallazgos</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('actionPlans')}>Planes de acción</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('audits')}>Auditorías</button>
+        </div>
+      </div>
 
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
         <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">{t('plant.verification')}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-green)' }}>{score}%</span><span className="text-sm text-muted">{ok}/{records.length} OK</span></div></div>

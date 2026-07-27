@@ -81,6 +81,17 @@ CREATE TABLE IF NOT EXISTS Evidence (
   status ENUM('VALID', 'EXPIRED', 'PENDING_REVIEW') DEFAULT 'PENDING_REVIEW',
   uploadDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   expiryDate TIMESTAMP NULL,
+  uocId VARCHAR(36) NULL,
+  companyName VARCHAR(255) NULL,
+  supplySourceId VARCHAR(36) NULL,
+  farmPlotId VARCHAR(36) NULL,
+  requirementId VARCHAR(36) NULL,
+  indicator VARCHAR(255) NULL,
+  responsible VARCHAR(255) NULL,
+  fileName VARCHAR(255) NULL,
+  originalFileName VARCHAR(255) NULL,
+  mimeType VARCHAR(100) NULL,
+  observations TEXT NULL,
   FOREIGN KEY (standardId) REFERENCES Standard(id) ON DELETE CASCADE
 );
 
@@ -122,6 +133,12 @@ CREATE TABLE IF NOT EXISTS ActionPlan (
   evidenceName VARCHAR(255) NULL,
   aiFeedback TEXT NULL,
   riskId VARCHAR(36) NULL,
+  brecha TEXT NULL,
+  causaRaiz TEXT NULL,
+  correccion TEXT NULL,
+  eficacia TEXT NULL,
+  closedAt TIMESTAMP NULL,
+  uocId VARCHAR(36) NULL,
   FOREIGN KEY (assigneeId) REFERENCES User(id) ON DELETE CASCADE,
   FOREIGN KEY (nonConformanceId) REFERENCES NonConformance(id) ON DELETE SET NULL,
   FOREIGN KEY (riskId) REFERENCES Risk(id) ON DELETE SET NULL
@@ -149,6 +166,9 @@ CREATE TABLE IF NOT EXISTS CertificationUnit (
   managerEmail VARCHAR(255),
   certifiedSince DATE NULL,
   nextAuditDate DATE NULL,
+  type ENUM('MIXED','PLANTATION','MILL','SMALLHOLDERS') DEFAULT 'MIXED',
+  appliesAll BOOLEAN DEFAULT TRUE,
+  applicablePrinciples JSON NULL,
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

@@ -56,8 +56,8 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     try {
       setIsLoading(true);
       const [statsRes, activitiesRes, complianceRes] = await Promise.all([
-        api.get('/dashboard/stats'),
-        api.get('/dashboard/activities'),
+        api.get('/dashboard/stats', { params: { uocId: selectedUocId } }),
+        api.get('/dashboard/activities', { params: { uocId: selectedUocId } }),
         api.get('/compliance/standards')
       ]);
       setStats(statsRes.data);
@@ -65,7 +65,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       setComplianceStatuses(complianceRes.data);
       try {
         const [sccDash, stResp] = await Promise.all([
-          api.get('/scc/dashboard'),
+          api.get('/scc/dashboard', { params: { uocId: selectedUocId } }),
           api.get('/stakeholders')
         ]);
         setSccStats({ uocCount: sccDash.data.uocCount, txCount: sccDash.data.volumes?.length || 0, stCount: stResp.data.length });
@@ -79,7 +79,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [selectedUocId]);
 
   const getStandardColor = (id: string) => {
     return standards.find(s => s.id === id)?.color || '#2563eb';
@@ -137,7 +137,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             7 Principios RSPO 2024
           </span>
           <span className="badge px-3 py-1 text-xs font-semibold" style={{ background: 'rgba(255, 255, 255, 0.15)', backdropFilter: 'blur(4px)', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.25)' }}>
-            3 UoCs Registradas
+            {uocs.length} UoCs autorizadas
           </span>
           <span className="badge px-3 py-1 text-xs font-semibold" style={{ background: 'rgba(234, 179, 8, 0.25)', backdropFilter: 'blur(4px)', color: '#FEF08A', border: '1px solid rgba(234, 179, 8, 0.4)' }}>
             🌴 Trazabilidad PalmTrace
@@ -149,7 +149,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       <div className="flex justify-between items-center flex-wrap gap-4 pt-2">
         <div>
           <h2 className="text-2xl font-bold text-primary">
-            {language === 'es' ? 'Hola, Viviana.' : 'Hello, Viviana.'}
+            {language === 'es' ? 'Hola Viviana.' : 'Hello Viviana.'}
           </h2>
           <p className="text-xs text-secondary mt-1">
             {language === 'es' ? 'La certificación avanza bien. Hay 4 módulos prioritarios que requieren atención esta semana.' : 'Certification is progressing smoothly. 4 priority modules require attention this week.'}

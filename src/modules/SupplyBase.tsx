@@ -1,86 +1,71 @@
-import { useState } from 'react';
-import { useThemeLanguage } from '../components/ThemeLanguageContext';
+import { useEffect, useMemo, useState } from 'react';
+import api from '../api';
+import { useUoc } from '../components/UoCContext';
+import { useAuth } from '../components/AuthContext';
 
-interface SupplyUnit {
-  id: string;
-  name: string;
-  identifier: string;
-  type: 'propia' | 'tercero' | 'asociacion' | 'grupo';
-  area: number;
-  predios: number;
-  polygonsValidated: number;
-  riskLevel: 'bajo' | 'medio' | 'alto' | 'critico';
-  progress: number;
-  status: string;
-  responsible: string;
-  lastEvaluation: string;
+interface SupplySource {
+  id: string; name: string; identifier: string; sourceType: string; totalArea: number; plantedArea: number;
+  certifiedArea: number; polygonStatus: string; riskLevel: string; eligibilityStatus: string;
+  certificationStatus: string; responsible?: string; lastEvaluation?: string; expiryDate?: string;
 }
 
-const riskColors: Record<string, { bg: string; color: string }> = {
-  bajo: { bg: 'var(--accent-green-bg)', color: 'var(--accent-green)' },
-  medio: { bg: 'var(--accent-gold-bg)', color: 'var(--accent-gold)' },
-  alto: { bg: 'var(--accent-red-bg)', color: 'var(--accent-red)' },
-  critico: { bg: '#fee2e2', color: '#dc2626' },
-};
-
-const demoData: SupplyUnit[] = [
-  { id: '1', name: 'Hacienda San Miguel', identifier: 'SM-001', type: 'propia', area: 1200, predios: 4, polygonsValidated: 100, riskLevel: 'bajo', progress: 92, status: 'Activa', responsible: 'Ing. Agrónomo San Miguel', lastEvaluation: '2026-06-15' },
-  { id: '2', name: 'Finca El Roble', identifier: 'ER-002', type: 'propia', area: 850, predios: 3, polygonsValidated: 100, riskLevel: 'bajo', progress: 88, status: 'Activa', responsible: 'Ing. Agrónomo El Roble', lastEvaluation: '2026-06-20' },
-  { id: '3', name: 'Palmas del Río S.A.S.', identifier: 'PR-003', type: 'tercero', area: 1800, predios: 12, polygonsValidated: 95, riskLevel: 'medio', progress: 65, status: 'Condicionada', responsible: 'Gestor de Proveedores', lastEvaluation: '2026-05-10' },
-  { id: '4', name: 'Asopalmar', identifier: 'AP-004', type: 'asociacion', area: 650, predios: 22, polygonsValidated: 85, riskLevel: 'alto', progress: 42, status: 'Riesgo Alto', responsible: 'Gestor de Proveedores', lastEvaluation: '2026-04-01' },
-  { id: '5', name: 'Cooperativa Horizonte', identifier: 'CH-005', type: 'grupo', area: 900, predios: 15, polygonsValidated: 78, riskLevel: 'critico', progress: 28, status: 'Riesgo Crítico', responsible: 'Gestor de Proveedores', lastEvaluation: '2026-03-15' },
-  { id: '6', name: 'El Porvenir', identifier: 'EP-006', type: 'tercero', area: 500, predios: 6, polygonsValidated: 100, riskLevel: 'medio', progress: 73, status: 'Activa', responsible: 'Gestor de Proveedores', lastEvaluation: '2026-06-30' },
-];
+const emptyForm = { name:'', identifier:'', sourceType:'OWN', totalArea:'', plantedArea:'', certifiedArea:'', polygonStatus:'PENDING', riskLevel:'MEDIUM', eligibilityStatus:'PENDING', certificationStatus:'PENDING', responsible:'', lastEvaluation:'', expiryDate:'' };
 
 export default function SupplyBase() {
-  const { t, language } = useThemeLanguage();
-  const [units] = useState<SupplyUnit[]>(demoData);
+  const { selectedUocId } = useUoc();
+  const { user } = useAuth();
+  const [rows, setRows] = useState<SupplySource[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [error, setError] = useState('');
+  const canEdit = user?.role === 'ADMIN' || user?.role === 'MANAGER';
 
-  const totalArea = units.reduce((s, u) => s + u.area, 0);
-  const totalPredios = units.reduce((s, u) => s + u.predios, 0);
-  const avgPolygons = Math.round(units.reduce((s, u) => s + u.polygonsValidated, 0) / units.length);
-  const highRisk = units.filter(u => u.riskLevel === 'alto' || u.riskLevel === 'critico').length;
-  const avgProgress = Math.round(units.reduce((s, u) => s + u.progress, 0) / units.length);
+  const load = () => {
+    if (!selectedUocId || selectedUocId === 'all') { setRows([]); return; }
+    setLoading(true);
+    api.get('/rspo/supply-sources', { params: { uocId: selectedUocId } }).then(({data}) => setRows(data)).catch(e => setError(e.response?.data?.error || 'No fue posible cargar la base de suministro.')).finally(() => setLoading(false));
+  };
+  useEffect(load, [selectedUocId]);
 
-  return (
-    <div className="flex-col gap-6 animate-fade-in">
-      <div className="integration-note"><strong>Prototipo sin conexión:</strong> esta vista conserva el conjunto demostrativo existente. Aún no hay tabla ni endpoint de predios, polígonos, productores y elegibilidad; consulte la propuesta técnica antes de usarla como registro oficial.</div>
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">{language === 'es' ? 'Área Total' : 'Total Area'}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{totalArea.toLocaleString()}</span><span className="text-sm text-muted">{language === 'es' ? 'hectáreas' : 'hectares'}</span></div></div>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">{language === 'es' ? 'Predios Activos' : 'Active Farms'}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{totalPredios}</span><span className="text-sm text-muted">{units.length} {language === 'es' ? 'unidades' : 'units'}</span></div></div>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">{language === 'es' ? 'Polígonos Validados' : 'Validated Polygons'}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{avgPolygons}%</span><span className="text-sm text-muted">{language === 'es' ? 'promedio' : 'average'}</span></div></div>
-        <div className="card"><div className="text-sm font-medium uppercase tracking-wide" style={{ color: 'var(--accent-red)' }}>{t('supply.highRisk')}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-red)' }}>{highRisk}</span><span className="text-sm text-muted">{language === 'es' ? 'grupos' : 'groups'}</span></div></div>
-      </div>
+  const stats = useMemo(() => ({
+    area: rows.reduce((sum, row) => sum + Number(row.totalArea || 0), 0),
+    certified: rows.reduce((sum, row) => sum + Number(row.certifiedArea || 0), 0),
+    eligible: rows.filter(row => row.eligibilityStatus === 'ELIGIBLE').length,
+    highRisk: rows.filter(row => ['HIGH','CRITICAL'].includes(row.riskLevel)).length
+  }), [rows]);
 
-      <div className="flex justify-between items-center flex-wrap gap-2">
-        <h3 className="text-lg font-bold text-primary">{t('supply.title')}</h3>
-        <span className="text-sm text-secondary">{language === 'es' ? 'Avance promedio:' : 'Average progress:'} <b style={{ color: 'var(--accent-blue)' }}>{avgProgress}%</b></span>
-      </div>
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault(); setError('');
+    try {
+      await api.post('/rspo/supply-sources', { ...form, uocId: selectedUocId, totalArea:Number(form.totalArea), plantedArea:Number(form.plantedArea), certifiedArea:Number(form.certifiedArea) });
+      setForm(emptyForm); setShowForm(false); load();
+    } catch (e: any) { setError(e.response?.data?.error || 'No fue posible guardar el registro.'); }
+  };
 
-      <div className="card p-0 overflow-hidden">
-        <div className="overflow-x-auto w-full">
-          <table className="w-full text-left min-w-[700px]">
-            <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Unidad / Grupo' : 'Unit / Group'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">ID</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Tipo' : 'Type'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Área (ha)' : 'Area (ha)'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Predios' : 'Farms'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Riesgo' : 'Risk'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Avance' : 'Progress'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Estado' : 'Status'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Última Eval.' : 'Last Eval.'}</th></tr></thead>
-            <tbody>
-              {units.map(u => (
-                <tr key={u.id} className="border-b hover:bg-surface-1">
-                  <td className="p-4 font-semibold text-sm">{u.name}</td>
-                  <td className="p-4 text-sm font-mono text-secondary">{u.identifier}</td>
-                  <td className="p-4 text-sm text-secondary">{u.type === 'propia' ? (language === 'es' ? 'Propia' : 'Own') : u.type === 'tercero' ? (language === 'es' ? 'Tercero' : 'Third-Party') : u.type === 'asociacion' ? (language === 'es' ? 'Asociación' : 'Association') : (language === 'es' ? 'Grupo' : 'Group')}</td>
-                  <td className="p-4 text-sm">{u.area.toLocaleString()}</td>
-                  <td className="p-4 text-sm">{u.predios}</td>
-                  <td className="p-4"><span className="badge" style={{ background: riskColors[u.riskLevel].bg, color: riskColors[u.riskLevel].color }}>{u.riskLevel === 'bajo' ? (language === 'es' ? 'Bajo' : 'Low') : u.riskLevel === 'medio' ? (language === 'es' ? 'Medio' : 'Medium') : u.riskLevel === 'alto' ? (language === 'es' ? 'Alto' : 'High') : (language === 'es' ? 'Crítico' : 'Critical')}</span></td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2"><div className="w-16 bg-surface-2 h-1.5 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${u.progress}%`, background: 'var(--accent-blue)' }} /></div><span className="text-sm font-bold">{u.progress}%</span></div>
-                  </td>
-                  <td className="p-4"><span className="badge" style={{ background: u.status === 'Activa' ? 'var(--accent-green-bg)' : 'var(--accent-red-bg)', color: u.status === 'Activa' ? 'var(--accent-green)' : 'var(--accent-red)' }}>{u.status === 'Activa' ? (language === 'es' ? 'Activa' : 'Active') : u.status}</span></td>
-                  <td className="p-4 text-sm text-secondary">{u.lastEvaluation}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+  if (!selectedUocId || selectedUocId === 'all') return <div className="empty-state card"><h3>Seleccione una UoC</h3><p>La Base de suministro siempre se consulta dentro de una unidad autorizada.</p></div>;
+  return <div className="flex-col gap-5 animate-fade-in">
+    <div className="stats-grid">
+      <div className="card"><small>Fuentes registradas</small><div className="stat-value-lg">{rows.length}</div></div>
+      <div className="card"><small>Área total</small><div className="stat-value-lg">{stats.area.toLocaleString('es-CO')} ha</div></div>
+      <div className="card"><small>Área certificada</small><div className="stat-value-lg">{stats.certified.toLocaleString('es-CO')} ha</div></div>
+      <div className="card"><small>Elegibles / riesgo alto</small><div className="stat-value-lg">{stats.eligible} / {stats.highRisk}</div></div>
     </div>
-  );
+    <div className="flex-between"><div><h2 className="text-xl font-bold">Base de suministro</h2><p className="text-secondary text-sm">Plantaciones propias, asociadas, independientes y pequeños productores.</p></div>{canEdit && <button className="btn btn-primary" onClick={() => setShowForm(v => !v)}>{showForm ? 'Cancelar' : '+ Nueva fuente'}</button>}</div>
+    {error && <div className="integration-note">{error}</div>}
+    {showForm && <form className="card form-grid" onSubmit={submit}>
+      <input className="form-input" required placeholder="Nombre" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
+      <input className="form-input" required placeholder="Identificador" value={form.identifier} onChange={e=>setForm({...form,identifier:e.target.value})}/>
+      <select className="form-select" value={form.sourceType} onChange={e=>setForm({...form,sourceType:e.target.value})}><option value="OWN">Propia</option><option value="ASSOCIATED">Asociada</option><option value="INDEPENDENT">Independiente</option><option value="ASSOCIATION">Asociación</option><option value="SMALLHOLDER_GROUP">Grupo pequeños productores</option><option value="INDIVIDUAL">Productor individual</option></select>
+      <input className="form-input" type="number" min="0" step="0.01" placeholder="Área total (ha)" value={form.totalArea} onChange={e=>setForm({...form,totalArea:e.target.value})}/>
+      <input className="form-input" type="number" min="0" step="0.01" placeholder="Área sembrada (ha)" value={form.plantedArea} onChange={e=>setForm({...form,plantedArea:e.target.value})}/>
+      <input className="form-input" type="number" min="0" step="0.01" placeholder="Área certificada (ha)" value={form.certifiedArea} onChange={e=>setForm({...form,certifiedArea:e.target.value})}/>
+      <select className="form-select" value={form.riskLevel} onChange={e=>setForm({...form,riskLevel:e.target.value})}><option value="LOW">Riesgo bajo</option><option value="MEDIUM">Riesgo medio</option><option value="HIGH">Riesgo alto</option><option value="CRITICAL">Riesgo crítico</option></select>
+      <select className="form-select" value={form.eligibilityStatus} onChange={e=>setForm({...form,eligibilityStatus:e.target.value})}><option value="PENDING">Elegibilidad pendiente</option><option value="ELIGIBLE">Elegible</option><option value="CONDITIONAL">Condicionada</option><option value="INELIGIBLE">No elegible</option></select>
+      <input className="form-input" placeholder="Responsable" value={form.responsible} onChange={e=>setForm({...form,responsible:e.target.value})}/>
+      <button className="btn btn-primary" type="submit">Guardar fuente</button>
+    </form>}
+    {loading ? <div className="card">Cargando…</div> : rows.length === 0 ? <div className="empty-state card"><h3>No hay fuentes registradas</h3><p>Cree el primer registro para comenzar a calcular los indicadores de esta UoC.</p>{canEdit && <button className="btn btn-primary" onClick={()=>setShowForm(true)}>Crear primer registro</button>}</div> :
+      <div className="card p-0 overflow-hidden"><div className="table-responsive"><table className="w-full text-left min-w-[900px]"><thead><tr className="bg-surface-1"><th className="p-4">Fuente</th><th>Tipo</th><th>Áreas total / certificada</th><th>Polígono</th><th>Riesgo</th><th>Elegibilidad</th><th>Certificación</th><th>Responsable</th></tr></thead><tbody>{rows.map(row=><tr key={row.id} className="border-b"><td className="p-4"><strong>{row.name}</strong><br/><small>{row.identifier}</small></td><td>{row.sourceType}</td><td>{Number(row.totalArea)} / {Number(row.certifiedArea)} ha</td><td>{row.polygonStatus}</td><td>{row.riskLevel}</td><td>{row.eligibilityStatus}</td><td>{row.certificationStatus}</td><td>{row.responsible || '—'}</td></tr>)}</tbody></table></div></div>}
+  </div>;
 }

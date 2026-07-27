@@ -4,7 +4,8 @@ import cache from '../cache';
 
 export const getStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    const cacheKey = 'dashboard_stats';
+    const uocId = typeof req.query.uocId === 'string' ? req.query.uocId : 'all';
+    const cacheKey = `dashboard_stats_${uocId}`;
     const cachedStats = cache.get(cacheKey);
     if (cachedStats) {
       res.status(200).json(cachedStats);
@@ -37,8 +38,11 @@ export const getStats = async (req: Request, res: Response): Promise<void> => {
     const criticalRisks = (criticalRiskRows as any[])[0]?.count || 0;
 
     // 4. Planes vencidos
+    const actionScope = uocId === 'all' ? '' : ' AND uocId = ?';
+    const actionParams = uocId === 'all' ? [] : [uocId];
     const [overdueRows] = await db.query(
-      'SELECT COUNT(*) AS count FROM ActionPlan WHERE status = "OVERDUE" OR (status IN ("PENDING", "IN_PROGRESS") AND dueDate < NOW())'
+      `SELECT COUNT(*) AS count FROM ActionPlan WHERE (status = "OVERDUE" OR (status IN ("PENDING", "IN_PROGRESS") AND dueDate < NOW()))${actionScope}`,
+      actionParams
     );
     const overdueActions = (overdueRows as any[])[0]?.count || 0;
 
@@ -50,7 +54,7 @@ export const getStats = async (req: Request, res: Response): Promise<void> => {
     const closedFindings = (closedFindingsRows as any[])[0]?.count || 0;
 
     // 6. Avance promedio de planes de acción
-    const [avgProgressRows] = await db.query('SELECT AVG(progress) AS avg FROM ActionPlan');
+    const [avgProgressRows] = await db.query(`SELECT AVG(progress) AS avg FROM ActionPlan WHERE 1=1${actionScope}`, actionParams);
     const averagePlansProgress = Math.round(Number((avgProgressRows as any[])[0]?.avg || 0));
 
     const stats = {
@@ -90,39 +94,6 @@ export const getActivities = async (req: Request, res: Response): Promise<void> 
        LIMIT 10`
     );
     const activities = actRows as any[];
-
-    // Si no hay actividades en BD, retornamos algunas de demostración reales
-    if (activities.length === 0) {
-      const demoActivities = [
-        {
-          id: 'act-1',
-          action: 'Documento subido',
-          description: 'Se cargó la actualización de la Política de Control de Proveedores.',
-          timestamp: 'Hace 10 min',
-          user: 'Administrador Principal',
-          standard: 'BASC'
-        },
-        {
-          id: 'act-2',
-          action: 'Riesgo mitigado',
-          description: 'Riesgo de fuga de información de clientes cambió a Mitigado.',
-          timestamp: 'Hace 1 hora',
-          user: 'Administrador Principal',
-          standard: 'ISO9001'
-        },
-        {
-          id: 'act-3',
-          action: 'Plan de Acción creado',
-          description: 'Se asignó capacitación en seguridad vial a conductores.',
-          timestamp: 'Hace 3 horas',
-          user: 'Administrador Principal',
-          standard: 'PESV'
-        }
-      ];
-      cache.set(cacheKey, demoActivities);
-      res.status(200).json(demoActivities);
-      return;
-    }
 
     const formattedActivities = activities.map(act => ({
       id: act.id,

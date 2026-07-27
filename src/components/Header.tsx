@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useThemeLanguage } from './ThemeLanguageContext';
 import { useUoC } from './UoCContext';
 import api from '../api';
+import { useAuth } from './AuthContext';
 
 interface HeaderProps {
   title: string;
@@ -15,9 +16,10 @@ interface UocSearchSelectProps {
   selectedUocId: string;
   onSelectUoc: (id: string) => void;
   language: 'es' | 'en';
+  allowAll: boolean;
 }
 
-function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language }: UocSearchSelectProps) {
+function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language, allowAll }: UocSearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -142,7 +144,7 @@ function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language }: UocSear
           {/* List of UoCs */}
           <div style={{ maxHeight: '280px', overflowY: 'auto', padding: '4px' }}>
             {/* Option: Consolidado / All */}
-            <div
+            {allowAll && <div
               className={`p-2 rounded-lg flex items-center justify-between cursor-pointer transition-colors ${selectedUocId === 'all' ? 'bg-surface-2 font-bold' : 'hover:bg-surface-1'}`}
               onClick={() => { onSelectUoc('all'); setIsOpen(false); setSearchQuery(''); }}
             >
@@ -154,9 +156,9 @@ function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language }: UocSear
                 </div>
               </div>
               {selectedUocId === 'all' && <span className="text-xs font-bold text-accent-blue">✓</span>}
-            </div>
+            </div>}
 
-            <div className="my-1 border-t" style={{ borderColor: 'var(--border-light)' }} />
+            {allowAll && <div className="my-1 border-t" style={{ borderColor: 'var(--border-light)' }} />}
 
             {filteredUocs.length === 0 ? (
               <div className="p-4 text-center text-xs text-muted">
@@ -198,6 +200,7 @@ function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language }: UocSear
 export default function Header({ title, subtitle, onToggleSidebar, onNavigateNotifications }: HeaderProps) {
   const { theme, toggleTheme, language, setLanguage } = useThemeLanguage();
   const { selectedUocId, uocs, setSelectedUocId } = useUoC();
+  const { user } = useAuth();
   const [alertCount, setAlertCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
@@ -259,6 +262,7 @@ export default function Header({ title, subtitle, onToggleSidebar, onNavigateNot
             selectedUocId={selectedUocId}
             onSelectUoc={setSelectedUocId}
             language={language}
+            allowAll={user?.role === 'ADMIN'}
           />
         )}
 

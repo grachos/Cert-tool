@@ -1,41 +1,44 @@
-# RSPO TECH — brechas y propuesta de integración
+# RSPO TECH — estado del backend e integraciones pendientes
 
-## Funcionalidad reutilizada
+## Implementado en este PR
 
-- Autenticación JWT y roles `ADMIN`, `MANAGER`, `AUDITOR` y `USER`.
-- Cumplimiento RSPO, documentos, evidencias, auditorías, hallazgos y planes de acción.
-- Unidades de certificación y transacciones SCC para IP, SG, MB y BC.
-- Dashboard, riesgos, alertas, usuarios y partes interesadas.
+- Autorización por UoC con `UserCertificationUnit`: administradores con alcance global y demás roles limitados a sus asignaciones.
+- UoC reales desde backend; `localStorage` conserva únicamente la selección.
+- Migración incremental `server/migrations/001_rspo_tech_core.sql`.
+- Supply Base persistente (`SupplySource`, `FarmPlot`) con riesgo, elegibilidad, certificación, áreas y referencia de polígono.
+- Cumplimiento de plantaciones persistente (`FarmPlot`, `PlantationActivity`) para BPA, mantenimiento, sanidad, insumos, visitas, documentos y evaluaciones.
+- Recepción RFF real (`RffDelivery`) con cálculo de báscula, alertas de elegibilidad, sobreproducción, duplicidad e incompatibilidad de certificación, y asiento relacionado en SCC.
+- Preparación interna PRISMA (`PrismaOperation`, `PrismaAdjustment`, `PrismaAttachment`) con trazabilidad de cambios.
+- Evidencias ampliadas y aisladas por UoC; carga y descarga autenticadas, límite de tamaño y lista de tipos permitidos.
+- Planes de acción con brecha, corrección inmediata, causa raíz, acción correctiva, eficacia y fecha de cierre.
+- `VITE_API_URL`, CORS por entorno, secreto JWT obligatorio y respuestas internas de error no expuestas.
 
-## Trazabilidad RFF
+## Endpoints RSPO
 
-La vista usa `GET /api/scc/transactions?type=RECEPTION` y filtra producto `RFF`. Los campos disponibles son fecha, lote, contraparte/origen, referencia documental, volumen y modelo de suministro.
+- `GET|POST|PUT /api/rspo/supply-sources`
+- `GET|POST /api/rspo/farm-plots`
+- `GET|POST /api/rspo/plantation-activities`
+- `GET|POST|PUT /api/rspo/deliveries`
+- `GET /api/rspo/traceability-alerts`
+- `GET|POST|PUT /api/rspo/prisma-operations`
+- `GET /api/scc/uocs`
+- `GET|POST /api/scc/transactions`
+- `GET /api/scc/dashboard`
+- `GET|POST /api/evidence`
+- `POST /api/upload` y `GET /api/files/:filename`
 
-Faltan campos estructurados para vehículo, tiquete de báscula, peso bruto/tara/neto, predio y lote agrícola, elegibilidad a la fecha de recepción, condición certificada/convencional, producción estimada y alertas. Se propone:
+Todos los endpoints operativos anteriores requieren JWT; los asociados con UoC validan además la asignación en el servidor.
 
-1. Crear `SupplySource`, `FarmPlot`, `RffDelivery` y `TraceabilityAlert`.
-2. Relacionar `RffDelivery` con `CertificationUnit`, fuente, predio y transacción SCC.
-3. Agregar endpoints autenticados `/api/traceability/deliveries`, `/eligibility` y `/alerts`.
-4. Calcular diferencias producción–entrega en backend y registrar el motivo de cada excepción.
+## Dependencias externas pendientes
 
-## PRISMA by RSPO
+- **RSPO PRISMA oficial:** la aplicación no simula conexión. Se necesitan contrato, credenciales de servicio, especificación y ambiente autorizado por RSPO para importar/conciliar directamente.
+- **Cartografía/SIG:** se persiste la referencia del polígono y su estado. Un mapa geoespacial completo requiere definir proveedor, formato y controles de precisión.
+- **Análisis de evidencias:** requiere `GEMINI_API_KEY`. Sin ella el documento conserva `PENDING_REVIEW`; no se genera una aprobación ficticia.
+- **Almacenamiento productivo:** los archivos están protegidos localmente. Para alta disponibilidad conviene un almacén de objetos privado con URLs firmadas y política de retención.
 
-No existe tabla ni endpoint PRISMA. La interfaz sólo presenta el esquema futuro y declara explícitamente que PRISMA es la plataforma oficial.
+## Validación adicional recomendada antes de producción
 
-Se propone:
-
-1. Crear `PrismaOperation`, `PrismaAdjustment` y `PrismaAttachment`.
-2. Incluir referencia interna, producto, modelo, volumen, fecha física, fecha límite, estado y soporte.
-3. Mantener auditoría inmutable de confirmaciones, removes y ajustes.
-4. Implementar importación/conciliación únicamente mediante exportaciones o API autorizada por RSPO; no almacenar credenciales de PRISMA en el frontend.
-
-## Evidencias, planes y hallazgos
-
-Las funciones están conectadas a tablas y endpoints existentes. Para cubrir completamente el detalle solicitado, se recomienda agregar a `Evidence` empresa/plantación, requisito, indicador, responsable y vigencia; y asegurar migraciones versionadas para `ActionPlan` (`brecha`, `causaRaiz`, `correccion`, `eficacia`) que hoy aparecen en el controlador.
-
-## Seguridad y operación
-
-- Requerir `JWT_SECRET` en producción y eliminar el secreto de respaldo.
-- Restringir CORS por entorno.
-- Versionar migraciones MySQL y validar permisos por operación.
-- Añadir pruebas de integración para autenticación, SCC, evidencias, hallazgos y planes de acción.
+- Ejecutar pruebas de integración contra una copia anonimizada de MySQL con la migración aplicada.
+- Validar permisos con usuarios reales de cada rol y UoC.
+- Realizar prueba de carga, respaldo/restauración, análisis de dependencias y revisión de seguridad.
+- Confirmar las reglas de negocio de elegibilidad y tolerancia de producción con el responsable RSPO.

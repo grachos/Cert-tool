@@ -89,6 +89,17 @@ export interface Evidence {
   uploadDate: string;
   expiryDate?: string;
   linkedDocuments: string[];
+  uocId?: string;
+  companyName?: string;
+  supplySourceId?: string;
+  farmPlotId?: string;
+  requirementId?: string;
+  indicator?: string;
+  responsible?: string;
+  observations?: string;
+  fileName?: string;
+  originalFileName?: string;
+  mimeType?: string;
 }
 
 export interface ActionPlan {
@@ -111,6 +122,8 @@ export interface ActionPlan {
   causaRaiz?: string;
   correccion?: string;
   eficacia?: string;
+  closedAt?: string;
+  uocId?: string;
 }
 
 export interface ActivityItem {

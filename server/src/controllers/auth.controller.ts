@@ -55,7 +55,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Generate token
-    const secret = process.env.JWT_SECRET || 'fallback_secret';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      res.status(500).json({ error: 'Configuración de autenticación incompleta.' });
+      return;
+    }
     const token = jwt.sign(
       { id: user.id, role: user.role },
       secret,

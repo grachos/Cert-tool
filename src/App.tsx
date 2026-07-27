@@ -101,7 +101,7 @@ function AppContent() {
           {activeModule === 'scc' && <Scc />}
           {activeModule === 'stakeholders' && <Stakeholders />}
           {activeModule === 'alerts' && <Alerts />}
-          {activeModule === 'plant' && <PlantExtractora />}
+          {activeModule === 'plant' && <PlantExtractora onNavigate={setActiveModule} />}
           {activeModule === 'ghg' && <GhgCalculator />}
           {activeModule === 'supply' && <SupplyBase />}
           {activeModule === 'plantations' && <PlantationCompliance />}
