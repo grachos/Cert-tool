@@ -38,7 +38,7 @@ interface StandardDetail {
 export default function Compliance() {
   const { selectedUoc, isPrincipleApplicable } = useUoc();
   const [complianceStatuses, setComplianceStatuses] = useState<StandardCompliance[]>([]);
-  const [selectedStandard, setSelectedStandard] = useState<string | null>(null);
+  const [selectedStandard, setSelectedStandard] = useState<string | null>('RSPO');
   const [standardDetail, setStandardDetail] = useState<StandardDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -47,7 +47,7 @@ export default function Compliance() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
 
-  // Modales y Form State para Normas
+  // Configuración del único estándar operativo: RSPO P&C 2024.
   const [showEditStdModal, setShowEditStdModal] = useState(false);
   const [stdName, setStdName] = useState('');
   const [stdFullName, setStdFullName] = useState('');

@@ -118,7 +118,11 @@ const rawStandards: Standard[] = [
 ];
 
 const enabledEnv = import.meta.env.VITE_ENABLED_STANDARDS;
-export const standards: Standard[] = enabledEnv
-  ? rawStandards.filter(s => enabledEnv.split(',').map((x: string) => x.trim().toUpperCase()).includes(s.id.toUpperCase()))
-  : rawStandards;
+const enabledIds = (enabledEnv || 'RSPO')
+  .split(',')
+  .map((x: string) => x.trim().toUpperCase())
+  .filter(Boolean);
+export const standards: Standard[] = rawStandards.filter(s =>
+  enabledIds.includes(s.id.toUpperCase())
+);
 

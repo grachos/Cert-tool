@@ -481,7 +481,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           <div className="flex-col">
             {activities.map((activity, idx) => (
               <div key={activity.id} className={`flex gap-4 p-4 hover:bg-surface-1 transition-colors ${idx !== activities.length - 1 ? 'border-b border-gray-100' : ''}`}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: getStandardColor(activity.standard || 'BASC'), marginTop: '8px' }}></div>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: getStandardColor(activity.standard || 'RSPO'), marginTop: '8px' }}></div>
                 <div className="flex-col flex-1">
                   <div className="flex justify-between items-start">
                     <p className="text-sm font-semibold text-primary">{activity.action}</p>

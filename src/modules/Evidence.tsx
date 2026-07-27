@@ -9,7 +9,7 @@ import { useAuth } from '../components/AuthContext';
 export default function Evidence() {
   const [evidence, setEvidence] = useState<EvidenceType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<StandardId>('BASC');
+  const [activeTab, setActiveTab] = useState<StandardId>('RSPO');
   const [activeStandards, setActiveStandards] = useState<any[]>([]);
   const { t, language } = useThemeLanguage();
   const { selectedUoc, selectedUocId } = useUoc();
@@ -51,7 +51,9 @@ export default function Evidence() {
       api.get('/compliance/standards')
     ]).then(([evidenceRes, complianceRes]) => {
       setEvidence(evidenceRes.data);
-      const activeIds = (complianceRes.data as any[]).map(s => s.standardId || s.id);
+      const activeIds = (complianceRes.data as any[])
+        .map(s => s.standardId || s.id)
+        .filter(id => id === 'RSPO');
       const filtered = standards.filter(std => activeIds.includes(std.id));
       setActiveStandards(filtered);
       
