@@ -76,6 +76,58 @@ const statusLabels: Record<string, string> = {
   COMPLETED: 'Completado', NON_COMPLIANT: 'No cumple'
 };
 
+const activityColumns: Record<Exclude<Tab, 'overview'>, Array<{ label: string; value: (activity: any) => string }>> = {
+  GAP: [
+    { label: 'Plantación', value: a => a.farmName || a.plotName },
+    { label: 'Práctica', value: a => a.title },
+    { label: 'Meta y resultado', value: a => a.description || '—' },
+    { label: 'Resultado', value: a => a.score == null ? '—' : `${a.score}%` },
+    { label: 'Evidencia / responsable', value: a => a.responsible || '—' }
+  ],
+  MAINTENANCE: [
+    { label: 'Fecha', value: a => a.activityDate ? String(a.activityDate).slice(0, 10) : '—' },
+    { label: 'Plantación', value: a => a.farmName || a.plotName },
+    { label: 'Labor diaria', value: a => a.title },
+    { label: 'Lote', value: a => a.plotName },
+    { label: 'Área / cuadrilla / resultado', value: a => a.description || a.responsible || '—' }
+  ],
+  PLANT_HEALTH: [
+    { label: 'Plantación', value: a => a.farmName || a.plotName },
+    { label: 'Monitoreo o hallazgo', value: a => a.title },
+    { label: 'Incidencia y control', value: a => a.description || '—' },
+    { label: 'Responsable técnico', value: a => a.responsible || '—' },
+    { label: 'Fecha', value: a => a.activityDate ? String(a.activityDate).slice(0, 10) : '—' }
+  ],
+  INPUT: [
+    { label: 'Plantación', value: a => a.farmName || a.plotName },
+    { label: 'Producto / aplicación', value: a => a.title },
+    { label: 'Dosis, área y lote', value: a => a.description || '—' },
+    { label: 'Responsable técnico', value: a => a.responsible || '—' },
+    { label: 'Fecha de aplicación', value: a => a.activityDate ? String(a.activityDate).slice(0, 10) : '—' }
+  ],
+  DOCUMENT: [
+    { label: 'Documento', value: a => a.title },
+    { label: 'Plantación', value: a => a.farmName || a.plotName },
+    { label: 'Versión y vigencia', value: a => a.description || '—' },
+    { label: 'Propietario', value: a => a.responsible || '—' },
+    { label: 'Próxima revisión', value: a => a.dueDate ? String(a.dueDate).slice(0, 10) : '—' }
+  ],
+  VISIT: [
+    { label: 'Fecha', value: a => a.activityDate ? String(a.activityDate).slice(0, 10) : '—' },
+    { label: 'Plantación', value: a => a.farmName || a.plotName },
+    { label: 'Visita / auditoría', value: a => a.title },
+    { label: 'Hallazgos y compromisos', value: a => a.description || '—' },
+    { label: 'Responsable', value: a => a.responsible || '—' }
+  ],
+  EVALUATION: [
+    { label: 'Plantación', value: a => a.farmName || a.plotName },
+    { label: 'Requisito RSPO', value: a => a.title },
+    { label: 'Evidencia y conclusión', value: a => a.description || '—' },
+    { label: 'Puntaje', value: a => a.score == null ? '—' : `${a.score}%` },
+    { label: 'Crítico', value: a => a.isCritical ? 'Sí' : 'No' }
+  ]
+};
+
 export default function PlantationCompliance() {
   const { selectedUocId, selectedUoc } = useUoc();
   const { user } = useAuth();
@@ -195,10 +247,10 @@ export default function PlantationCompliance() {
       </div>
     </section>
 
-    <nav className="flex gap-1 flex-wrap" style={{ borderBottom: '2px solid var(--border-color)' }}>
+    <nav className="nexo-module-tabs">
       {(Object.keys(tabConfig) as Tab[]).map(id =>
-        <button key={id} className={tab === id ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
-          style={{ borderRadius: '8px 8px 0 0' }} onClick={() => { setTab(id); setShowActivity(false); }}>
+        <button key={id} className={tab === id ? 'selected' : ''}
+          onClick={() => { setTab(id); setShowActivity(false); }}>
           {tabConfig[id].icon} {tabConfig[id].label}
         </button>
       )}
@@ -227,9 +279,20 @@ export default function PlantationCompliance() {
         <button className="btn btn-primary">Guardar ficha</button>
       </form>}
       {plots.length === 0 ? <div className="empty-state card"><h3>No hay plantaciones registradas</h3><p>Registre la primera ficha para iniciar la gestión agrícola.</p></div> :
-        <div className="card p-0"><div className="table-responsive"><table className="w-full"><thead><tr><th>Plantación / lote</th><th>Fuente</th><th>Área</th><th>Elegibilidad</th><th>Certificación</th><th>Cumplimiento</th><th>Críticos</th></tr></thead><tbody>{plots.map(plot =>
-          <tr key={plot.id}><td><strong>{plot.farmName || plot.name}</strong><br /><small>{plot.name}</small></td><td>{plot.sourceName}</td><td>{Number(plot.area)} ha</td><td>{plot.eligibilityStatus}</td><td>{plot.certificationStatus}</td><td><strong>{Number(plot.compliance || 0)}%</strong></td><td>{Number(plot.criticalRequirements || 0)}</td></tr>
-        )}</tbody></table></div></div>}
+        <section className="nexo-plant-grid">{plots.map(plot => {
+          const score = Number(plot.compliance || 0);
+          const critical = Number(plot.criticalRequirements || 0);
+          const state = plot.eligibilityStatus === 'ELIGIBLE' ? 'Elegible' : plot.eligibilityStatus || 'Pendiente';
+          return <article className="nexo-plant-unit" key={plot.id}>
+            <div><span className="nexo-palm-avatar">♧</span><em className={`nexo-risk ${critical > 2 ? 'high' : critical ? 'medium' : 'low'}`}>{state}</em></div>
+            <h3>{plot.farmName || plot.name}</h3>
+            <p>{plot.sourceName || 'Fuente sin identificar'} · {Number(plot.area || 0).toLocaleString('es-CO')} ha</p>
+            <small>Lote: {plot.name} · Certificación: {plot.certificationStatus || 'Pendiente'}</small>
+            <div className="nexo-plant-score"><strong>{score}%</strong><span>{critical} críticos</span></div>
+            <div className="progress"><i style={{ width: `${score}%` }} /></div>
+            <button onClick={() => setTab('EVALUATION')}>Ver seguimiento →</button>
+          </article>;
+        })}</section>}
     </div> : <div className="flex-col gap-5">
       <div className="flex-between gap-4 flex-wrap">
         <div><h2 className="text-xl font-bold">{current.icon} {current.title}</h2><p className="text-sm text-secondary">{current.description}</p></div>
@@ -256,8 +319,8 @@ export default function PlantationCompliance() {
       </form>}
 
       {filtered.length === 0 ? <div className="empty-state card"><h3>Sin registros de {current.label.toLowerCase()}</h3><p>Esta categoría se encuentra vacía; no se muestran actividades de otros submódulos.</p></div> :
-        <div className="card p-0"><div className="table-responsive"><table className="w-full"><thead><tr><th>Plantación / lote</th><th>{current.activityLabel}</th><th>Detalle técnico</th><th>Responsable</th><th>Fecha</th><th>Estado</th>{(tab === 'EVALUATION' || tab === 'GAP') && <th>Resultado</th>}<th>Crítico</th></tr></thead><tbody>{filtered.map(activity =>
-          <tr key={activity.id}><td><strong>{activity.farmName || activity.plotName}</strong><br /><small>{activity.plotName}</small></td><td>{activity.title}</td><td className="text-sm text-secondary">{activity.description || '—'}</td><td>{activity.responsible || '—'}</td><td>{activity.activityDate ? String(activity.activityDate).slice(0, 10) : '—'}</td><td>{canEdit ? <select className="form-select" value={activity.status} onChange={e => updateActivity(activity.id, e.target.value)}>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select> : statusLabels[activity.status] || activity.status}</td>{(tab === 'EVALUATION' || tab === 'GAP') && <td>{activity.score == null ? '—' : `${activity.score}%`}</td>}<td>{activity.isCritical ? 'Sí' : 'No'}</td></tr>
+        <div className="card p-0"><div className="table-responsive"><table className="w-full"><thead><tr>{activityColumns[tab].map(column => <th key={column.label}>{column.label}</th>)}<th>Estado</th></tr></thead><tbody>{filtered.map(activity =>
+          <tr key={activity.id}>{activityColumns[tab].map(column => <td key={column.label}>{column.value(activity)}</td>)}<td>{canEdit ? <select className="form-select" value={activity.status} onChange={e => updateActivity(activity.id, e.target.value)}>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select> : statusLabels[activity.status] || activity.status}</td></tr>
         )}</tbody></table></div></div>}
     </div>}
   </div>;
