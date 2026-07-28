@@ -494,6 +494,135 @@ body {
   .nexo-plant-grid { grid-template-columns: 1fr; }
 }
 
+/* Complete NexoPalma visual shell */
+:root {
+  --bg-page: #f5f4ed;
+  --bg-secondary: #eef0e9;
+  --bg-card: #fffdfa;
+  --bg-sidebar: #fffefa;
+  --bg-surface-1: #f3f4ef;
+  --bg-surface-2: #e9ece5;
+  --surface-1: #f3f4ef;
+  --surface-2: #e9ece5;
+  --text-primary: #183129;
+  --text-secondary: #617168;
+  --text-muted: #87938c;
+  --border-light: #e4e7de;
+  --border-medium: #d6dcd2;
+  --sidebar-width: 245px;
+  --header-height: 72px;
+  --radius-md: 9px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+}
+
+body { background: #f5f4ed; color: #183129; }
+.sidebar {
+  background: #fffefa;
+  border-right: 1px solid #e4e7de;
+  padding: 0 10px;
+}
+.sidebar-logo {
+  color: #183129;
+  border-bottom: 0;
+  padding: 1.15rem .65rem .8rem;
+  min-height: 82px;
+}
+.logo-badge {
+  width: 37px;
+  height: 37px;
+  border-radius: 50% 50% 46% 54%;
+  background: #123e2b !important;
+  color: #f3b53f !important;
+  display: grid;
+  place-items: center;
+}
+.sidebar-brand-copy { display: flex; flex-direction: column; line-height: 1.05; }
+.sidebar-brand-copy > span { font: 700 1.03rem Georgia, serif; letter-spacing: .02em; }
+.sidebar-brand-copy small { color: #89948d; font-size: .62rem; margin-top: 4px; font-weight: 500; }
+.nexo-nav-label {
+  font-size: .58rem;
+  letter-spacing: .14em;
+  color: #879289;
+  font-weight: 800;
+  padding: .25rem .8rem .45rem;
+}
+.sidebar-nav { padding: .25rem .15rem .6rem; gap: 2px; }
+.sidebar-item {
+  color: #65746c;
+  padding: .62rem .78rem;
+  border-radius: 9px;
+  font-size: .79rem;
+  font-weight: 600;
+}
+.sidebar-item:hover { background: #f1f3ed; color: #123e2b; }
+.sidebar-item.active {
+  background: #e9f0e9;
+  color: #123e2b;
+  box-shadow: none;
+}
+.sidebar-item.active::before { display: none; }
+.sidebar-collapse-btn { color: #718078 !important; }
+.sidebar-footer {
+  border-top: 0;
+  padding: .65rem .25rem 1rem;
+}
+.sidebar-footer > .p-2\.5 {
+  background: #edf3e8 !important;
+  border-color: #dbe5d6 !important;
+  color: #183129;
+}
+.sidebar-footer > .p-2\.5 span { color: #617168 !important; }
+.sidebar-footer > .p-2\.5 .text-white { color: #183129 !important; }
+.sidebar-user { border-top: 1px solid #e4e7de; padding-top: .8rem; }
+.sidebar-avatar { background: #d8e7d3 !important; color: #123e2b !important; }
+.sidebar-user-name { color: #183129 !important; }
+.sidebar-user-email { color: #718078 !important; }
+.nexo-admin-link {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #65746c;
+  padding: .55rem .7rem;
+  font-size: .75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nexo-admin-link svg { width: 18px; height: 18px; }
+.sidebar-logout-btn {
+  background: transparent !important;
+  color: #65746c !important;
+  border: 1px solid #e4e7de !important;
+}
+.page-header {
+  position: sticky;
+  top: 0;
+  background: #fffefa;
+  padding: 0 2rem;
+}
+.header-title { font: 500 1.08rem Georgia, serif; color: #183129; }
+.header-subtitle { display: none; }
+.page-content { padding: 2rem clamp(1.1rem, 3vw, 3rem) 3.5rem; max-width: 1440px; width: 100%; margin: 0 auto; }
+.card {
+  background: #fffdfa;
+  border-color: #e4e7de;
+  box-shadow: 0 4px 18px #2346320a;
+}
+.card h1, .card h2, .card h3, .page-content h1, .page-content h2 {
+  font-family: Georgia, serif;
+  font-weight: 500;
+}
+.btn-primary { background: #123e2b; border-color: #123e2b; }
+.btn-primary:hover { background: #1c573e; border-color: #1c573e; }
+.form-input, .form-select { background: #fffefa; border-color: #dfe4db; }
+
+@media (max-width: 1024px) {
+  .sidebar { padding: 0 8px; }
+}
+
 .module-access-grid,
 .prepared-grid {
   display: grid;

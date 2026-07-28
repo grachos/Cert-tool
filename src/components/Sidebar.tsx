@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { useThemeLanguage } from './ThemeLanguageContext';
 
@@ -14,7 +14,6 @@ interface SidebarProps {
 }
 
 interface NavItem { id: ModuleId; labelKey: any; icon: ReactNode; adminOnly?: boolean; }
-interface NavSection { label: string; items: NavItem[]; }
 
 const Icons = {
   Dashboard: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
@@ -48,45 +47,14 @@ const topItems: NavItem[] = [
   { id: 'findings', labelKey: 'Hallazgos', icon: Icons.Alerts },
 ];
 
-const sections: NavSection[] = [
-  {
-    label: 'Certificación', items: [
-      { id: 'compliance', labelKey: 'nav.compliance', icon: Icons.Compliance },
-    ]
-  },
-  {
-    label: 'Gestión', items: [
-      { id: 'documents', labelKey: 'nav.documents', icon: Icons.Documents },
-      { id: 'risks', labelKey: 'nav.risks', icon: Icons.Risks },
-      { id: 'stakeholders', labelKey: 'nav.stakeholders', icon: Icons.Stakeholders },
-    ]
-  },
-  {
-    label: 'Control', items: [
-      { id: 'audits', labelKey: 'nav.audits', icon: Icons.Audits },
-      { id: 'alerts', labelKey: 'nav.alerts', icon: Icons.Alerts },
-      { id: 'users', labelKey: 'nav.users', icon: Icons.Users, adminOnly: true },
-    ]
-  },
-];
-
 export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleCollapse, mobileOpen, onCloseMobile }: SidebarProps) {
   const { user, logout } = useAuth();
   const { t } = useThemeLanguage();
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   // On mobile the drawer must always render expanded (with labels);
   // the desktop "collapsed" (icons-only) state makes no sense there.
   const effectiveCollapsed = collapsed && !mobileOpen;
   const itemLabel = (item: NavItem) => item.labelKey.startsWith('nav.') ? t(item.labelKey as any) : item.labelKey;
-
-  const toggleSection = (label: string) => {
-    setCollapsedSections(prev => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label); else next.add(label);
-      return next;
-    });
-  };
 
   return (
     <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
@@ -94,8 +62,8 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
         {!effectiveCollapsed ? (
           <>
             <div className="flex items-center gap-2">
-              <span className="logo-badge">RT</span>
-              <span>RSPO TECH</span>
+              <span className="logo-badge">◆</span>
+              <div className="sidebar-brand-copy"><span>RSPO TECH</span><small>Inteligencia RSPO</small></div>
             </div>
             <button className="btn-icon sidebar-collapse-btn" onClick={onToggleCollapse} title="Colapsar menú">
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '18px', height: '18px' }}>
@@ -120,6 +88,7 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
       </div>
 
       <nav className="sidebar-nav">
+        {!effectiveCollapsed && <p className="nexo-nav-label">ESPACIO DE TRABAJO</p>}
         {topItems.map((item) => (
           <div key={item.id}
             className={`sidebar-item ${activeModule === item.id ? 'active' : ''}`}
@@ -130,34 +99,6 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
           </div>
         ))}
 
-        {sections.map(section => {
-          const filtered = section.items.filter(i => !i.adminOnly || user?.role === 'ADMIN');
-          if (filtered.length === 0) return null;
-          const isCollapsed = collapsedSections.has(section.label);
-
-          return (
-            <div key={section.label}>
-              {!effectiveCollapsed && (
-                <div className="sidebar-section-header" onClick={() => toggleSection(section.label)}>
-                  <span className="sidebar-section-label">{section.label}</span>
-                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                    className={`sidebar-section-chevron ${isCollapsed ? '' : 'open'}`}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              )}
-              {!isCollapsed && filtered.map(item => (
-                <div key={item.id}
-                  className={`sidebar-item ${activeModule === item.id ? 'active' : ''}`}
-                  onClick={() => onNavigate(item.id)}
-                  title={effectiveCollapsed ? t(item.labelKey as any) : undefined}>
-                  {item.icon}
-                  {!effectiveCollapsed && <span>{t(item.labelKey as any)}</span>}
-                </div>
-              ))}
-            </div>
-          );
-        })}
       </nav>
 
       <div className="sidebar-footer">
@@ -181,6 +122,11 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
             </div>
           )}
         </div>
+        {!effectiveCollapsed && user?.role === 'ADMIN' && (
+          <button className="nexo-admin-link" onClick={() => onNavigate('users')}>
+            {Icons.Users}<span>Usuarios y UoC</span>
+          </button>
+        )}
         {!effectiveCollapsed && (
           <button className="btn btn-secondary w-full sidebar-logout-btn" style={{ background: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)' }} onClick={logout}>
             {t('nav.logout')}
