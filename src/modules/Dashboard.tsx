@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useUoc } from '../components/UoCContext';
 import api from '../api';
+import nexopalmaHero from '../assets/nexopalma-hero.png?inline';
 
 interface DashboardProps {
   onNavigate: (module: 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations' | 'audits' | 'traceability' | 'prisma' | 'actionPlans' | 'findings') => void;
@@ -91,7 +92,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   return (
     <div className="nexo-dashboard animate-fade-in">
       <section className="nexo-cover" aria-label="Portada RSPO TECH">
-        <img src="/nexopalma-hero.png" alt="Cultivo sostenible de palma conectado con una planta extractora" />
+        <img src={nexopalmaHero} alt="Cultivo sostenible de palma conectado con una planta extractora" />
         <div className="nexo-cover-copy">
           <span>ECOSISTEMA DE CERTIFICACIÓN RSPO</span>
           <h2>La operación sostenible,<br />conectada de principio a fin.</h2>
