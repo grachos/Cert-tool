@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -496,6 +496,8 @@ body {
 
 /* Complete NexoPalma visual shell */
 :root {
+  --font-ui: "Manrope", "Segoe UI Variable", Arial, sans-serif;
+  --font-display: "DM Serif Display", "Iowan Old Style", Georgia, serif;
   --bg-page: #f5f4ed;
   --bg-secondary: #eef0e9;
   --bg-card: #fffdfa;
@@ -1398,3 +1400,92 @@ table tbody tr { border-top: 1px solid var(--border-light); }
 .nexo-empty { padding: 30px 0; border-top: 1px solid #e4e7de; color: #718078; text-align: center; font-size: .8rem; }.nexo-bar { margin: 18px 0; }.nexo-bar > div:first-child { display: flex; justify-content: space-between; margin-bottom: 7px; font-size: .78rem; }.nexo-tip { display:flex;align-items:center;gap:10px;margin-top:20px;padding:12px;border-radius:8px;background:#eef3e9}.nexo-tip>span{color:#d59b31;font-size:1.1rem}.nexo-tip p{flex:1;margin:0;color:#718078;font-size:.68rem;line-height:1.5}.nexo-tip strong{display:block;color:#183129}.nexo-tip button{border:0;color:#2f7b55;background:transparent;font-size:.7rem;font-weight:800;cursor:pointer}
 @media(max-width:1000px){.nexo-hero-grid,.nexo-lower-grid{grid-template-columns:1fr}.nexo-metrics{grid-template-columns:repeat(2,1fr)}.nexo-metrics>div:nth-child(2){border-right:0}}
 @media(max-width:650px){.nexo-cover{min-height:260px;aspect-ratio:1.35/1}.nexo-cover-badge{left:12px;right:12px;bottom:12px}.nexo-harvest{display:none}.nexo-cert-body{align-items:flex-start;gap:16px}.nexo-ring{width:108px;height:108px}.nexo-ring strong{font-size:1.55rem}.nexo-metrics{grid-template-columns:1fr}.nexo-metrics>div{border-right:0;border-bottom:1px solid #e4e7de}.nexo-welcome h1{font-size:1.8rem}}
+
+/* Identidad premium heredada del paquete original de Nexopalma */
+body, button, input, select, textarea { font-family: var(--font-ui); }
+body { background: radial-gradient(circle at 75% 0,#e8eee2 0,transparent 30%),#f3f3ed; letter-spacing: -.01em; }
+.sidebar {
+  background: linear-gradient(165deg,#0a2d20 0%,#123e2b 48%,#0d3325 100%);
+  border-right: 0;
+  color: #fff;
+  box-shadow: 14px 0 40px rgba(10,45,32,.11);
+}
+.sidebar-logo { color: #fff; }
+.logo-badge {
+  background: linear-gradient(145deg,#e6bd59,#ba7e20) !important;
+  color: #113d2b !important;
+  box-shadow: 0 8px 18px rgba(8,29,21,.36);
+}
+.sidebar-brand-copy > span { color: #fff; font: 800 1.03rem var(--font-ui); letter-spacing: .1em; }
+.sidebar-brand-copy small { color: #90ab9d; }
+.nexo-nav-label { color: #668878; }
+.nexo-management-label { border-top-color: rgba(255,255,255,.09); }
+.sidebar-item { color: #a9c0b5; }
+.sidebar-item svg { color: #c3dd8a; }
+.sidebar-item:hover { color: #fff; background: rgba(255,255,255,.06); }
+.sidebar-item.active {
+  color: #fff;
+  background: linear-gradient(90deg,rgba(255,255,255,.1),rgba(255,255,255,.045));
+  box-shadow: inset 3px 0 #a7cb59;
+}
+.sidebar-collapse-btn { color: #8eaa9c !important; }
+.sidebar-footer > .p-2\.5 {
+  color: #fff;
+  border-color: rgba(255,255,255,.08) !important;
+  background: linear-gradient(145deg,rgba(255,255,255,.075),rgba(255,255,255,.035)) !important;
+}
+.sidebar-footer > .p-2\.5 span { color: #89a698 !important; }
+.sidebar-footer > .p-2\.5 .text-white { color: #fff !important; }
+.sidebar-user { border-top-color: rgba(255,255,255,.08); }
+.sidebar-avatar { color: #173e2c !important; background: #d6edaf !important; }
+.sidebar-user-name { color: #fff !important; }
+.sidebar-user-email { color: #7f9d8e !important; }
+.nexo-admin-link { color: #a9c0b5; }
+.sidebar-logout-btn { color: #a9c0b5 !important; border-color: rgba(255,255,255,.1) !important; background: rgba(255,255,255,.04) !important; }
+.header-title { color: #183129; font: 700 1.02rem var(--font-ui); }
+.page-content h1, .page-content h2, .page-content h3,
+.nexo-welcome h1, .nexo-cert-copy h2, .nexo-audit-photo h3, .nexo-panel-head h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+.nexo-cover {
+  min-height: 270px;
+  aspect-ratio: 3 / 1;
+  border: 1px solid #fff;
+  border-radius: 22px;
+  box-shadow: 0 20px 55px rgba(11,48,34,.17);
+}
+.nexo-cover::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: linear-gradient(90deg,rgba(8,42,32,.9) 0%,rgba(11,50,35,.7) 32%,rgba(11,50,35,.36) 52%,transparent 76%);
+}
+.nexo-cover::after { z-index: 1; background: linear-gradient(0deg,rgba(7,29,21,.4) 0%,transparent 48%); }
+.nexo-cover-copy {
+  position: absolute;
+  z-index: 2;
+  left: clamp(24px,4vw,52px);
+  bottom: clamp(25px,3.6vw,46px);
+  width: min(510px,53%);
+  color: #fff;
+}
+.nexo-cover-copy > span { display:block; margin-bottom:11px; color:#c9e88c; font-size:.6rem; font-weight:800; letter-spacing:.2em; }
+.nexo-cover-copy h2 { margin:0 0 11px; color:#fff; font:400 clamp(1.8rem,2.5vw,2.6rem)/1.08 var(--font-display); letter-spacing:-.02em; }
+.nexo-cover-copy p { max-width:455px; margin:0 0 17px; color:#d5e2da; font-size:.72rem; line-height:1.6; }
+.nexo-cover-copy > div { display:flex; flex-wrap:wrap; gap:7px; }
+.nexo-cover-copy b { padding:7px 10px; border:1px solid rgba(255,255,255,.2); border-radius:20px; background:rgba(255,255,255,.075); font-size:.55rem; letter-spacing:.04em; backdrop-filter:blur(5px); }
+.nexo-welcome h1 { font-size: clamp(2rem,3vw,2.55rem); }
+.nexo-cert-card,.nexo-audit-card,.nexo-panel,.nexo-metrics { border-color:#dfe4db; border-radius:17px; box-shadow:0 14px 45px rgba(18,62,43,.09); }
+.nexo-progress i { background:linear-gradient(90deg,#3d8057,#91bd4f); }
+.nexo-ring { filter:drop-shadow(0 8px 13px rgba(64,108,57,.13)); }
+.nexo-ring strong,.nexo-metrics strong { font-family:var(--font-display); font-weight:400; }
+.nexo-metric-icon { border-radius:11px; }
+@media(max-width:650px){
+  .nexo-cover{min-height:330px;aspect-ratio:1.25/1;border-radius:17px}
+  .nexo-cover img{object-position:62% center}
+  .nexo-cover-copy{left:22px;right:22px;bottom:24px;width:auto}
+  .nexo-cover-copy h2{font-size:1.75rem}
+  .nexo-cover-copy p{font-size:.66rem}
+}

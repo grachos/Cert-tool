@@ -91,10 +91,12 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   return (
     <div className="nexo-dashboard animate-fade-in">
       <section className="nexo-cover" aria-label="Portada RSPO TECH">
-        <img src="/palm_plantation_hero.jpg" alt="Plantación sostenible de palma" />
-        <div className="nexo-cover-badge">
-          <span>RSPO TECH · GESTIÓN INTELIGENTE RSPO</span>
-          <strong>La sostenibilidad se gestiona mejor cuando toda la operación está conectada.</strong>
+        <img src="/nexopalma-hero.png" alt="Cultivo sostenible de palma conectado con una planta extractora" />
+        <div className="nexo-cover-copy">
+          <span>ECOSISTEMA DE CERTIFICACIÓN RSPO</span>
+          <h2>La operación sostenible,<br />conectada de principio a fin.</h2>
+          <p>RSPO TECH integra la extractora, las plantaciones, las emisiones y la trazabilidad en una sola visión.</p>
+          <div><b>P&amp;C Extractora</b><b>Plantaciones</b><b>GHG</b><b>Cadena de suministro</b></div>
         </div>
       </section>
 
