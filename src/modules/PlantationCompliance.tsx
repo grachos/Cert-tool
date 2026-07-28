@@ -227,6 +227,27 @@ export default function PlantationCompliance() {
     }
   };
 
+  const openActivityForm = (suggestedTitle = '') => {
+    if (!plots.length) {
+      setShowActivity(false);
+      setError('Antes de registrar actividades debe crear una fuente en “Base de suministro” y luego una plantación o lote en la pestaña “Panorama”.');
+      return;
+    }
+    setError('');
+    if (suggestedTitle) setActivityForm(currentForm => ({ ...currentForm, title: suggestedTitle }));
+    setShowActivity(true);
+  };
+
+  const openPlotForm = () => {
+    if (!sources.length) {
+      setShowPlot(false);
+      setError('Primero registre una fuente, productor o plantación en el módulo “Base de suministro”. Después podrá crear aquí su lote agrícola.');
+      return;
+    }
+    setError('');
+    setShowPlot(value => !value);
+  };
+
   if (!selectedUocId || selectedUocId === 'all') {
     return <div className="empty-state card"><h3>Seleccione una UoC</h3><p>El cumplimiento agrícola se administra por unidad de certificación.</p></div>;
   }
@@ -267,7 +288,7 @@ export default function PlantationCompliance() {
       </div>
       <div className="flex-between">
         <div><h2 className="text-xl font-bold">Ficha individual de plantaciones</h2><p className="text-sm text-secondary">Cada lote conserva su propio estado y sus registros.</p></div>
-        {canCreatePlot && <button className="btn btn-primary" onClick={() => setShowPlot(value => !value)}>+ Nueva plantación</button>}
+        {canCreatePlot && <button className="btn btn-primary" onClick={openPlotForm}>+ Nueva plantación</button>}
       </div>
       {showPlot && <form className="card form-grid" onSubmit={createPlot}>
         <select required className="form-select" value={plotForm.supplySourceId} onChange={e => setPlotForm({ ...plotForm, supplySourceId: e.target.value })}><option value="">Fuente de suministro</option>{sources.map(source => <option key={source.id} value={source.id}>{source.name}</option>)}</select>
@@ -296,13 +317,19 @@ export default function PlantationCompliance() {
     </div> : <div className="flex-col gap-5">
       <div className="flex-between gap-4 flex-wrap">
         <div><h2 className="text-xl font-bold">{current.icon} {current.title}</h2><p className="text-sm text-secondary">{current.description}</p></div>
-        {canEdit && <button className="btn btn-primary" onClick={() => setShowActivity(value => !value)}>+ Nuevo registro</button>}
+        {canEdit && <button className="btn btn-primary" onClick={() => openActivityForm()} disabled={!plots.length} title={!plots.length ? 'Primero registre una plantación o lote' : undefined}>+ Nuevo registro</button>}
       </div>
+
+      {!plots.length && <div className="card p-4 border-l-4" style={{ borderLeftColor: 'var(--accent-gold)', background: 'var(--accent-gold-bg)' }}>
+        <strong>Falta configurar la estructura agrícola de esta UoC</strong>
+        <p className="text-sm mt-1">1. Cree la fuente en <b>Base de suministro</b>. 2. Regrese a <b>Panorama</b> y cree la plantación/lote. 3. Registre la actividad.</p>
+        <button className="btn btn-secondary btn-sm mt-3" onClick={() => setTab('overview')}>Ir a Panorama</button>
+      </div>}
 
       <div className="card p-4">
         <span className="text-xs font-bold text-secondary uppercase">Actividades habituales</span>
         <div className="flex gap-2 flex-wrap mt-2">{current.examples.map(example =>
-          <button key={example} className="btn btn-secondary btn-sm" onClick={() => { setActivityForm({ ...activityForm, title: example }); setShowActivity(true); }}>{example}</button>
+          <button key={example} className="btn btn-secondary btn-sm" disabled={!plots.length} title={!plots.length ? 'Primero registre una plantación o lote' : undefined} onClick={() => openActivityForm(example)}>{example}</button>
         )}</div>
       </div>
 
