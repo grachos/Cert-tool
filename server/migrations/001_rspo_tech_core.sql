@@ -176,6 +176,19 @@ CREATE TABLE IF NOT EXISTS TraceabilityAlert (
   FOREIGN KEY (deliveryId) REFERENCES RffDelivery(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS Alert (
+  id VARCHAR(36) PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  type VARCHAR(50) NOT NULL DEFAULT 'info',
+  priority VARCHAR(50) NOT NULL DEFAULT 'media',
+  action VARCHAR(255) NULL,
+  module VARCHAR(100) NULL,
+  dismissed TINYINT(1) NOT NULL DEFAULT 0,
+  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_alert_dismissed_created (dismissed, createdAt)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS PrismaOperation (
   id VARCHAR(36) PRIMARY KEY,
   uocId VARCHAR(36) NOT NULL,

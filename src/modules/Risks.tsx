@@ -10,9 +10,16 @@ export default function Risks() {
   const [filter, setFilter] = useState<StandardId | 'Todos'>('Todos');
   const [showMatrix, setShowMatrix] = useState(true);
   const [activeStandards, setActiveStandards] = useState<any[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [form, setForm] = useState({
+    title: '', description: '', category: '', standardId: 'RSPO',
+    probability: 1, impact: 1, status: 'OPEN'
+  });
   const { t, language } = useThemeLanguage();
 
-  useEffect(() => {
+  const load = () => {
     Promise.all([
       api.get('/risks'),
       api.get('/compliance/standards')
@@ -21,8 +28,30 @@ export default function Risks() {
       const activeIds = (complianceRes.data as any[]).map(s => s.standardId || s.id);
       setActiveStandards(standards.filter(std => activeIds.includes(std.id)));
       setIsLoading(false);
-    });
-  }, []);
+    }).catch(() => setIsLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const submitRisk = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setFormError('');
+    setIsSubmitting(true);
+    try {
+      await api.post('/risks', {
+        ...form,
+        probability: Number(form.probability),
+        impact: Number(form.impact)
+      });
+      setForm({ title: '', description: '', category: '', standardId: 'RSPO', probability: 1, impact: 1, status: 'OPEN' });
+      setShowForm(false);
+      load();
+    } catch (error: any) {
+      setFormError(error.response?.data?.error || 'No fue posible crear el riesgo.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const filteredRisks = filter === 'Todos' 
     ? risks 
@@ -90,12 +119,38 @@ export default function Risks() {
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px', marginRight: '4px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
             {showMatrix ? t('risks.viewList') : t('risks.viewMatrix')}
           </button>
-          <button className="btn btn-primary">
+          <button className="btn btn-primary" onClick={() => { setFormError(''); setShowForm(true); }}>
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px', marginRight: '4px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
             {t('risks.newRiskBtn')}
           </button>
         </div>
       </div>
+
+      {showForm && (
+        <div className="modal-overlay flex-center" onClick={() => setShowForm(false)}>
+          <div className="modal card max-w-2xl w-full p-6 animate-scale-in" onClick={event => event.stopPropagation()}>
+            <div className="flex-between mb-5">
+              <div><h3 className="text-lg font-bold">Nuevo riesgo</h3><p className="text-sm text-secondary">Registre el evento y valore probabilidad e impacto.</p></div>
+              <button className="btn-icon" onClick={() => setShowForm(false)} aria-label="Cerrar">×</button>
+            </div>
+            {formError && <div className="integration-note mb-4">{formError}</div>}
+            <form onSubmit={submitRisk} className="flex-col gap-4">
+              <div className="form-grid">
+                <label className="form-group"><span className="form-label">Título</span><input className="form-input" required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
+                <label className="form-group"><span className="form-label">Categoría</span><input className="form-input" required value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} placeholder="Operacional, ambiental, social…" /></label>
+              </div>
+              <label className="form-group"><span className="form-label">Descripción</span><textarea className="form-textarea" required value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></label>
+              <div className="form-grid">
+                <label className="form-group"><span className="form-label">Norma</span><select className="form-select" value={form.standardId} onChange={e => setForm({ ...form, standardId: e.target.value })}>{activeStandards.map(standard => <option key={standard.id} value={standard.id}>{standard.name}</option>)}</select></label>
+                <label className="form-group"><span className="form-label">Estado</span><select className="form-select" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}><option value="OPEN">Abierto</option><option value="MITIGATED">Mitigado</option><option value="ACCEPTED">Aceptado</option><option value="CLOSED">Cerrado</option></select></label>
+                <label className="form-group"><span className="form-label">Probabilidad (1–5)</span><input className="form-input" type="number" min="1" max="5" required value={form.probability} onChange={e => setForm({ ...form, probability: Number(e.target.value) })} /></label>
+                <label className="form-group"><span className="form-label">Impacto (1–5)</span><input className="form-input" type="number" min="1" max="5" required value={form.impact} onChange={e => setForm({ ...form, impact: Number(e.target.value) })} /></label>
+              </div>
+              <div className="flex justify-end gap-2"><button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancelar</button><button type="submit" className="btn btn-primary" disabled={isSubmitting}>{isSubmitting ? 'Guardando…' : 'Crear riesgo'}</button></div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showMatrix ? (
         <div className="card animate-slide-up border border-gray-200">

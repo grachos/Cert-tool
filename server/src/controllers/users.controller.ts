@@ -5,15 +5,27 @@ import db from '../db';
 
 export const getUsers = async (req: Request, res: Response): Promise<void> => {
   try {
-    const [rows] = await db.query(
-      `SELECT u.id, u.email, u.name, u.role, u.createdAt,
-       COALESCE(JSON_ARRAYAGG(CASE WHEN cu.id IS NULL THEN NULL ELSE JSON_OBJECT('id',cu.id,'name',cu.name) END), JSON_ARRAY()) AS assignedUocs
-       FROM User u
-       LEFT JOIN UserCertificationUnit ucu ON ucu.userId=u.id
-       LEFT JOIN CertificationUnit cu ON cu.id=ucu.uocId
-       GROUP BY u.id ORDER BY u.createdAt DESC`
+    // MariaDB 10.4 (incluido en XAMPP) no dispone de JSON_ARRAYAGG.
+    // Consultamos usuarios y asignaciones por separado para mantener compatibilidad.
+    const [userRows] = await db.query(
+      'SELECT id, email, name, role, createdAt FROM User ORDER BY createdAt DESC'
     );
-    res.status(200).json(rows);
+    const [assignmentRows] = await db.query(
+      `SELECT ucu.userId, cu.id, cu.name
+       FROM UserCertificationUnit ucu
+       JOIN CertificationUnit cu ON cu.id=ucu.uocId
+       ORDER BY cu.name`
+    );
+    const assignmentsByUser = new Map<string, Array<{ id: string; name: string }>>();
+    for (const assignment of assignmentRows as any[]) {
+      const current = assignmentsByUser.get(assignment.userId) || [];
+      current.push({ id: assignment.id, name: assignment.name });
+      assignmentsByUser.set(assignment.userId, current);
+    }
+    res.status(200).json((userRows as any[]).map(user => ({
+      ...user,
+      assignedUocs: assignmentsByUser.get(user.id) || []
+    })));
   } catch (error) { console.error(error); res.status(500).json({ error: 'Error al obtener usuarios.' }); }
 };
 

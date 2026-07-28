@@ -66,6 +66,7 @@ export default function Compliance() {
 
   const [expandedPrinciple, setExpandedPrinciple] = useState<string | null>(null);
   const [principleFilter, setPrincipleFilter] = useState<string>('all');
+  const [showAutoEvaluation, setShowAutoEvaluation] = useState(false);
 
   const fetchCompliance = async () => {
     try {
@@ -485,7 +486,7 @@ export default function Compliance() {
                     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                     {language === 'es' ? 'Exportar Reporte PDF' : 'Export PDF Report'}
                   </button>
-                  <button className="btn btn-primary no-print">{t('compliance.evalBtn')}</button>
+                  <button className="btn btn-primary no-print" onClick={() => setShowAutoEvaluation(true)}>{t('compliance.evalBtn')}</button>
                 </div>
               </div>
 
@@ -697,6 +698,47 @@ export default function Compliance() {
           </div>
         </div>
       )}
+
+      {showAutoEvaluation && standardDetail && (() => {
+        const requirements = standardDetail.requirements;
+        const compliant = requirements.filter(req => req.status === 'COMPLIANT').length;
+        const partial = requirements.filter(req => req.status === 'PARTIAL').length;
+        const nonCompliant = requirements.filter(req => req.status === 'NON_COMPLIANT').length;
+        const pending = requirements.filter(req => req.status === 'PENDING').length;
+        const withEvidence = requirements.filter(req => Number(req.evidenceCount || 0) > 0).length;
+        const score = requirements.length ? Math.round(((compliant + partial * 0.5) / requirements.length) * 100) : 0;
+        return (
+          <div className="modal-overlay flex-center" onClick={() => setShowAutoEvaluation(false)}>
+            <div className="modal card max-w-2xl w-full p-6 animate-scale-in" onClick={event => event.stopPropagation()}>
+              <div className="flex-between mb-5">
+                <div>
+                  <p className="nexo-eyebrow">ANÁLISIS ASISTIDO · DATOS REGISTRADOS</p>
+                  <h3 className="text-xl font-bold">Resultado de autoevaluación</h3>
+                  <p className="text-sm text-secondary mt-1">Diagnóstico automático sin modificar el estado de los requisitos.</p>
+                </div>
+                <button className="btn-icon" onClick={() => setShowAutoEvaluation(false)} aria-label="Cerrar">×</button>
+              </div>
+              <div className="stats-grid mb-5">
+                <div className="card"><span className="text-xs text-secondary">PUNTAJE</span><strong className="block text-3xl mt-2">{score}%</strong></div>
+                <div className="card"><span className="text-xs text-secondary">CUMPLEN</span><strong className="block text-3xl mt-2 text-accent-green">{compliant}</strong></div>
+                <div className="card"><span className="text-xs text-secondary">BRECHAS</span><strong className="block text-3xl mt-2 text-accent-red">{nonCompliant}</strong></div>
+                <div className="card"><span className="text-xs text-secondary">CON EVIDENCIA</span><strong className="block text-3xl mt-2">{withEvidence}/{requirements.length}</strong></div>
+              </div>
+              <div className="integration-note">
+                <strong>Prioridad sugerida:</strong>{' '}
+                {nonCompliant > 0
+                  ? `atender ${nonCompliant} requisito(s) no conforme(s) antes de la auditoría.`
+                  : pending > 0
+                    ? `completar la evaluación de ${pending} requisito(s) pendiente(s).`
+                    : partial > 0
+                      ? `cerrar ${partial} cumplimiento(s) parcial(es) y completar sus evidencias.`
+                      : 'mantener las evidencias vigentes y preparar la revisión de auditoría.'}
+              </div>
+              <div className="flex justify-end mt-5"><button className="btn btn-primary" onClick={() => setShowAutoEvaluation(false)}>Cerrar evaluación</button></div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
