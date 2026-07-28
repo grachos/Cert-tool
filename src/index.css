@@ -843,6 +843,80 @@ body { background: #f5f4ed; color: #183129; }
   .page-content[class*="module-"] .form-grid { grid-template-columns: 1fr; }
 }
 
+/* Executive typography: harmonious headings, labels and numeric data */
+:root {
+  --font-ui: "Inter", "Segoe UI", Arial, sans-serif;
+  --font-heading: "Inter", "Segoe UI", Arial, sans-serif;
+  --font-numeric: "Inter", "Segoe UI", Arial, sans-serif;
+}
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-ui);
+}
+.header-title,
+.sidebar-brand-copy > span,
+.card h1,
+.card h2,
+.card h3,
+.page-content h1,
+.page-content h2,
+.page-content h3,
+.nexo-plant-unit h3,
+.empty-state h3 {
+  font-family: var(--font-heading) !important;
+  font-weight: 650 !important;
+  letter-spacing: -.025em;
+  line-height: 1.2;
+}
+.page-content h1 { font-size: clamp(1.7rem, 2.5vw, 2.15rem); }
+.page-content h2 { font-size: clamp(1.25rem, 2vw, 1.6rem); }
+.page-content h3 { font-size: clamp(1rem, 1.5vw, 1.18rem); }
+.header-title {
+  font-size: 1.05rem;
+  letter-spacing: -.015em;
+}
+.sidebar-brand-copy > span {
+  font-size: 1rem;
+  letter-spacing: -.01em;
+}
+.stat-value-lg,
+.nexo-plant-score strong,
+.page-content .text-2xl,
+.page-content .text-3xl,
+.page-content .text-4xl,
+.page-content strong[class*="text-"],
+.page-content td,
+.page-content input[type="number"],
+.page-content input[type="date"] {
+  font-family: var(--font-numeric) !important;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  letter-spacing: -.025em;
+}
+.stat-value-lg,
+.page-content .text-3xl {
+  font-weight: 650 !important;
+  line-height: 1;
+}
+.page-content small,
+.page-content .text-xs,
+.nexo-nav-label,
+table th {
+  letter-spacing: .035em;
+}
+.page-content p {
+  line-height: 1.55;
+}
+.page-content table td {
+  line-height: 1.4;
+}
+.badge {
+  letter-spacing: .015em;
+}
+
 .module-access-grid,
 .prepared-grid {
   display: grid;
