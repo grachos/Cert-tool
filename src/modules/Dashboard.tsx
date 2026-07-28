@@ -161,60 +161,6 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         </div>
       </div>
 
-      <section>
-        <div className="flex-between mb-3"><h3 className="text-lg font-bold">Módulos RSPO TECH</h3><span className="text-xs text-secondary">Acceso directo</span></div>
-        <div className="module-access-grid">
-          {[
-            ['plant', '🏭', 'P&C Planta Extractora'],
-            ['plantations', '🌴', 'Cumplimiento de plantaciones'],
-            ['supply', '🗺', 'Base de suministro'],
-            ['traceability', '🚚', 'Trazabilidad RFF'],
-            ['ghg', '🌐', 'Calculadora GHG'],
-            ['scc', '⚖', 'Cadena de suministro'],
-            ['prisma', '↗', 'PRISMA by RSPO'],
-            ['evidence', '📎', 'Evidencias'],
-            ['actionPlans', '✓', 'Planes de acción'],
-            ['findings', '!', 'Hallazgos'],
-          ].map(([id, icon, label]) => (
-            <button key={id} className="module-access-card" onClick={() => onNavigate(id as Parameters<typeof onNavigate>[0])}>
-              <span className="module-access-icon">{icon}</span><span>{label}</span><b>→</b>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* Acceso Rápido de Módulos */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="card p-3 flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors" onClick={() => onNavigate('plant')}>
-          <div className="flex items-center gap-3">
-            <span className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 flex-center font-bold">🏭</span>
-            <div><div className="text-xs font-bold text-primary">{language === 'es' ? 'Planta Extractora' : 'Palm Oil Mill'}</div><div className="text-[10px] text-secondary">P&C Extractora</div></div>
-          </div>
-          <span className="text-xs text-secondary">↗</span>
-        </div>
-        <div className="card p-3 flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors" onClick={() => onNavigate('plantations')}>
-          <div className="flex items-center gap-3">
-            <span className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 flex-center font-bold">🌴</span>
-            <div><div className="text-xs font-bold text-primary">{language === 'es' ? 'Plantaciones & BPA' : 'Plantation & GAP'}</div><div className="text-[10px] text-secondary">Sanidad y Suelos</div></div>
-          </div>
-          <span className="text-xs text-secondary">↗</span>
-        </div>
-        <div className="card p-3 flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors" onClick={() => onNavigate('scc')}>
-          <div className="flex items-center gap-3">
-            <span className="w-9 h-9 rounded-lg bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 flex-center font-bold">⚖</span>
-            <div><div className="text-xs font-bold text-primary">{language === 'es' ? 'Balance CPO / SCC' : 'CPO Balance / SCC'}</div><div className="text-[10px] text-secondary">IP, SG, MB, BC</div></div>
-          </div>
-          <span className="text-xs text-secondary">↗</span>
-        </div>
-        <div className="card p-3 flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors" onClick={() => onNavigate('ghg')}>
-          <div className="flex items-center gap-3">
-            <span className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 flex-center font-bold">🌐</span>
-            <div><div className="text-xs font-bold text-primary">{language === 'es' ? 'Calculadora PalmGHG' : 'PalmGHG Calculator'}</div><div className="text-[10px] text-secondary">Emisiones tCO2e/tCPO</div></div>
-          </div>
-          <span className="text-xs text-secondary">↗</span>
-        </div>
-      </div>
-      
       <div className="stats-grid">
         <div className="card">
           <div className="flex justify-between items-start mb-4">

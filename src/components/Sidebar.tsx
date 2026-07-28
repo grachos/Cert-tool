@@ -47,6 +47,15 @@ const topItems: NavItem[] = [
   { id: 'findings', labelKey: 'Hallazgos', icon: Icons.Alerts },
 ];
 
+const managementItems: NavItem[] = [
+  { id: 'compliance', labelKey: 'Cumplimiento RSPO P&C', icon: Icons.Compliance },
+  { id: 'documents', labelKey: 'Revisión documental', icon: Icons.Documents },
+  { id: 'risks', labelKey: 'Análisis de riesgos', icon: Icons.Risks },
+  { id: 'stakeholders', labelKey: 'Partes interesadas', icon: Icons.Stakeholders },
+  { id: 'audits', labelKey: 'Auditorías', icon: Icons.Audits },
+  { id: 'alerts', labelKey: 'Alertas', icon: Icons.Alerts },
+];
+
 export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleCollapse, mobileOpen, onCloseMobile }: SidebarProps) {
   const { user, logout } = useAuth();
   const { t } = useThemeLanguage();
@@ -99,6 +108,16 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
           </div>
         ))}
 
+        {!effectiveCollapsed && <p className="nexo-nav-label nexo-management-label">GESTIÓN Y CONTROL</p>}
+        {managementItems.map((item) => (
+          <div key={item.id}
+            className={`sidebar-item ${activeModule === item.id ? 'active' : ''}`}
+            onClick={() => onNavigate(item.id)}
+            title={effectiveCollapsed ? itemLabel(item) : undefined}>
+            {item.icon}
+            {!effectiveCollapsed && <span>{itemLabel(item)}</span>}
+          </div>
+        ))}
       </nav>
 
       <div className="sidebar-footer">
