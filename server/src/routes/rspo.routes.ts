@@ -1,14 +1,17 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { authenticateToken, requireRole } from '../middleware/auth.middleware';
 import { requireUocAccess } from '../middleware/uoc.middleware';
 import {
   createDelivery, createFarmPlot, createPlantationActivity, createPrismaOperation, createSupplySource,
   listDeliveries, listFarmPlots, listPlantationActivities, listPrismaOperations, listSupplySources,
   listTraceabilityAlerts, updateDelivery, updatePrismaOperation, updateSupplySource
-  ,listSupplySourceHistory, updateFarmPlot, updatePlantationActivity, listPrismaAdjustments, listPrismaAttachments, addPrismaAttachment
+  ,listSupplySourceHistory, updateFarmPlot, updatePlantationActivity, listPrismaAdjustments, listPrismaAttachments, addPrismaAttachment,
+  analyzeFarmPlotKml, listFarmPlotSoilStudies
 } from '../controllers/rspo.controller';
 
 const router = Router();
+const kmlUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
 router.use(authenticateToken);
 router.use(requireUocAccess());
 
@@ -19,6 +22,8 @@ router.get('/supply-sources/:id/history', listSupplySourceHistory);
 router.get('/farm-plots', listFarmPlots);
 router.post('/farm-plots', requireRole(['ADMIN','MANAGER']), createFarmPlot);
 router.put('/farm-plots/:id', requireRole(['ADMIN','MANAGER']), updateFarmPlot);
+router.get('/farm-plots/:id/soil-studies', listFarmPlotSoilStudies);
+router.post('/farm-plots/:id/soil-studies', requireRole(['ADMIN','MANAGER','AUDITOR']), kmlUpload.single('kml'), analyzeFarmPlotKml);
 router.get('/plantation-activities', listPlantationActivities);
 router.post('/plantation-activities', requireRole(['ADMIN','MANAGER','AUDITOR']), createPlantationActivity);
 router.put('/plantation-activities/:id', requireRole(['ADMIN','MANAGER','AUDITOR']), updatePlantationActivity);

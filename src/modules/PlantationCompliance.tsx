@@ -137,6 +137,11 @@ export default function PlantationCompliance() {
   const [tab, setTab] = useState<Tab>('overview');
   const [showPlot, setShowPlot] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
+  const [kmlPlot, setKmlPlot] = useState<any | null>(null);
+  const [kmlFile, setKmlFile] = useState<File | null>(null);
+  const [fieldContext, setFieldContext] = useState('');
+  const [soilStudies, setSoilStudies] = useState<Record<string, any[]>>({});
+  const [analyzingKml, setAnalyzingKml] = useState(false);
   const [error, setError] = useState('');
   const [plotForm, setPlotForm] = useState({
     supplySourceId: '', name: '', farmName: '', area: '', plantedArea: '',
@@ -248,6 +253,45 @@ export default function PlantationCompliance() {
     setShowPlot(value => !value);
   };
 
+  const openKmlAnalysis = async (plot: any) => {
+    setKmlPlot(plot);
+    setKmlFile(null);
+    setFieldContext('');
+    setError('');
+    try {
+      const response = await api.get(`/rspo/farm-plots/${plot.id}/soil-studies`, { params: { uocId: selectedUocId } });
+      setSoilStudies(current => ({ ...current, [plot.id]: response.data }));
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'No fue posible cargar los estudios del lote.');
+    }
+  };
+
+  const analyzeKml = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!kmlPlot || !kmlFile) {
+      setError('Seleccione el archivo KML del polígono.');
+      return;
+    }
+    const form = new FormData();
+    form.append('kml', kmlFile);
+    form.append('fieldContext', fieldContext);
+    setAnalyzingKml(true);
+    setError('');
+    try {
+      const response = await api.post(`/rspo/farm-plots/${kmlPlot.id}/soil-studies`, form, {
+        params: { uocId: selectedUocId },
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setSoilStudies(current => ({ ...current, [kmlPlot.id]: [response.data, ...(current[kmlPlot.id] || [])] }));
+      setKmlFile(null);
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'No fue posible analizar el archivo KML.');
+    } finally {
+      setAnalyzingKml(false);
+    }
+  };
+
   if (!selectedUocId || selectedUocId === 'all') {
     return <div className="empty-state card"><h3>Seleccione una UoC</h3><p>El cumplimiento agrícola se administra por unidad de certificación.</p></div>;
   }
@@ -311,9 +355,58 @@ export default function PlantationCompliance() {
             <small>Lote: {plot.name} · Certificación: {plot.certificationStatus || 'Pendiente'}</small>
             <div className="nexo-plant-score"><strong>{score}%</strong><span>{critical} críticos</span></div>
             <div className="progress"><i style={{ width: `${score}%` }} /></div>
-            <button onClick={() => setTab('EVALUATION')}>Ver seguimiento →</button>
+            <div className="flex-between gap-2">
+              <button onClick={() => setTab('EVALUATION')}>Ver seguimiento →</button>
+              {canEdit && <button onClick={() => openKmlAnalysis(plot)}>📎 KML y suelo</button>}
+            </div>
           </article>;
         })}</section>}
+      {kmlPlot && <section className="card flex-col gap-4">
+        <div className="flex-between gap-4 flex-wrap">
+          <div>
+            <span className="text-xs font-bold uppercase text-secondary">Geometría y suelo</span>
+            <h2 className="text-xl font-bold">Polígono KML · {kmlPlot.farmName || kmlPlot.name}</h2>
+            <p className="text-sm text-secondary">El sistema calcula área, perímetro y ubicación, y prepara un diagnóstico preliminar con plan de muestreo.</p>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={() => setKmlPlot(null)}>Cerrar</button>
+        </div>
+        <form className="form-grid" onSubmit={analyzeKml}>
+          <div>
+            <label className="form-label">Archivo del polígono (.kml)</label>
+            <input required type="file" accept=".kml,application/vnd.google-earth.kml+xml" className="form-input"
+              onChange={event => setKmlFile(event.target.files?.[0] || null)} />
+          </div>
+          <div>
+            <label className="form-label">Observaciones conocidas del terreno (opcional)</label>
+            <textarea rows={3} className="form-input" value={fieldContext}
+              placeholder="Ej. zona con encharcamiento, pendiente, análisis previo, edad del cultivo..."
+              onChange={event => setFieldContext(event.target.value)} />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }} className="integration-note">
+            <strong>Alcance técnico:</strong> el KML no mide pH, nutrientes, textura ni fertilidad. El resultado es preliminar y define qué observaciones y análisis de laboratorio se requieren.
+          </div>
+          <button className="btn btn-primary" disabled={analyzingKml}>{analyzingKml ? 'Analizando…' : 'Analizar polígono y suelo'}</button>
+        </form>
+        {(soilStudies[kmlPlot.id] || []).map(studyRecord => <article key={studyRecord.id} className="card" style={{ background: 'var(--bg-secondary)' }}>
+          <div className="flex-between gap-3 flex-wrap">
+            <div><h3>{studyRecord.study.title}</h3><small>{studyRecord.originalFileName} · {String(studyRecord.createdAt).slice(0, 10)}</small></div>
+            <span className="badge">{studyRecord.analysisMode === 'AI' ? 'Asistido por IA' : 'Diagnóstico preliminar local'}</span>
+          </div>
+          <div className="stats-grid mt-3">
+            <div><small>Área KML</small><strong className="block">{Number(studyRecord.geometry.areaHa).toLocaleString('es-CO')} ha</strong></div>
+            <div><small>Perímetro</small><strong className="block">{Number(studyRecord.geometry.perimeterKm).toLocaleString('es-CO')} km</strong></div>
+            <div><small>Centroide</small><strong className="block">{studyRecord.geometry.centroid.latitude}, {studyRecord.geometry.centroid.longitude}</strong></div>
+          </div>
+          <p className="text-sm mt-3">{studyRecord.study.scope}</p>
+          <div className="form-grid mt-3">
+            <div><h4>Plan de muestreo</h4><ul>{studyRecord.study.samplingPlan.map((item: string) => <li key={item}>{item}</li>)}</ul></div>
+            <div><h4>Análisis de laboratorio requeridos</h4><ul>{studyRecord.study.laboratoryTests.map((item: string) => <li key={item}>{item}</li>)}</ul></div>
+            <div><h4>Verificaciones de campo</h4><ul>{studyRecord.study.fieldObservations.map((item: string) => <li key={item}>{item}</li>)}</ul></div>
+            <div><h4>Limitaciones</h4><ul>{studyRecord.study.limitations.map((item: string) => <li key={item}>{item}</li>)}</ul></div>
+          </div>
+          <p className="integration-note mt-3"><strong>Importante:</strong> {studyRecord.study.disclaimer}</p>
+        </article>)}
+      </section>}
     </div> : <div className="flex-col gap-5">
       <div className="flex-between gap-4 flex-wrap">
         <div><h2 className="text-xl font-bold">{current.icon} {current.title}</h2><p className="text-sm text-secondary">{current.description}</p></div>

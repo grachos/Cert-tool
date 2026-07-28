@@ -122,6 +122,25 @@ CREATE TABLE IF NOT EXISTS PlantationActivity (
   FOREIGN KEY (requirementId) REFERENCES Requirement(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS FarmPlotSoilStudy (
+  id VARCHAR(36) PRIMARY KEY,
+  uocId VARCHAR(36) NOT NULL,
+  farmPlotId VARCHAR(36) NOT NULL,
+  originalFileName VARCHAR(255) NOT NULL,
+  kmlText MEDIUMTEXT NOT NULL,
+  geometryJson LONGTEXT NOT NULL,
+  fieldContext TEXT NULL,
+  studyJson LONGTEXT NOT NULL,
+  analysisMode ENUM('AI','LOCAL') NOT NULL DEFAULT 'LOCAL',
+  model VARCHAR(100) NULL,
+  createdBy VARCHAR(36) NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_soil_study_plot (uocId, farmPlotId, createdAt),
+  FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE CASCADE,
+  FOREIGN KEY (farmPlotId) REFERENCES FarmPlot(id) ON DELETE CASCADE,
+  FOREIGN KEY (createdBy) REFERENCES User(id)
+);
+
 CREATE TABLE IF NOT EXISTS RffDelivery (
   id VARCHAR(36) PRIMARY KEY,
   uocId VARCHAR(36) NOT NULL,

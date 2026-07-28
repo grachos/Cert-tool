@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db';
 import { ScopedRequest } from '../middleware/uoc.middleware';
+import { buildAiSoilStudy, parseKmlGeometry } from '../kmlSoilAnalysis';
 
 const fail = (res: Response, status: number, error: string) => res.status(status).json({ error });
 const cleanNumber = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -97,6 +98,77 @@ export const updateFarmPlot = async (req: ScopedRequest, res: Response) => {
   if (!result.affectedRows) return fail(res, 404, 'Plantación no encontrada.');
   const [rows] = await db.query('SELECT * FROM FarmPlot WHERE id=? AND uocId=?', [req.params.id, req.uocId]);
   res.json((rows as any[])[0]);
+};
+
+const ensureSoilStudyTable = async () => {
+  await db.query(`CREATE TABLE IF NOT EXISTS FarmPlotSoilStudy (
+    id VARCHAR(36) PRIMARY KEY,
+    uocId VARCHAR(36) NOT NULL,
+    farmPlotId VARCHAR(36) NOT NULL,
+    originalFileName VARCHAR(255) NOT NULL,
+    kmlText MEDIUMTEXT NOT NULL,
+    geometryJson LONGTEXT NOT NULL,
+    fieldContext TEXT NULL,
+    studyJson LONGTEXT NOT NULL,
+    analysisMode ENUM('AI','LOCAL') NOT NULL DEFAULT 'LOCAL',
+    model VARCHAR(100) NULL,
+    createdBy VARCHAR(36) NOT NULL,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_soil_study_plot (uocId, farmPlotId, createdAt),
+    FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE CASCADE,
+    FOREIGN KEY (farmPlotId) REFERENCES FarmPlot(id) ON DELETE CASCADE,
+    FOREIGN KEY (createdBy) REFERENCES User(id)
+  )`);
+};
+
+export const listFarmPlotSoilStudies = async (req: ScopedRequest, res: Response) => {
+  await ensureSoilStudyTable();
+  const [plots] = await db.query('SELECT id FROM FarmPlot WHERE id=? AND uocId=?', [req.params.id, req.uocId]);
+  if (!(plots as any[]).length) return fail(res, 404, 'Plantación no encontrada.');
+  const [rows] = await db.query(
+    `SELECT id,farmPlotId,originalFileName,geometryJson,fieldContext,studyJson,analysisMode,model,createdAt
+     FROM FarmPlotSoilStudy WHERE farmPlotId=? AND uocId=? ORDER BY createdAt DESC`,
+    [req.params.id, req.uocId]
+  );
+  res.json((rows as any[]).map(row => ({
+    ...row,
+    geometry: typeof row.geometryJson === 'string' ? JSON.parse(row.geometryJson) : row.geometryJson,
+    study: typeof row.studyJson === 'string' ? JSON.parse(row.studyJson) : row.studyJson,
+    geometryJson: undefined,
+    studyJson: undefined
+  })));
+};
+
+export const analyzeFarmPlotKml = async (req: ScopedRequest, res: Response) => {
+  if (!req.file) return fail(res, 400, 'Seleccione un archivo KML.');
+  if (req.file.size > 5 * 1024 * 1024) return fail(res, 400, 'El archivo KML no puede superar 5 MB.');
+  const name = req.file.originalname || '';
+  if (!name.toLowerCase().endsWith('.kml')) return fail(res, 400, 'El archivo debe tener extensión .kml.');
+  const [plots] = await db.query('SELECT id FROM FarmPlot WHERE id=? AND uocId=?', [req.params.id, req.uocId]);
+  if (!(plots as any[]).length) return fail(res, 404, 'Plantación no encontrada.');
+  const kmlText = req.file.buffer.toString('utf8');
+  let geometry;
+  try {
+    geometry = parseKmlGeometry(kmlText);
+  } catch (error: any) {
+    return fail(res, 400, error.message || 'No fue posible interpretar el KML.');
+  }
+  const fieldContext = String(req.body.fieldContext || '').trim().slice(0, 4000);
+  const analysis = await buildAiSoilStudy(geometry, fieldContext);
+  await ensureSoilStudyTable();
+  const id = uuidv4();
+  await db.query(
+    `INSERT INTO FarmPlotSoilStudy
+      (id,uocId,farmPlotId,originalFileName,kmlText,geometryJson,fieldContext,studyJson,analysisMode,model,createdBy)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, req.uocId, req.params.id, name.slice(0, 255), kmlText, JSON.stringify(geometry),
+      fieldContext || null, JSON.stringify(analysis.study), analysis.mode, analysis.model, req.user!.id]
+  );
+  await db.query('UPDATE FarmPlot SET polygonReference=? WHERE id=? AND uocId=?', [`KML:${id}`, req.params.id, req.uocId]);
+  res.status(201).json({
+    id, farmPlotId: req.params.id, originalFileName: name, geometry, study: analysis.study,
+    analysisMode: analysis.mode, model: analysis.model, createdAt: new Date().toISOString()
+  });
 };
 
 export const listPlantationActivities = async (req: ScopedRequest, res: Response) => {
