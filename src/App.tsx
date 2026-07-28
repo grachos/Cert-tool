@@ -89,7 +89,7 @@ function AppContent() {
           onToggleSidebar={() => setMobileMenuOpen(!mobileMenuOpen)}
           onNavigateNotifications={() => setActiveModule('alerts')}
         />
-        <div className="page-content">
+        <div className={`page-content module-${activeModule}`}>
           {activeModule === 'dashboard' && <Dashboard onNavigate={setActiveModule} />}
           {activeModule === 'compliance' && <Compliance />}
           {activeModule === 'documents' && <Documents />}

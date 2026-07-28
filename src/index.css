@@ -624,6 +624,225 @@ body { background: #f5f4ed; color: #183129; }
   .sidebar { padding: 0 8px; }
 }
 
+/* NexoPalma module design system — visual only, functionality stays intact */
+.page-content[class*="module-"] > .flex-col {
+  gap: 1.15rem;
+}
+.page-content[class*="module-"] .card {
+  border: 1px solid #e4e7de;
+  border-radius: 12px;
+  box-shadow: 0 4px 18px #2346320a;
+}
+.page-content[class*="module-"] .card:hover {
+  transform: none;
+  box-shadow: 0 5px 20px #23463210;
+}
+.page-content[class*="module-"] .stats-grid {
+  gap: 0;
+  background: #fffdfa;
+  border: 1px solid #e4e7de;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.page-content[class*="module-"] .stats-grid > .card {
+  border: 0;
+  border-right: 1px solid #e4e7de;
+  border-radius: 0;
+  box-shadow: none;
+  min-height: 105px;
+}
+.page-content[class*="module-"] .stats-grid > .card:last-child {
+  border-right: 0;
+}
+.page-content[class*="module-"] .stat-value-lg,
+.page-content[class*="module-"] .text-3xl {
+  font-family: Georgia, serif;
+  font-weight: 500;
+}
+.page-content[class*="module-"] table {
+  border-collapse: collapse;
+  min-width: 680px;
+}
+.page-content[class*="module-"] table thead {
+  background: #f1f3ed;
+}
+.page-content[class*="module-"] table th {
+  color: #718078;
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+  padding: .8rem .9rem;
+}
+.page-content[class*="module-"] table td {
+  color: #31483e;
+  font-size: .76rem;
+  padding: .82rem .9rem;
+}
+.page-content[class*="module-"] table tbody tr {
+  border-top: 1px solid #e4e7de;
+  transition: background .15s ease;
+}
+.page-content[class*="module-"] table tbody tr:hover {
+  background: #f7f8f3;
+}
+.page-content[class*="module-"] .form-grid {
+  padding: 1.15rem;
+  background: #fffdfa;
+  border-radius: 12px;
+  gap: .85rem;
+}
+.page-content[class*="module-"] .form-label {
+  color: #53665c;
+  font-size: .7rem;
+  font-weight: 700;
+  margin-bottom: .35rem;
+}
+.page-content[class*="module-"] .form-input,
+.page-content[class*="module-"] .form-select,
+.page-content[class*="module-"] .form-textarea {
+  min-height: 40px;
+  border: 1px solid #dfe4db;
+  border-radius: 8px;
+  background: #fffefa;
+  color: #183129;
+  font-size: .78rem;
+  box-shadow: none;
+}
+.page-content[class*="module-"] textarea.form-input {
+  min-height: 88px;
+}
+.page-content[class*="module-"] .form-input:focus,
+.page-content[class*="module-"] .form-select:focus,
+.page-content[class*="module-"] .form-textarea:focus {
+  border-color: #78a18a;
+  box-shadow: 0 0 0 3px #2f7b5515;
+}
+.page-content[class*="module-"] .btn {
+  border-radius: 7px;
+  font-size: .75rem;
+  font-weight: 700;
+  box-shadow: none;
+}
+.page-content[class*="module-"] .btn-secondary,
+.page-content[class*="module-"] .btn-ghost {
+  background: #fffdfa;
+  border-color: #e0e4dc;
+  color: #53665c;
+}
+.page-content[class*="module-"] .btn-secondary:hover,
+.page-content[class*="module-"] .btn-ghost:hover {
+  background: #eef2ea;
+  color: #123e2b;
+}
+.page-content[class*="module-"] .badge {
+  border-radius: 20px;
+  padding: .28rem .55rem;
+  font-size: .63rem;
+  font-weight: 750;
+}
+.page-content[class*="module-"] .empty-state {
+  min-height: 190px;
+  background: #fffdfa;
+  border: 1px dashed #ccd5c8;
+}
+.page-content[class*="module-"] .empty-state h3 {
+  color: #264b3b;
+  font: 500 1.1rem Georgia, serif;
+}
+.page-content[class*="module-"] .empty-state p {
+  color: #718078;
+  max-width: 520px;
+}
+.page-content[class*="module-"] .integration-note {
+  background: #f4eddb;
+  border: 0;
+  border-left: 3px solid #d59b31;
+  color: #6b5528;
+  border-radius: 8px;
+  font-size: .75rem;
+}
+.page-content[class*="module-"] .modal-overlay {
+  background: #18312966;
+  backdrop-filter: blur(3px);
+}
+.page-content[class*="module-"] .modal {
+  background: #fffdfa;
+  border: 1px solid #e4e7de;
+  border-radius: 14px;
+  box-shadow: 0 24px 70px #1831293d;
+}
+
+/* Compact Nexopalma-style tab bars already used by several legacy modules */
+.page-content[class*="module-"] .flex.gap-1.flex-wrap {
+  gap: 6px;
+  padding: 6px;
+  background: #e9ece5;
+  border-radius: 10px;
+}
+.page-content[class*="module-"] .flex.gap-1.flex-wrap > .btn {
+  border: 0;
+  background: transparent;
+}
+.page-content[class*="module-"] .flex.gap-1.flex-wrap > .btn-primary {
+  background: #fffdfa;
+  color: #123e2b;
+  box-shadow: 0 2px 9px #173e2b18;
+}
+
+/* Module-specific accents from the supplied NexoPalma package */
+.module-supply .card:first-child,
+.module-traceability .traceability-summary,
+.module-prisma .prisma-hero,
+.module-scc .scc-hero {
+  background: #fffdfa;
+  border: 1px solid #e4e7de;
+}
+.module-findings .kanban-column,
+.module-actionPlans .kanban-column,
+.module-automation .kanban-column {
+  background: #ebece6;
+  border: 0;
+  border-radius: 10px;
+}
+.module-findings .kanban-card,
+.module-actionPlans .kanban-card,
+.module-automation .kanban-card {
+  background: #fffdfa;
+  border: 1px solid #e4e7de;
+  border-radius: 9px;
+  box-shadow: none;
+}
+.module-compliance .progress,
+.module-plant .progress,
+.module-plantations .progress,
+.module-scc .progress {
+  background: #e8eae4;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.module-compliance .progress > *,
+.module-plant .progress > *,
+.module-plantations .progress > *,
+.module-scc .progress > * {
+  background: #76a43b;
+}
+
+@media (max-width: 900px) {
+  .page-content[class*="module-"] .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .page-content[class*="module-"] .stats-grid > .card {
+    border-bottom: 1px solid #e4e7de;
+  }
+}
+@media (max-width: 640px) {
+  .page-content[class*="module-"] .stats-grid { grid-template-columns: 1fr; }
+  .page-content[class*="module-"] .stats-grid > .card { border-right: 0; }
+  .page-content[class*="module-"] .form-grid { grid-template-columns: 1fr; }
+}
+
 .module-access-grid,
 .prepared-grid {
   display: grid;
