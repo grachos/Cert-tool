@@ -476,7 +476,7 @@ export default function Compliance() {
                   <p className="text-sm text-secondary mt-1">{standardDetail.fullName}</p>
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap compliance-actions">
                   {isAdmin && (
                     <button className="btn btn-secondary no-print" onClick={openAddReqModal}>
                       ➕ {language === 'es' ? 'Añadir Requisito' : 'Add Requirement'}

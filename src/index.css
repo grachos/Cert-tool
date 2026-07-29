@@ -1399,7 +1399,8 @@ table tbody tr { border-top: 1px solid var(--border-light); }
 .nexo-lower-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; }.nexo-panel-head { margin-bottom: 10px; }.nexo-panel-head h3 { margin: 4px 0 0; font-size: 1.15rem; }.nexo-action-row { display: flex; align-items: center; gap: 13px; min-height: 68px; padding: 13px 0; border-top: 1px solid #e4e7de; }.nexo-action-row > i { width: 3px; height: 42px; flex: none; border-radius: 4px; }.nexo-action-row > i.red{background:#c95242}.nexo-action-row > i.amber{background:#d59b31}.nexo-action-row > div{flex:1;min-width:0}.nexo-action-row small{display:block;color:#c95242;font-size:.62rem;font-weight:800}.nexo-action-row strong{display:block;margin:4px 0;font-size:.78rem}.nexo-action-row span{display:block;overflow:hidden;color:#8a948e;font-size:.66rem;text-overflow:ellipsis;white-space:nowrap}.nexo-action-row button{border:0;color:#2f7b55;background:transparent;cursor:pointer}
 .nexo-empty { padding: 30px 0; border-top: 1px solid #e4e7de; color: #718078; text-align: center; font-size: .8rem; }.nexo-bar { margin: 18px 0; }.nexo-bar > div:first-child { display: flex; justify-content: space-between; margin-bottom: 7px; font-size: .78rem; }.nexo-tip { display:flex;align-items:center;gap:10px;margin-top:20px;padding:12px;border-radius:8px;background:#eef3e9}.nexo-tip>span{color:#d59b31;font-size:1.1rem}.nexo-tip p{flex:1;margin:0;color:#718078;font-size:.68rem;line-height:1.5}.nexo-tip strong{display:block;color:#183129}.nexo-tip button{border:0;color:#2f7b55;background:transparent;font-size:.7rem;font-weight:800;cursor:pointer}
 @media(max-width:1000px){.nexo-hero-grid,.nexo-lower-grid{grid-template-columns:1fr}.nexo-metrics{grid-template-columns:repeat(2,1fr)}.nexo-metrics>div:nth-child(2){border-right:0}}
-@media(max-width:650px){.nexo-cover{min-height:260px;aspect-ratio:1.35/1}.nexo-cover-badge{left:12px;right:12px;bottom:12px}.nexo-harvest{display:none}.nexo-cert-body{align-items:flex-start;gap:16px}.nexo-ring{width:108px;height:108px}.nexo-ring strong{font-size:1.55rem}.nexo-metrics{grid-template-columns:1fr}.nexo-metrics>div{border-right:0;border-bottom:1px solid #e4e7de}.nexo-welcome h1{font-size:1.8rem}}
+@media(max-width:1000px){.nexo-cover{width:100%;aspect-ratio:auto}}
+@media(max-width:650px){.nexo-cover{min-height:260px;aspect-ratio:auto}.nexo-cover-badge{left:12px;right:12px;bottom:12px}.nexo-harvest{display:none}.nexo-cert-body{align-items:flex-start;gap:16px}.nexo-ring{width:108px;height:108px}.nexo-ring strong{font-size:1.55rem}.nexo-metrics{grid-template-columns:1fr}.nexo-metrics>div{border-right:0;border-bottom:1px solid #e4e7de}.nexo-welcome h1{font-size:1.8rem}}
 
 /* Identidad premium heredada del paquete original de Nexopalma */
 body, button, input, select, textarea { font-family: var(--font-ui); }
@@ -1483,9 +1484,32 @@ body { background: radial-gradient(circle at 75% 0,#e8eee2 0,transparent 30%),#f
 .nexo-ring strong,.nexo-metrics strong { font-family:var(--font-display); font-weight:400; }
 .nexo-metric-icon { border-radius:11px; }
 @media(max-width:650px){
-  .nexo-cover{min-height:330px;aspect-ratio:1.25/1;border-radius:17px}
+  .nexo-cover{width:100%;min-height:330px;aspect-ratio:auto;border-radius:17px}
   .nexo-cover img{object-position:62% center}
   .nexo-cover-copy{left:22px;right:22px;bottom:24px;width:auto}
   .nexo-cover-copy h2{font-size:1.75rem}
   .nexo-cover-copy p{font-size:.66rem}
+}
+
+/* Responsive hardening across operational modules */
+@media (max-width: 720px) {
+  .page-content { min-width: 0; overflow-x: hidden; }
+  .page-content > *,
+  .page-content .card,
+  .page-content .flex-col,
+  .page-content .grid { min-width: 0; max-width: 100%; }
+  .page-content .flex-between { flex-wrap: wrap; gap: .75rem; }
+  .page-content .compliance-actions { width: 100%; }
+  .page-content .compliance-actions .btn { flex: 1 1 145px; white-space: normal; }
+  .table-responsive,
+  .overflow-x-auto {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal-overlay { padding: .75rem; align-items: flex-start; overflow-y: auto; }
+  .modal { width: 100%; max-width: 100%; max-height: calc(100dvh - 1.5rem); overflow-y: auto; }
+  .form-grid { grid-template-columns: minmax(0, 1fr); }
+  input, select, textarea, button { max-width: 100%; }
 }
