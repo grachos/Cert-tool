@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { useThemeLanguage } from './ThemeLanguageContext';
 
@@ -59,10 +59,19 @@ const managementItems: NavItem[] = [
 export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleCollapse, mobileOpen, onCloseMobile }: SidebarProps) {
   const { user, logout } = useAuth();
   const { t } = useThemeLanguage();
+  const [isMobileWindow, setIsMobileWindow] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
 
-  // On mobile the drawer must always render expanded (with labels);
-  // the desktop "collapsed" (icons-only) state makes no sense there.
-  const effectiveCollapsed = collapsed && !mobileOpen;
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileWindow(window.innerWidth < 1024);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // On mobile drawer (isMobileWindow && mobileOpen = true), render full 280px menu with labels.
+  // On desktop (viewport >= 1024px), strictly follow desktop collapsed state.
+  const effectiveCollapsed = (isMobileWindow && mobileOpen) ? false : collapsed;
   const itemLabel = (item: NavItem) => item.labelKey.startsWith('nav.') ? t(item.labelKey as any) : item.labelKey;
 
   return (
@@ -82,9 +91,9 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
           </>
         ) : (
           <div className="flex items-center justify-center w-full">
-            <button className="btn-icon sidebar-collapse-btn" onClick={onToggleCollapse} title="Restaurar menú">
+            <button className="btn-icon sidebar-collapse-btn" onClick={onToggleCollapse} title="Expandir menú">
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px' }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
               </svg>
             </button>
           </div>

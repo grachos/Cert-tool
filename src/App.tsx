@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './modules/Dashboard';
@@ -27,6 +27,7 @@ import { AuthProvider, useAuth } from './components/AuthContext';
 import { ThemeLanguageProvider, useThemeLanguage } from './components/ThemeLanguageContext';
 import { UocProvider } from './components/UoCContext';
 import QuickSearch from './components/QuickSearch';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations' | 'traceability' | 'prisma' | 'actionPlans' | 'findings';
 
@@ -37,6 +38,16 @@ function AppContent() {
   const { toasts, removeToast } = useToast();
   const { user, loading } = useAuth();
   const { t } = useThemeLanguage();
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   if (loading) {
     return <div className="flex-center min-h-screen">Cargando...</div>;
@@ -90,25 +101,27 @@ function AppContent() {
           onNavigateNotifications={() => setActiveModule('alerts')}
         />
         <div className={`page-content module-${activeModule}`}>
-          {activeModule === 'dashboard' && <Dashboard onNavigate={setActiveModule} />}
-          {activeModule === 'compliance' && <Compliance />}
-          {activeModule === 'documents' && <Documents />}
-          {activeModule === 'evidence' && <Evidence />}
-          {activeModule === 'automation' && <Automation />}
-          {activeModule === 'risks' && <Risks />}
-          {activeModule === 'audits' && <Audits />}
-          {activeModule === 'users' && <Users />}
-          {activeModule === 'scc' && <Scc />}
-          {activeModule === 'stakeholders' && <Stakeholders />}
-          {activeModule === 'alerts' && <Alerts />}
-          {activeModule === 'plant' && <PlantExtractora onNavigate={setActiveModule} />}
-          {activeModule === 'ghg' && <GhgCalculator />}
-          {activeModule === 'supply' && <SupplyBase />}
-          {activeModule === 'plantations' && <PlantationCompliance />}
-          {activeModule === 'traceability' && <Traceability />}
-          {activeModule === 'prisma' && <Prisma />}
-          {activeModule === 'actionPlans' && <ActionPlans />}
-          {activeModule === 'findings' && <Findings onNavigate={setActiveModule} />}
+          <ErrorBoundary key={activeModule}>
+            {activeModule === 'dashboard' && <Dashboard onNavigate={setActiveModule} />}
+            {activeModule === 'compliance' && <Compliance />}
+            {activeModule === 'documents' && <Documents />}
+            {activeModule === 'evidence' && <Evidence />}
+            {activeModule === 'automation' && <Automation />}
+            {activeModule === 'risks' && <Risks />}
+            {activeModule === 'audits' && <Audits />}
+            {activeModule === 'users' && <Users />}
+            {activeModule === 'scc' && <Scc />}
+            {activeModule === 'stakeholders' && <Stakeholders />}
+            {activeModule === 'alerts' && <Alerts />}
+            {activeModule === 'plant' && <PlantExtractora onNavigate={setActiveModule} />}
+            {activeModule === 'ghg' && <GhgCalculator />}
+            {activeModule === 'supply' && <SupplyBase />}
+            {activeModule === 'plantations' && <PlantationCompliance />}
+            {activeModule === 'traceability' && <Traceability />}
+            {activeModule === 'prisma' && <Prisma />}
+            {activeModule === 'actionPlans' && <ActionPlans />}
+            {activeModule === 'findings' && <Findings onNavigate={setActiveModule} />}
+          </ErrorBoundary>
         </div>
       </div>
       <div className="toast-container">

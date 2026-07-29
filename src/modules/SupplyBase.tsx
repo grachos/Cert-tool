@@ -26,16 +26,21 @@ export default function SupplyBase() {
   const load = () => {
     if (!selectedUocId || selectedUocId === 'all') { setRows([]); return; }
     setLoading(true);
-    api.get('/rspo/supply-sources', { params: { uocId: selectedUocId } }).then(({data}) => setRows(data)).catch(e => setError(e.response?.data?.error || 'No fue posible cargar la base de suministro.')).finally(() => setLoading(false));
+    api.get('/rspo/supply-sources', { params: { uocId: selectedUocId } })
+      .then(({data}) => setRows(Array.isArray(data) ? data : []))
+      .catch(e => { setRows([]); setError(e.response?.data?.error || 'No fue posible cargar la base de suministro.'); })
+      .finally(() => setLoading(false));
   };
   useEffect(load, [selectedUocId]);
 
+  const safeRows = Array.isArray(rows) ? rows : [];
+
   const stats = useMemo(() => ({
-    area: rows.reduce((sum, row) => sum + Number(row.totalArea || 0), 0),
-    certified: rows.reduce((sum, row) => sum + Number(row.certifiedArea || 0), 0),
-    eligible: rows.filter(row => row.eligibilityStatus === 'ELIGIBLE').length,
-    highRisk: rows.filter(row => ['HIGH','CRITICAL'].includes(row.riskLevel)).length
-  }), [rows]);
+    area: safeRows.reduce((sum, row) => sum + Number(row.totalArea || 0), 0),
+    certified: safeRows.reduce((sum, row) => sum + Number(row.certifiedArea || 0), 0),
+    eligible: safeRows.filter(row => row.eligibilityStatus === 'ELIGIBLE').length,
+    highRisk: safeRows.filter(row => ['HIGH','CRITICAL'].includes(row.riskLevel)).length
+  }), [safeRows]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setError('');

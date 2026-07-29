@@ -72,9 +72,10 @@ export default function Compliance() {
     try {
       setIsLoading(true);
       const res = await api.get('/compliance/standards');
-      setComplianceStatuses(res.data);
+      setComplianceStatuses(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       console.error('Error al obtener cumplimiento', error);
+      setComplianceStatuses([]);
     } finally {
       setIsLoading(false);
     }
@@ -84,9 +85,18 @@ export default function Compliance() {
     try {
       setIsDetailLoading(true);
       const res = await api.get(`/compliance/standards/${id}`);
-      setStandardDetail(res.data);
+      const data = res.data;
+      if (data && typeof data === 'object') {
+        setStandardDetail({
+          ...data,
+          requirements: Array.isArray(data.requirements) ? data.requirements : []
+        });
+      } else {
+        setStandardDetail(null);
+      }
     } catch (error) {
       console.error('Error al obtener detalles del estándar', error);
+      setStandardDetail(null);
     } finally {
       setIsDetailLoading(false);
     }
@@ -105,7 +115,7 @@ export default function Compliance() {
   }, [selectedStandard]);
 
   const openEditStdModal = () => {
-    const std = complianceStatuses.find(s => s.standardId === selectedStandard);
+    const std = (Array.isArray(complianceStatuses) ? complianceStatuses : []).find(s => s.standardId === selectedStandard);
     if (std) {
       setStdName(std.name);
       setStdFullName(std.fullName);
@@ -231,7 +241,7 @@ export default function Compliance() {
 
   const renderRspoDetail = () => {
     if (!standardDetail) return null;
-    const reqs = standardDetail.requirements;
+    const reqs = Array.isArray(standardDetail.requirements) ? standardDetail.requirements : [];
     const grouped: Record<string, Requirement[]> = {};
     reqs.forEach(r => {
       const p = r.clause.split('.')[0];
@@ -401,7 +411,7 @@ export default function Compliance() {
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {complianceStatuses.map((status) => {
+          {(Array.isArray(complianceStatuses) ? complianceStatuses : []).map((status) => {
             return (
               <div 
                 key={status.standardId} 
@@ -502,7 +512,7 @@ export default function Compliance() {
                   </tr>
                 </thead>
                 <tbody>
-                  {standardDetail.requirements.map(req => (
+                  {(Array.isArray(standardDetail.requirements) ? standardDetail.requirements : []).map(req => (
                     <tr key={req.id} className="border-b border-gray-100 hover:bg-surface-1 transition-colors">
                       <td className="p-4 font-mono text-sm text-secondary">{req.clause}</td>
                       <td className="p-4">
@@ -700,7 +710,7 @@ export default function Compliance() {
       )}
 
       {showAutoEvaluation && standardDetail && (() => {
-        const requirements = standardDetail.requirements;
+        const requirements = Array.isArray(standardDetail.requirements) ? standardDetail.requirements : [];
         const compliant = requirements.filter(req => req.status === 'COMPLIANT').length;
         const partial = requirements.filter(req => req.status === 'PARTIAL').length;
         const nonCompliant = requirements.filter(req => req.status === 'NON_COMPLIANT').length;

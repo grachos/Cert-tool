@@ -46,8 +46,8 @@ export default function Scc() {
         api.get('/scc/transactions', { params: { uocId: selectedUocFilter || undefined, type: filterType || undefined } })
       ]);
       setDashboard(d.data);
-      setTransactions(t.data);
-    } catch (e) { /* */ }
+      setTransactions(Array.isArray(t.data) ? t.data : []);
+    } catch (e) { setTransactions([]); }
     setLoading(false);
   };
   useEffect(() => { fetchAll(); }, [selectedUocFilter, filterType]);

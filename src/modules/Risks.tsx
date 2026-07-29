@@ -24,11 +24,14 @@ export default function Risks() {
       api.get('/risks'),
       api.get('/compliance/standards')
     ]).then(([risksRes, complianceRes]) => {
-      setRisks(risksRes.data);
-      const activeIds = (complianceRes.data as any[]).map(s => s.standardId || s.id);
+      setRisks(Array.isArray(risksRes.data) ? risksRes.data : []);
+      const activeIds = Array.isArray(complianceRes.data) ? (complianceRes.data as any[]).map(s => s.standardId || s.id) : [];
       setActiveStandards(standards.filter(std => activeIds.includes(std.id)));
       setIsLoading(false);
-    }).catch(() => setIsLoading(false));
+    }).catch(() => {
+      setRisks([]);
+      setIsLoading(false);
+    });
   };
 
   useEffect(() => { load(); }, []);
@@ -53,9 +56,10 @@ export default function Risks() {
     }
   };
 
+  const safeRisks = Array.isArray(risks) ? risks : [];
   const filteredRisks = filter === 'Todos' 
-    ? risks 
-    : risks.filter(r => r.standardId === filter);
+    ? safeRisks 
+    : safeRisks.filter(r => r.standardId === filter);
 
   if (isLoading) {
     return <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('risks.loading')}</div>;

@@ -165,24 +165,32 @@ export default function PlantationCompliance() {
       api.get('/rspo/plantation-activities', { params }),
       api.get('/rspo/supply-sources', { params })
     ]).then(([plotRes, activityRes, sourceRes]) => {
-      setPlots(plotRes.data);
-      setActivities(activityRes.data);
-      setSources(sourceRes.data);
-    }).catch(e => setError(e.response?.data?.error || 'No fue posible cargar el cumplimiento agrícola.'));
+      setPlots(Array.isArray(plotRes.data) ? plotRes.data : []);
+      setActivities(Array.isArray(activityRes.data) ? activityRes.data : []);
+      setSources(Array.isArray(sourceRes.data) ? sourceRes.data : []);
+    }).catch(e => {
+      setPlots([]);
+      setActivities([]);
+      setSources([]);
+      setError(e.response?.data?.error || 'No fue posible cargar el cumplimiento agrícola.');
+    });
   };
 
   useEffect(load, [selectedUocId]);
 
+  const safePlots = Array.isArray(plots) ? plots : [];
+  const safeActivities = Array.isArray(activities) ? activities : [];
+
   const filtered = useMemo(
-    () => tab === 'overview' ? [] : activities.filter(activity => activity.category === tab),
-    [tab, activities]
+    () => tab === 'overview' ? [] : safeActivities.filter(activity => activity.category === tab),
+    [tab, safeActivities]
   );
 
-  const averageCompliance = plots.length
-    ? Math.round(plots.reduce((sum, plot) => sum + Number(plot.compliance || 0), 0) / plots.length)
+  const averageCompliance = safePlots.length
+    ? Math.round(safePlots.reduce((sum, plot) => sum + Number(plot.compliance || 0), 0) / safePlots.length)
     : 0;
-  const totalArea = plots.reduce((sum, plot) => sum + Number(plot.area || 0), 0);
-  const openCritical = activities.filter(activity =>
+  const totalArea = safePlots.reduce((sum, plot) => sum + Number(plot.area || 0), 0);
+  const openCritical = safeActivities.filter(activity =>
     activity.isCritical && !['COMPLIANT', 'COMPLETED'].includes(activity.status)
   ).length;
 

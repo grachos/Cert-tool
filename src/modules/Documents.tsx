@@ -41,9 +41,11 @@ export default function Documents() {
   const fetchDocuments = async () => {
     try {
       const res = await api.get('/documents');
-      setDocuments(res.data);
-      return res.data;
+      const safeDocs = Array.isArray(res.data) ? res.data : [];
+      setDocuments(safeDocs);
+      return safeDocs;
     } catch (error) {
+      setDocuments([]);
       console.error('Error al obtener documentos', error);
       return [];
     }
@@ -55,8 +57,8 @@ export default function Documents() {
       api.get('/documents'),
       api.get('/compliance/standards')
     ]).then(([docsRes, complianceRes]) => {
-      setDocuments(docsRes.data);
-      const activeIds = (complianceRes.data as any[]).map(s => s.standardId || s.id);
+      setDocuments(Array.isArray(docsRes.data) ? docsRes.data : []);
+      const activeIds = Array.isArray(complianceRes.data) ? (complianceRes.data as any[]).map(s => s.standardId || s.id) : [];
       const filtered = standards.filter(std => activeIds.includes(std.id));
       setActiveStandards(filtered);
       

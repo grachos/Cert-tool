@@ -56,8 +56,8 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           api.get('/compliance/standards')
         ]);
         setStats(statsRes.data);
-        setActivities(activitiesRes.data);
-        setComplianceStatuses(complianceRes.data);
+        setActivities(Array.isArray(activitiesRes.data) ? activitiesRes.data : []);
+        setComplianceStatuses(Array.isArray(complianceRes.data) ? complianceRes.data : []);
       } catch (error) {
         console.error('Error al cargar datos del dashboard', error);
       } finally {
@@ -68,7 +68,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   }, [selectedUocId]);
 
   const rspo = useMemo(
-    () => complianceStatuses.find((status) => status.standardId.toUpperCase().includes('RSPO')),
+    () => (Array.isArray(complianceStatuses) ? complianceStatuses.find((status) => status.standardId?.toUpperCase().includes('RSPO')) : undefined),
     [complianceStatuses]
   );
   const score = clamp(
@@ -83,7 +83,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const scopeName = selectedUocId === 'all'
     ? `${uocs.length} unidades de certificación`
     : selectedUoc?.name || 'Unidad de certificación';
-  const priorityActivities = activities.slice(0, 3);
+  const priorityActivities = (Array.isArray(activities) ? activities : []).slice(0, 3);
 
   if (isLoading) {
     return <div className="nexo-loading">Preparando su resumen…</div>;

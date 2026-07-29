@@ -57,8 +57,9 @@ export default function Automation() {
   const fetchPlans = async () => {
     try {
       const res = await api.get('/automation');
-      setPlans(res.data);
+      setPlans(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
+      setPlans([]);
       console.error(err);
     }
   };
@@ -71,12 +72,12 @@ export default function Automation() {
       api.get('/risks'),
       api.get('/compliance/standards')
     ]).then(([autoRes, usersRes, findingsRes, risksRes, standardsRes]) => {
-      setPlans(autoRes.data);
-      setUsers(usersRes.data);
-      setFindings(findingsRes.data.filter((f: any) => f.status !== 'CLOSED'));
-      setRisks(risksRes.data);
+      setPlans(Array.isArray(autoRes.data) ? autoRes.data : []);
+      setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+      setFindings(Array.isArray(findingsRes.data) ? findingsRes.data.filter((f: any) => f?.status !== 'CLOSED') : []);
+      setRisks(Array.isArray(risksRes.data) ? risksRes.data : []);
       
-      const activeIds = (standardsRes.data as any[]).map(s => s.standardId || s.id);
+      const activeIds = Array.isArray(standardsRes.data) ? (standardsRes.data as any[]).map(s => s.standardId || s.id) : [];
       const filtered = standards.filter(std => activeIds.includes(std.id));
       setActiveStandards(filtered);
       

@@ -36,9 +36,11 @@ export default function Evidence() {
   const fetchEvidence = async () => {
     try {
       const res = await api.get('/evidence');
-      setEvidence(res.data);
-      return res.data;
+      const safeData = Array.isArray(res.data) ? res.data : [];
+      setEvidence(safeData);
+      return safeData;
     } catch (error) {
+      setEvidence([]);
       console.error('Error al obtener evidencias', error);
       return [];
     }
@@ -50,10 +52,10 @@ export default function Evidence() {
       api.get('/evidence'),
       api.get('/compliance/standards')
     ]).then(([evidenceRes, complianceRes]) => {
-      setEvidence(evidenceRes.data);
-      const activeIds = (complianceRes.data as any[])
-        .map(s => s.standardId || s.id)
-        .filter(id => id === 'RSPO');
+      setEvidence(Array.isArray(evidenceRes.data) ? evidenceRes.data : []);
+      const activeIds = Array.isArray(complianceRes.data)
+        ? (complianceRes.data as any[]).map(s => s.standardId || s.id).filter(id => id === 'RSPO')
+        : [];
       const filtered = standards.filter(std => activeIds.includes(std.id));
       setActiveStandards(filtered);
       
@@ -69,7 +71,7 @@ export default function Evidence() {
   useEffect(() => {
     if (!selectedUocId || selectedUocId === 'all') { setSources([]); setPlots([]); return; }
     Promise.all([api.get('/rspo/supply-sources'), api.get('/rspo/farm-plots')])
-      .then(([s, p]) => { setSources(s.data); setPlots(p.data); })
+      .then(([s, p]) => { setSources(Array.isArray(s.data) ? s.data : []); setPlots(Array.isArray(p.data) ? p.data : []); })
       .catch(() => { setSources([]); setPlots([]); });
   }, [selectedUocId]);
 

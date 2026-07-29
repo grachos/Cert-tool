@@ -67,7 +67,7 @@ const upload = multer({
 app.use(helmet({
   crossOriginResourcePolicy: false
 }));
-const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173').split(',').map(v => v.trim());
+const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:8080,http://localhost:5173,http://localhost:3000').split(',').map(v => v.trim());
 app.use(cors({ origin: corsOrigins, credentials: true }));
 app.use(express.json());
 

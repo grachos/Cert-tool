@@ -18,7 +18,7 @@ export default function Alerts() {
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<string>('all');
 
-  const fetch = async () => { try { setLoading(true); const { data } = await api.get('/alerts'); setAlerts(data); } catch (e) { /* */ } setLoading(false); };
+  const fetch = async () => { try { setLoading(true); const { data } = await api.get('/alerts'); setAlerts(Array.isArray(data) ? data : []); } catch (e) { setAlerts([]); } setLoading(false); };
   useEffect(() => { fetch(); }, []);
 
   const handleDismiss = async (id: string) => { try { await api.put(`/alerts/${id}/dismiss`); fetch(); } catch (e) { alert(language === 'es' ? 'Error al descartar' : 'Error dismissing alert'); } };
@@ -29,8 +29,9 @@ export default function Alerts() {
     try { await api.post('/alerts', data); setShowForm(false); fetch(); } catch (err) { alert(language === 'es' ? 'Error al crear' : 'Error creating alert'); }
   };
 
-  const filtered = filter === 'all' ? alerts : alerts.filter(a => a.type === filter);
-  const active = alerts.filter(a => a.type === 'critico' || a.type === 'alta').length;
+  const safeAlerts = Array.isArray(alerts) ? alerts : [];
+  const filtered = filter === 'all' ? safeAlerts : safeAlerts.filter(a => a.type === filter);
+  const active = safeAlerts.filter(a => a.type === 'critico' || a.type === 'alta').length;
 
   if (loading) return <div className="text-center text-muted" style={{ padding: '3rem' }}>{language === 'es' ? 'Cargando alertas...' : 'Loading alerts...'}</div>;
 
@@ -38,9 +39,9 @@ export default function Alerts() {
     <div className="flex-col gap-6 animate-fade-in">
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
         <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">{t('alerts.active')}</div><div className="flex justify-between items-end mt-3"><span className="text-3xl font-bold text-primary">{active}</span><span className="text-sm text-muted">{language === 'es' ? 'Críticas + Altas' : 'Critical + High'}</span></div></div>
-        <div className="card"><div className="text-sm font-medium uppercase tracking-wide" style={{ color: 'var(--accent-red)' }}>{t('alerts.critical')}</div><div className="flex justify-between items-end mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-red)' }}>{alerts.filter(a => a.type === 'critico').length}</span><span className="text-sm text-muted">{t('alerts.immediateAction')}</span></div></div>
-        <div className="card"><div className="text-sm font-medium uppercase tracking-wide" style={{ color: 'var(--accent-gold)' }}>{t('alerts.high')}</div><div className="flex justify-between items-end mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-gold)' }}>{alerts.filter(a => a.type === 'alta').length}</span><span className="text-sm text-muted">{t('alerts.promptAttention')}</span></div></div>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">{t('alerts.pending')}</div><div className="flex justify-between items-end mt-3"><span className="text-3xl font-bold text-primary">{alerts.filter(a => a.dismissed === 0).length}</span><span className="text-sm text-muted">{t('alerts.notDismissed')}</span></div></div>
+        <div className="card"><div className="text-sm font-medium uppercase tracking-wide" style={{ color: 'var(--accent-red)' }}>{t('alerts.critical')}</div><div className="flex justify-between items-end mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-red)' }}>{safeAlerts.filter(a => a.type === 'critico').length}</span><span className="text-sm text-muted">{t('alerts.immediateAction')}</span></div></div>
+        <div className="card"><div className="text-sm font-medium uppercase tracking-wide" style={{ color: 'var(--accent-gold)' }}>{t('alerts.high')}</div><div className="flex justify-between items-end mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-gold)' }}>{safeAlerts.filter(a => a.type === 'alta').length}</span><span className="text-sm text-muted">{t('alerts.promptAttention')}</span></div></div>
+        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">{t('alerts.pending')}</div><div className="flex justify-between items-end mt-3"><span className="text-3xl font-bold text-primary">{safeAlerts.filter(a => a.dismissed === 0).length}</span><span className="text-sm text-muted">{t('alerts.notDismissed')}</span></div></div>
       </div>
 
       <div className="flex justify-between items-center flex-wrap gap-2">

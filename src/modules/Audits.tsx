@@ -66,8 +66,9 @@ export default function Audits() {
   const fetchRequirements = async () => {
     try {
       const res = await api.get('/audits/requirements');
-      setRequirements(res.data);
+      setRequirements(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
+      setRequirements([]);
       console.error(error);
     }
   };
@@ -76,8 +77,9 @@ export default function Audits() {
     try {
       setLoading(true);
       const res = await api.get('/audits');
-      setAudits(res.data);
+      setAudits(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
+      setAudits([]);
       console.error(error);
     } finally {
       setLoading(false);
@@ -87,8 +89,9 @@ export default function Audits() {
   const fetchFindings = async (auditId: string) => {
     try {
       const res = await api.get(`/audits/${auditId}/findings`);
-      setFindings(res.data);
+      setFindings(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
+      setFindings([]);
       console.error(error);
     }
   };

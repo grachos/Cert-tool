@@ -23,13 +23,23 @@ export default function Users() {
   const [assignmentUser, setAssignmentUser] = useState<User | null>(null);
   const [assignedIds, setAssignedIds] = useState<string[]>([]);
 
-  const fetchUsers = async () => { try { setIsLoading(true); const { data } = await api.get('/users'); setUsers(data.map((u:any)=>({...u,assignedUocs:typeof u.assignedUocs==='string'?JSON.parse(u.assignedUocs):u.assignedUocs}))); } catch { addToast({type:'error',title:'Error',message:'No fue posible cargar usuarios.'}); } setIsLoading(false); };
-  useEffect(() => { fetchUsers(); api.get('/scc/uocs').then(({ data }) => setUocs(data)).catch(() => undefined); }, []);
+  const fetchUsers = async () => { 
+    try { 
+      setIsLoading(true); 
+      const { data } = await api.get('/users'); 
+      const list = Array.isArray(data) ? data : [];
+      setUsers(list.map((u:any)=>({...u,assignedUocs:typeof u.assignedUocs==='string'?JSON.parse(u.assignedUocs):u.assignedUocs}))); 
+    } catch { 
+      setUsers([]);
+      addToast({type:'error',title:'Error',message:'No fue posible cargar usuarios.'}); 
+    } setIsLoading(false); 
+  };
+  useEffect(() => { fetchUsers(); api.get('/scc/uocs').then(({ data }) => setUocs(Array.isArray(data) ? data : [])).catch(() => setUocs([])); }, []);
 
   const openAssignments = async (user: User) => {
     try {
       const { data } = await api.get(`/users/${user.id}/uocs`);
-      setAssignedIds(data.map((u: Uoc) => u.id));
+      setAssignedIds(Array.isArray(data) ? data.map((u: Uoc) => u.id) : []);
       setAssignmentUser(user);
     } catch (err: any) {
       addToast({ type: 'error', title: 'Error', message: err.response?.data?.error || 'No fue posible consultar asignaciones.' });
