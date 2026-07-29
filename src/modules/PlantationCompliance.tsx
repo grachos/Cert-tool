@@ -343,6 +343,17 @@ export default function PlantationCompliance() {
         <input type="number" min="0" step="0.01" className="form-input" placeholder="Producción estimada (TM)" value={plotForm.estimatedProductionMt} onChange={e => setPlotForm({ ...plotForm, estimatedProductionMt: e.target.value })} />
         <button className="btn btn-primary">Guardar ficha</button>
       </form>}
+      {plots.some(plot => !plot.polygonReference) && <div className="kml-onboarding">
+        <div className="kml-onboarding-icon">⌖</div>
+        <div>
+          <span className="text-xs font-bold uppercase">Siguiente paso recomendado</span>
+          <h3>Delimite la plantación y prepare el estudio de suelo</h3>
+          <p>Adjunte el archivo KML del polígono para calcular el área, la ubicación y generar el plan preliminar de muestreo.</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => openKmlAnalysis(plots.find(plot => !plot.polygonReference))}>
+          Adjuntar KML ahora
+        </button>
+      </div>}
       {plots.length === 0 ? <div className="empty-state card"><h3>No hay plantaciones registradas</h3><p>Registre la primera ficha para iniciar la gestión agrícola.</p></div> :
         <section className="nexo-plant-grid">{plots.map(plot => {
           const score = Number(plot.compliance || 0);
@@ -355,9 +366,13 @@ export default function PlantationCompliance() {
             <small>Lote: {plot.name} · Certificación: {plot.certificationStatus || 'Pendiente'}</small>
             <div className="nexo-plant-score"><strong>{score}%</strong><span>{critical} críticos</span></div>
             <div className="progress"><i style={{ width: `${score}%` }} /></div>
-            <div className="flex-between gap-2">
-              <button onClick={() => setTab('EVALUATION')}>Ver seguimiento →</button>
-              {canEdit && <button onClick={() => openKmlAnalysis(plot)}>📎 KML y suelo</button>}
+            <div className="nexo-plant-actions">
+              <button className="nexo-follow-link" onClick={() => setTab('EVALUATION')}>Ver seguimiento →</button>
+              {canEdit && <button
+                className={plot.polygonReference ? 'btn btn-secondary btn-sm kml-analysis-button' : 'btn btn-primary btn-sm kml-analysis-button'}
+                onClick={() => openKmlAnalysis(plot)}>
+                {plot.polygonReference ? '⌖ Revisar KML y estudio' : '⌖ Adjuntar KML y analizar suelo'}
+              </button>}
             </div>
           </article>;
         })}</section>}

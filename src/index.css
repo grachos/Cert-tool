@@ -486,12 +486,49 @@ body {
 .nexo-risk.low { background: #e7f1e6; color: #3f7652; }
 .nexo-risk.medium { background: #f5ead0; color: #a3731f; }
 .nexo-risk.high { background: #f5dfda; color: #af473c; }
+.kml-onboarding {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #bad5a7;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #f5faef, #eef6e7);
+  box-shadow: 0 8px 25px rgba(45, 91, 54, .07);
+}
+.kml-onboarding-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  color: #fff;
+  background: #2f7b55;
+  font-size: 1.45rem;
+}
+.kml-onboarding h3 { margin: 2px 0 4px; font-size: 1.05rem; }
+.kml-onboarding p { margin: 0; color: #617168; font-size: .8rem; }
+.nexo-plant-actions { display: grid; gap: 9px; margin-top: 13px; }
+.nexo-follow-link {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  color: #2f7b55;
+  background: transparent;
+  font-size: .78rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+.kml-analysis-button { width: 100%; min-height: 38px; font-weight: 750; }
 
 @media (max-width: 1000px) { .nexo-plant-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 720px) {
   .nexo-module-tabs { flex-wrap: nowrap; overflow-x: auto; }
   .nexo-module-tabs button { white-space: nowrap; }
   .nexo-plant-grid { grid-template-columns: 1fr; }
+  .kml-onboarding { grid-template-columns: auto minmax(0, 1fr); }
+  .kml-onboarding .btn { grid-column: 1 / -1; width: 100%; }
 }
 
 /* Complete NexoPalma visual shell */
