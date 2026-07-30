@@ -88,7 +88,7 @@ const activityColumns: Record<Exclude<Tab, 'overview'>, Array<{ label: string; v
     { label: 'Fecha', value: a => a.activityDate ? String(a.activityDate).slice(0, 10) : '—' },
     { label: 'Plantación', value: a => a.farmName || a.plotName },
     { label: 'Labor diaria', value: a => a.title },
-    { label: 'Lote', value: a => a.plotName },
+    { label: 'Lote', value: a => a.lotName || 'Sin lote específico' },
     { label: 'Área / cuadrilla / resultado', value: a => a.description || a.responsible || '—' }
   ],
   PLANT_HEALTH: [
@@ -128,14 +128,33 @@ const activityColumns: Record<Exclude<Tab, 'overview'>, Array<{ label: string; v
   ]
 };
 
+const emptyPlotForm = {
+  supplySourceId: '', farmName: '', locationDescription: '', latitude: '', longitude: '',
+  area: '', plantedArea: '', estimatedProductionMt: '', fieldWorkers: '',
+  administrativeWorkers: '', permanentWorkers: '', contractorWorkers: '', hasResidents: false,
+  eligibilityStatus: 'PENDING', certificationStatus: 'PENDING'
+};
+
+const emptyLotForm = { id: '', farmPlotId: '', name: '', area: '', notes: '', status: 'ACTIVE' };
+const emptyResidentForm = {
+  id: '', farmPlotId: '', fullName: '', identifier: '', age: '',
+  dataConsentAccepted: false, dataConsentHolderName: ''
+};
+
 export default function PlantationCompliance() {
   const { selectedUocId, selectedUoc } = useUoc();
   const { user } = useAuth();
   const [plots, setPlots] = useState<any[]>([]);
+  const [lots, setLots] = useState<any[]>([]);
+  const [residents, setResidents] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [sources, setSources] = useState<any[]>([]);
   const [tab, setTab] = useState<Tab>('overview');
   const [showPlot, setShowPlot] = useState(false);
+  const [editingPlotId, setEditingPlotId] = useState<string | null>(null);
+  const [expandedPlotId, setExpandedPlotId] = useState<string | null>(null);
+  const [lotForm, setLotForm] = useState(emptyLotForm);
+  const [residentForm, setResidentForm] = useState(emptyResidentForm);
   const [showActivity, setShowActivity] = useState(false);
   const [kmlPlot, setKmlPlot] = useState<any | null>(null);
   const [kmlFile, setKmlFile] = useState<File | null>(null);
@@ -143,12 +162,9 @@ export default function PlantationCompliance() {
   const [soilStudies, setSoilStudies] = useState<Record<string, any[]>>({});
   const [analyzingKml, setAnalyzingKml] = useState(false);
   const [error, setError] = useState('');
-  const [plotForm, setPlotForm] = useState({
-    supplySourceId: '', name: '', farmName: '', area: '', plantedArea: '',
-    estimatedProductionMt: '', eligibilityStatus: 'PENDING', certificationStatus: 'PENDING'
-  });
+  const [plotForm, setPlotForm] = useState(emptyPlotForm);
   const [activityForm, setActivityForm] = useState({
-    farmPlotId: '', title: '', description: '', status: 'PENDING',
+    farmPlotId: '', plantationLotId: '', title: '', description: '', status: 'PENDING',
     score: '', isCritical: false, responsible: '', activityDate: '', dueDate: ''
   });
 
@@ -163,15 +179,21 @@ export default function PlantationCompliance() {
     Promise.all([
       api.get('/rspo/farm-plots', { params }),
       api.get('/rspo/plantation-activities', { params }),
-      api.get('/rspo/supply-sources', { params })
-    ]).then(([plotRes, activityRes, sourceRes]) => {
+      api.get('/rspo/supply-sources', { params }),
+      api.get('/rspo/plantation-lots', { params }),
+      api.get('/rspo/plantation-residents', { params })
+    ]).then(([plotRes, activityRes, sourceRes, lotRes, residentRes]) => {
       setPlots(Array.isArray(plotRes.data) ? plotRes.data : []);
       setActivities(Array.isArray(activityRes.data) ? activityRes.data : []);
       setSources(Array.isArray(sourceRes.data) ? sourceRes.data : []);
+      setLots(Array.isArray(lotRes.data) ? lotRes.data : []);
+      setResidents(Array.isArray(residentRes.data) ? residentRes.data : []);
     }).catch(e => {
       setPlots([]);
       setActivities([]);
       setSources([]);
+      setLots([]);
+      setResidents([]);
       setError(e.response?.data?.error || 'No fue posible cargar el cumplimiento agrícola.');
     });
   };
@@ -180,6 +202,9 @@ export default function PlantationCompliance() {
 
   const safePlots = Array.isArray(plots) ? plots : [];
   const safeActivities = Array.isArray(activities) ? activities : [];
+  const safeSources = Array.isArray(sources) ? sources : [];
+  const safeLots = Array.isArray(lots) ? lots : [];
+  const safeResidents = Array.isArray(residents) ? residents : [];
 
   const filtered = useMemo(
     () => tab === 'overview' ? [] : safeActivities.filter(activity => activity.category === tab),
@@ -190,24 +215,42 @@ export default function PlantationCompliance() {
     ? Math.round(safePlots.reduce((sum, plot) => sum + Number(plot.compliance || 0), 0) / safePlots.length)
     : 0;
   const totalArea = safePlots.reduce((sum, plot) => sum + Number(plot.area || 0), 0);
+  const totalLots = safeLots.filter(lot => lot.status === 'ACTIVE').length;
   const openCritical = safeActivities.filter(activity =>
     activity.isCritical && !['COMPLIANT', 'COMPLETED'].includes(activity.status)
   ).length;
+  const expandedPlot = safePlots.find(plot => plot.id === expandedPlotId);
+  const expandedLots = safeLots.filter(lot => lot.farmPlotId === expandedPlotId);
+  const expandedResidents = safeResidents.filter(resident => resident.farmPlotId === expandedPlotId);
+  const expandedLotsArea = expandedLots
+    .filter(lot => lot.status === 'ACTIVE')
+    .reduce((sum, lot) => sum + Number(lot.area || 0), 0);
 
-  const createPlot = async (event: React.FormEvent) => {
+  const savePlot = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
-      await api.post('/rspo/farm-plots', {
+      const body = {
         ...plotForm,
+        name: plotForm.farmName,
         uocId: selectedUocId,
         area: Number(plotForm.area),
         plantedArea: Number(plotForm.plantedArea || plotForm.area),
-        estimatedProductionMt: Number(plotForm.estimatedProductionMt)
-      });
+        estimatedProductionMt: Number(plotForm.estimatedProductionMt),
+        latitude: plotForm.latitude === '' ? null : Number(plotForm.latitude),
+        longitude: plotForm.longitude === '' ? null : Number(plotForm.longitude),
+        fieldWorkers: Number(plotForm.fieldWorkers || 0),
+        administrativeWorkers: Number(plotForm.administrativeWorkers || 0),
+        permanentWorkers: Number(plotForm.permanentWorkers || 0),
+        contractorWorkers: Number(plotForm.contractorWorkers || 0)
+      };
+      if (editingPlotId) await api.put(`/rspo/farm-plots/${editingPlotId}`, body);
+      else await api.post('/rspo/farm-plots', body);
       setShowPlot(false);
+      setEditingPlotId(null);
+      setPlotForm(emptyPlotForm);
       load();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'No fue posible guardar la plantación.');
+      setError(err.response?.data?.error || 'No fue posible guardar los datos de la plantación.');
     }
   };
 
@@ -222,7 +265,7 @@ export default function PlantationCompliance() {
       });
       setShowActivity(false);
       setActivityForm({
-        farmPlotId: '', title: '', description: '', status: 'PENDING',
+        farmPlotId: '', plantationLotId: '', title: '', description: '', status: 'PENDING',
         score: '', isCritical: false, responsible: '', activityDate: '', dueDate: ''
       });
       load();
@@ -241,9 +284,9 @@ export default function PlantationCompliance() {
   };
 
   const openActivityForm = (suggestedTitle = '') => {
-    if (!plots.length) {
+    if (!safePlots.length) {
       setShowActivity(false);
-      setError('Antes de registrar actividades debe crear una fuente en “Base de suministro” y luego una plantación o lote en la pestaña “Panorama”.');
+      setError('Antes de registrar actividades debe crear un productor en “Base de suministro” y luego una plantación en la pestaña “Panorama”.');
       return;
     }
     setError('');
@@ -252,14 +295,106 @@ export default function PlantationCompliance() {
   };
 
   const openPlotForm = () => {
-    if (!sources.length) {
+    if (!safeSources.length) {
       setShowPlot(false);
-      setError('Primero registre una fuente, productor o plantación en el módulo “Base de suministro”. Después podrá crear aquí su lote agrícola.');
+      setError('Primero registre el productor o razón social en “Base de suministro”. Después podrá crear aquí sus plantaciones.');
       return;
     }
     setError('');
+    setEditingPlotId(null);
+    setPlotForm(emptyPlotForm);
     setShowPlot(value => !value);
   };
+
+  const openEditPlot = (plot: any) => {
+    setError('');
+    setEditingPlotId(plot.id);
+    setPlotForm({
+      supplySourceId: plot.supplySourceId || '',
+      farmName: plot.farmName || plot.name || '',
+      locationDescription: plot.locationDescription || '',
+      latitude: plot.latitude == null ? '' : String(plot.latitude),
+      longitude: plot.longitude == null ? '' : String(plot.longitude),
+      area: String(plot.area ?? ''),
+      plantedArea: String(plot.plantedArea ?? ''),
+      estimatedProductionMt: String(plot.estimatedProductionMt ?? ''),
+      fieldWorkers: String(plot.fieldWorkers ?? ''),
+      administrativeWorkers: String(plot.administrativeWorkers ?? ''),
+      permanentWorkers: String(plot.permanentWorkers ?? ''),
+      contractorWorkers: String(plot.contractorWorkers ?? ''),
+      hasResidents: Boolean(plot.hasResidents),
+      eligibilityStatus: plot.eligibilityStatus || 'PENDING',
+      certificationStatus: plot.certificationStatus || 'PENDING'
+    });
+    setShowPlot(true);
+    window.scrollTo({ top: 300, behavior: 'smooth' });
+  };
+
+  const cancelPlotForm = () => {
+    setShowPlot(false);
+    setEditingPlotId(null);
+  };
+
+  const openPlantationDetail = (plotId: string) => {
+    setExpandedPlotId(current => current === plotId ? null : plotId);
+    setLotForm({ ...emptyLotForm, farmPlotId: plotId });
+    setResidentForm({ ...emptyResidentForm, farmPlotId: plotId });
+    setError('');
+  };
+
+  const saveLot = async (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      const body = { ...lotForm, area: Number(lotForm.area), uocId: selectedUocId };
+      if (lotForm.id) await api.put(`/rspo/plantation-lots/${lotForm.id}`, body);
+      else await api.post('/rspo/plantation-lots', body);
+      setLotForm({ ...emptyLotForm, farmPlotId: lotForm.farmPlotId });
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'No fue posible guardar el lote.');
+    }
+  };
+
+  const editLot = (lot: any) => setLotForm({
+    id: lot.id,
+    farmPlotId: lot.farmPlotId,
+    name: lot.name || '',
+    area: String(lot.area ?? ''),
+    notes: lot.notes || '',
+    status: lot.status || 'ACTIVE'
+  });
+
+  const toggleLotStatus = async (lot: any) => {
+    try {
+      await api.put(`/rspo/plantation-lots/${lot.id}`, { status: lot.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' });
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'No fue posible cambiar el estado del lote.');
+    }
+  };
+
+  const saveResident = async (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      const body = { ...residentForm, age: Number(residentForm.age), uocId: selectedUocId };
+      if (residentForm.id) await api.put(`/rspo/plantation-residents/${residentForm.id}`, body);
+      else await api.post('/rspo/plantation-residents', body);
+      setResidentForm({ ...emptyResidentForm, farmPlotId: residentForm.farmPlotId });
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'No fue posible guardar la persona residente.');
+    }
+  };
+
+  const editResident = (resident: any) => setResidentForm({
+    id: resident.id,
+    farmPlotId: resident.farmPlotId,
+    fullName: resident.fullName || '',
+    identifier: resident.identifier || '',
+    age: String(resident.age ?? ''),
+    dataConsentAccepted: Boolean(resident.dataConsentAccepted),
+    dataConsentHolderName: resident.dataConsentHolderName || resident.fullName || ''
+  });
 
   const openKmlAnalysis = async (plot: any) => {
     setKmlPlot(plot);
@@ -270,7 +405,7 @@ export default function PlantationCompliance() {
       const response = await api.get(`/rspo/farm-plots/${plot.id}/soil-studies`, { params: { uocId: selectedUocId } });
       setSoilStudies(current => ({ ...current, [plot.id]: response.data }));
     } catch (err: any) {
-      setError(err.response?.data?.error || 'No fue posible cargar los estudios del lote.');
+      setError(err.response?.data?.error || 'No fue posible cargar los estudios de la plantación.');
     }
   };
 
@@ -310,10 +445,11 @@ export default function PlantationCompliance() {
         <div>
           <span className="text-xs font-bold uppercase" style={{ color: '#bbf7d0' }}>Gestión agrícola · {selectedUoc?.name}</span>
           <h2 className="text-2xl font-bold mt-1">Núcleo de cumplimiento de plantaciones</h2>
-          <p className="text-sm mt-1" style={{ color: '#d1fae5' }}>Información real organizada por finca, lote y tipo de labor.</p>
+          <p className="text-sm mt-1" style={{ color: '#d1fae5' }}>Información organizada por productor, plantación, lote y tipo de labor.</p>
         </div>
         <div className="flex gap-4">
-          <div><strong className="text-2xl">{plots.length}</strong><small className="block">lotes</small></div>
+          <div><strong className="text-2xl">{safePlots.length}</strong><small className="block">plantaciones</small></div>
+          <div><strong className="text-2xl">{totalLots}</strong><small className="block">lotes</small></div>
           <div><strong className="text-2xl">{totalArea.toLocaleString('es-CO')}</strong><small className="block">hectáreas</small></div>
           <div><strong className="text-2xl">{averageCompliance}%</strong><small className="block">cumplimiento</small></div>
         </div>
@@ -333,49 +469,110 @@ export default function PlantationCompliance() {
 
     {tab === 'overview' ? <div className="flex-col gap-5">
       <div className="stats-grid">
-        <div className="card"><small>Plantaciones / lotes</small><div className="stat-value-lg">{plots.length}</div></div>
+        <div className="card"><small>Plantaciones</small><div className="stat-value-lg">{safePlots.length}</div></div>
+        <div className="card"><small>Lotes registrados</small><div className="stat-value-lg">{totalLots}</div></div>
         <div className="card"><small>Cumplimiento promedio</small><div className="stat-value-lg">{averageCompliance}%</div></div>
         <div className="card"><small>Requisitos críticos abiertos</small><div className="stat-value-lg">{openCritical}</div></div>
-        <div className="card"><small>Elegibles</small><div className="stat-value-lg">{plots.filter(p => p.eligibilityStatus === 'ELIGIBLE').length}</div></div>
       </div>
       <div className="flex-between">
-        <div><h2 className="text-xl font-bold">Ficha individual de plantaciones</h2><p className="text-sm text-secondary">Cada lote conserva su propio estado y sus registros.</p></div>
+        <div><h2 className="text-xl font-bold">Ficha individual de plantaciones</h2><p className="text-sm text-secondary">Cada plantación conserva sus lotes, personal, ubicación y registros.</p></div>
         {canCreatePlot && <button className="btn btn-primary" onClick={openPlotForm}>+ Nueva plantación</button>}
       </div>
-      {showPlot && <form className="card form-grid" onSubmit={createPlot}>
-        <select required className="form-select" value={plotForm.supplySourceId} onChange={e => setPlotForm({ ...plotForm, supplySourceId: e.target.value })}><option value="">Fuente de suministro</option>{sources.map(source => <option key={source.id} value={source.id}>{source.name}</option>)}</select>
-        <input required className="form-input" placeholder="Nombre del lote" value={plotForm.name} onChange={e => setPlotForm({ ...plotForm, name: e.target.value })} />
-        <input required className="form-input" placeholder="Plantación o predio" value={plotForm.farmName} onChange={e => setPlotForm({ ...plotForm, farmName: e.target.value })} />
-        <input required type="number" min="0" step="0.01" className="form-input" placeholder="Área total (ha)" value={plotForm.area} onChange={e => setPlotForm({ ...plotForm, area: e.target.value })} />
-        <input type="number" min="0" step="0.01" className="form-input" placeholder="Área sembrada (ha)" value={plotForm.plantedArea} onChange={e => setPlotForm({ ...plotForm, plantedArea: e.target.value })} />
-        <input type="number" min="0" step="0.01" className="form-input" placeholder="Producción estimada (TM)" value={plotForm.estimatedProductionMt} onChange={e => setPlotForm({ ...plotForm, estimatedProductionMt: e.target.value })} />
-        <button className="btn btn-primary">Guardar ficha</button>
-      </form>}
-      {plots.some(plot => !plot.polygonReference) && <div className="kml-onboarding">
-        <div className="kml-onboarding-icon">⌖</div>
-        <div>
-          <span className="text-xs font-bold uppercase">Siguiente paso recomendado</span>
-          <h3>Delimite la plantación y prepare el estudio de suelo</h3>
-          <p>Adjunte el archivo KML del polígono para calcular el área, la ubicación y generar el plan preliminar de muestreo.</p>
+      {showPlot && <form className="card flex-col gap-5" onSubmit={savePlot}>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <h3>{editingPlotId ? 'Editar datos de la plantación' : 'Nueva plantación'}</h3>
+          <p className="text-sm text-secondary">{editingPlotId ? 'Actualice la ficha sin perder lotes, actividades, residentes ni estudios KML.' : 'Registre la plantación; después podrá agregar todos sus lotes.'}</p>
         </div>
-        <button className="btn btn-primary" onClick={() => openKmlAnalysis(plots.find(plot => !plot.polygonReference))}>
-          Adjuntar KML ahora
-        </button>
-      </div>}
-      {plots.length === 0 ? <div className="empty-state card"><h3>No hay plantaciones registradas</h3><p>Registre la primera ficha para iniciar la gestión agrícola.</p></div> :
-        <section className="nexo-plant-grid">{plots.map(plot => {
+        <section className="form-grid">
+          <div className="form-group flex-col gap-1">
+            <label className="form-label font-semibold">Razón social / nombre del productor</label>
+            <select required disabled={Boolean(editingPlotId)} className="form-select" value={plotForm.supplySourceId} onChange={e => setPlotForm({ ...plotForm, supplySourceId: e.target.value })}>
+              <option value="">Seleccione el productor</option>
+              {safeSources.map(source => <option key={source.id} value={source.id}>{source.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group flex-col gap-1">
+            <label className="form-label font-semibold">Nombre de la plantación</label>
+            <input required className="form-input" value={plotForm.farmName} onChange={e => setPlotForm({ ...plotForm, farmName: e.target.value })} />
+          </div>
+          <div className="form-group flex-col gap-1" style={{ gridColumn: '1 / -1' }}>
+            <label className="form-label font-semibold">Ubicación o dirección del predio</label>
+            <input required className="form-input" value={plotForm.locationDescription} onChange={e => setPlotForm({ ...plotForm, locationDescription: e.target.value })} />
+          </div>
+          <div className="form-group flex-col gap-1">
+            <label className="form-label font-semibold">Latitud</label>
+            <input type="number" min="-90" max="90" step="0.0000001" className="form-input" placeholder="Ej. 7.1193490" value={plotForm.latitude} onChange={e => setPlotForm({ ...plotForm, latitude: e.target.value })} />
+          </div>
+          <div className="form-group flex-col gap-1">
+            <label className="form-label font-semibold">Longitud</label>
+            <input type="number" min="-180" max="180" step="0.0000001" className="form-input" placeholder="Ej. -73.1227420" value={plotForm.longitude} onChange={e => setPlotForm({ ...plotForm, longitude: e.target.value })} />
+          </div>
+          <div className="form-group flex-col gap-1">
+            <label className="form-label font-semibold">Área total de la plantación (ha)</label>
+            <input required type="number" min="0.01" step="0.01" className="form-input" value={plotForm.area} onChange={e => setPlotForm({ ...plotForm, area: e.target.value })} />
+          </div>
+          <div className="form-group flex-col gap-1">
+            <label className="form-label font-semibold">Área sembrada (ha)</label>
+            <input type="number" min="0" step="0.01" className="form-input" value={plotForm.plantedArea} onChange={e => setPlotForm({ ...plotForm, plantedArea: e.target.value })} />
+          </div>
+          <div className="form-group flex-col gap-1">
+            <label className="form-label font-semibold">Producción estimada (TM)</label>
+            <input type="number" min="0" step="0.01" className="form-input" value={plotForm.estimatedProductionMt} onChange={e => setPlotForm({ ...plotForm, estimatedProductionMt: e.target.value })} />
+          </div>
+        </section>
+
+        <section>
+          <h4>Trabajadores de la plantación</h4>
+          <p className="text-sm text-secondary">Registre la distribución; los totales se verifican en la ficha.</p>
+          <div className="form-grid mt-3">
+            <div className="form-group flex-col gap-1"><label className="form-label font-semibold">Trabajadores de campo</label><input type="number" min="0" step="1" className="form-input" value={plotForm.fieldWorkers} onChange={e => setPlotForm({ ...plotForm, fieldWorkers: e.target.value })} /></div>
+            <div className="form-group flex-col gap-1"><label className="form-label font-semibold">Trabajadores administrativos</label><input type="number" min="0" step="1" className="form-input" value={plotForm.administrativeWorkers} onChange={e => setPlotForm({ ...plotForm, administrativeWorkers: e.target.value })} /></div>
+            <div className="form-group flex-col gap-1"><label className="form-label font-semibold">Personal fijo</label><input type="number" min="0" step="1" className="form-input" value={plotForm.permanentWorkers} onChange={e => setPlotForm({ ...plotForm, permanentWorkers: e.target.value })} /></div>
+            <div className="form-group flex-col gap-1"><label className="form-label font-semibold">Contratistas</label><input type="number" min="0" step="1" className="form-input" value={plotForm.contractorWorkers} onChange={e => setPlotForm({ ...plotForm, contractorWorkers: e.target.value })} /></div>
+          </div>
+        </section>
+
+        <section className="form-grid">
+          <label className="consent-check">
+            <input type="checkbox" checked={plotForm.hasResidents} onChange={e => setPlotForm({ ...plotForm, hasResidents: e.target.checked })} />
+            <span>En esta plantación viven trabajadores u otras personas.</span>
+          </label>
+          <div className="form-group flex-col gap-1">
+            <label className="form-label font-semibold">Elegibilidad</label>
+            <select className="form-select" value={plotForm.eligibilityStatus} onChange={e => setPlotForm({ ...plotForm, eligibilityStatus: e.target.value })}>
+              <option value="PENDING">Pendiente</option><option value="ELIGIBLE">Elegible</option><option value="CONDITIONAL">Condicional</option><option value="INELIGIBLE">No elegible</option>
+            </select>
+          </div>
+          <div className="form-group flex-col gap-1">
+            <label className="form-label font-semibold">Certificación</label>
+            <select className="form-select" value={plotForm.certificationStatus} onChange={e => setPlotForm({ ...plotForm, certificationStatus: e.target.value })}>
+              <option value="PENDING">Pendiente</option><option value="CERTIFIED">Certificada</option><option value="CONVENTIONAL">Convencional</option><option value="SUSPENDED">Suspendida</option>
+            </select>
+          </div>
+        </section>
+        <div className="flex gap-2 flex-wrap">
+          <button className="btn btn-primary">{editingPlotId ? 'Guardar cambios' : 'Guardar ficha'}</button>
+          <button type="button" className="btn btn-secondary" onClick={cancelPlotForm}>Cancelar</button>
+        </div>
+      </form>}
+      {safePlots.length === 0 ? <div className="empty-state card"><h3>No hay plantaciones registradas</h3><p>Registre la primera ficha para iniciar la gestión agrícola.</p></div> :
+        <section className="nexo-plant-grid">{safePlots.map(plot => {
           const score = Number(plot.compliance || 0);
           const critical = Number(plot.criticalRequirements || 0);
           const state = plot.eligibilityStatus === 'ELIGIBLE' ? 'Elegible' : plot.eligibilityStatus || 'Pendiente';
           return <article className="nexo-plant-unit" key={plot.id}>
             <div><span className="nexo-palm-avatar">♧</span><em className={`nexo-risk ${critical > 2 ? 'high' : critical ? 'medium' : 'low'}`}>{state}</em></div>
             <h3>{plot.farmName || plot.name}</h3>
-            <p>{plot.sourceName || 'Fuente sin identificar'} · {Number(plot.area || 0).toLocaleString('es-CO')} ha</p>
-            <small>Lote: {plot.name} · Certificación: {plot.certificationStatus || 'Pendiente'}</small>
+            <p><strong>Productor:</strong> {plot.sourceName || 'Sin identificar'} · {Number(plot.area || 0).toLocaleString('es-CO')} ha</p>
+            <small>{Number(plot.lotCount || 0)} lotes · {Number(plot.residentCount || 0)} residentes · Certificación: {plot.certificationStatus || 'Pendiente'}</small>
             <div className="nexo-plant-score"><strong>{score}%</strong><span>{critical} críticos</span></div>
             <div className="progress"><i style={{ width: `${score}%` }} /></div>
             <div className="nexo-plant-actions">
               <button className="nexo-follow-link" onClick={() => setTab('EVALUATION')}>Ver seguimiento →</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => openPlantationDetail(plot.id)}>
+                {expandedPlotId === plot.id ? 'Cerrar ficha detallada' : 'Administrar lotes y residentes'}
+              </button>
+              {canCreatePlot && <button className="btn btn-secondary btn-sm" onClick={() => openEditPlot(plot)}>✎ Editar datos de la plantación</button>}
               {canEdit && <button
                 className={plot.polygonReference ? 'btn btn-secondary btn-sm kml-analysis-button' : 'btn btn-primary btn-sm kml-analysis-button'}
                 onClick={() => openKmlAnalysis(plot)}>
@@ -384,6 +581,90 @@ export default function PlantationCompliance() {
             </div>
           </article>;
         })}</section>}
+      {expandedPlot && <section className="card plantation-detail flex-col gap-5">
+        <div className="flex-between gap-4 flex-wrap">
+          <div>
+            <span className="text-xs font-bold uppercase text-secondary">Ficha detallada de la plantación</span>
+            <h2 className="text-xl font-bold">{expandedPlot.farmName || expandedPlot.name}</h2>
+            <p className="text-sm text-secondary">{expandedPlot.locationDescription || 'Ubicación pendiente'} · {expandedPlot.latitude && expandedPlot.longitude ? `${expandedPlot.latitude}, ${expandedPlot.longitude}` : 'Coordenadas pendientes'}</p>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={() => setExpandedPlotId(null)}>Cerrar</button>
+        </div>
+
+        <div className="stats-grid">
+          <div><small>Área de la plantación</small><strong className="block">{Number(expandedPlot.area || 0).toLocaleString('es-CO')} ha</strong></div>
+          <div><small>Área distribuida en lotes</small><strong className="block">{expandedLotsArea.toLocaleString('es-CO')} ha</strong></div>
+          <div><small>Campo / administrativos</small><strong className="block">{Number(expandedPlot.fieldWorkers || 0)} / {Number(expandedPlot.administrativeWorkers || 0)}</strong></div>
+          <div><small>Fijos / contratistas</small><strong className="block">{Number(expandedPlot.permanentWorkers || 0)} / {Number(expandedPlot.contractorWorkers || 0)}</strong></div>
+        </div>
+
+        <div className={Math.abs(expandedLotsArea - Number(expandedPlot.area || 0)) <= 0.01 ? 'area-balance complete' : 'area-balance'}>
+          <div className="flex-between gap-3">
+            <strong>Distribución del área por lotes</strong>
+            <span>{expandedLotsArea.toLocaleString('es-CO')} de {Number(expandedPlot.area || 0).toLocaleString('es-CO')} ha</span>
+          </div>
+          <div className="progress mt-2"><i style={{ width: `${Math.min(100, Number(expandedPlot.area) ? expandedLotsArea / Number(expandedPlot.area) * 100 : 0)}%` }} /></div>
+          {Math.abs(expandedLotsArea - Number(expandedPlot.area || 0)) > 0.01 && <small>Faltan {(Number(expandedPlot.area || 0) - expandedLotsArea).toLocaleString('es-CO')} ha por distribuir.</small>}
+        </div>
+
+        <div className="plantation-detail-grid">
+          <section className="detail-panel">
+            <div>
+              <span className="text-xs font-bold uppercase text-secondary">Lotes</span>
+              <h3>{expandedLots.filter(lot => lot.status === 'ACTIVE').length} lotes registrados</h3>
+            </div>
+            <div className="record-list">
+              {expandedLots.length === 0 ? <p className="text-sm text-secondary">Aún no hay lotes.</p> : expandedLots.map(lot => <div className="record-row" key={lot.id}>
+                <div><strong>{lot.name}</strong><small>{Number(lot.area).toLocaleString('es-CO')} ha · {lot.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}</small></div>
+                {canCreatePlot && <div className="flex gap-1 flex-wrap">
+                  <button className="btn btn-secondary btn-sm" onClick={() => editLot(lot)}>Editar</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => toggleLotStatus(lot)}>{lot.status === 'ACTIVE' ? 'Inactivar' : 'Activar'}</button>
+                </div>}
+              </div>)}
+            </div>
+            {canCreatePlot && <form className="form-grid detail-form" onSubmit={saveLot}>
+              <input required className="form-input" placeholder="Nombre o número del lote" value={lotForm.farmPlotId === expandedPlot.id ? lotForm.name : ''} onChange={e => setLotForm({ ...lotForm, farmPlotId: expandedPlot.id, name: e.target.value })} />
+              <input required type="number" min="0.01" step="0.01" className="form-input" placeholder="Área del lote (ha)" value={lotForm.farmPlotId === expandedPlot.id ? lotForm.area : ''} onChange={e => setLotForm({ ...lotForm, farmPlotId: expandedPlot.id, area: e.target.value })} />
+              <textarea className="form-input" rows={2} placeholder="Observaciones" value={lotForm.farmPlotId === expandedPlot.id ? lotForm.notes : ''} onChange={e => setLotForm({ ...lotForm, farmPlotId: expandedPlot.id, notes: e.target.value })} />
+              <div className="flex gap-2 flex-wrap">
+                <button className="btn btn-primary btn-sm">{lotForm.id ? 'Actualizar lote' : 'Agregar lote'}</button>
+                {lotForm.id && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setLotForm({ ...emptyLotForm, farmPlotId: expandedPlot.id })}>Cancelar</button>}
+              </div>
+            </form>}
+          </section>
+
+          <section className="detail-panel">
+            <div>
+              <span className="text-xs font-bold uppercase text-secondary">Personas residentes</span>
+              <h3>{expandedResidents.length} personas relacionadas</h3>
+            </div>
+            {!expandedPlot.hasResidents && expandedResidents.length === 0 ? <div className="integration-note">
+              Esta plantación está registrada sin residentes. Puede cambiarlo desde “Editar datos de la plantación”.
+            </div> : <>
+              <div className="record-list">
+                {expandedResidents.length === 0 ? <p className="text-sm text-secondary">Indique las personas que viven en la plantación.</p> : expandedResidents.map(resident => <div className="record-row" key={resident.id}>
+                  <div><strong>{resident.fullName}</strong><small>CC ••••{String(resident.identifier).slice(-4)} · {resident.age} años</small></div>
+                  {canCreatePlot && <button className="btn btn-secondary btn-sm" onClick={() => editResident(resident)}>Editar</button>}
+                </div>)}
+              </div>
+              {canCreatePlot && <form className="form-grid detail-form" onSubmit={saveResident}>
+                <input required className="form-input" placeholder="Nombre completo" value={residentForm.farmPlotId === expandedPlot.id ? residentForm.fullName : ''} onChange={e => setResidentForm({ ...residentForm, farmPlotId: expandedPlot.id, fullName: e.target.value })} />
+                <input required className="form-input" placeholder="Cédula" value={residentForm.farmPlotId === expandedPlot.id ? residentForm.identifier : ''} onChange={e => setResidentForm({ ...residentForm, farmPlotId: expandedPlot.id, identifier: e.target.value })} />
+                <input required type="number" min="0" max="120" step="1" className="form-input" placeholder="Edad" value={residentForm.farmPlotId === expandedPlot.id ? residentForm.age : ''} onChange={e => setResidentForm({ ...residentForm, farmPlotId: expandedPlot.id, age: e.target.value })} />
+                <input required className="form-input" placeholder="Titular o representante que autoriza" value={residentForm.farmPlotId === expandedPlot.id ? residentForm.dataConsentHolderName : ''} onChange={e => setResidentForm({ ...residentForm, farmPlotId: expandedPlot.id, dataConsentHolderName: e.target.value })} />
+                <label className="consent-check" style={{ gridColumn: '1 / -1' }}>
+                  <input required type="checkbox" checked={residentForm.farmPlotId === expandedPlot.id && residentForm.dataConsentAccepted} onChange={e => setResidentForm({ ...residentForm, farmPlotId: expandedPlot.id, dataConsentAccepted: e.target.checked })} />
+                  <span>El titular o su representante autoriza el tratamiento de estos datos conforme a la Ley 1581 de 2012 y la política de la UoC.</span>
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  <button className="btn btn-primary btn-sm">{residentForm.id ? 'Actualizar persona' : 'Agregar persona'}</button>
+                  {residentForm.id && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setResidentForm({ ...emptyResidentForm, farmPlotId: expandedPlot.id })}>Cancelar</button>}
+                </div>
+              </form>}
+            </>}
+          </section>
+        </div>
+      </section>}
       {kmlPlot && <section className="card flex-col gap-4">
         <div className="flex-between gap-4 flex-wrap">
           <div>
@@ -433,24 +714,28 @@ export default function PlantationCompliance() {
     </div> : <div className="flex-col gap-5">
       <div className="flex-between gap-4 flex-wrap">
         <div><h2 className="text-xl font-bold">{current.icon} {current.title}</h2><p className="text-sm text-secondary">{current.description}</p></div>
-        {canEdit && <button className="btn btn-primary" onClick={() => openActivityForm()} disabled={!plots.length} title={!plots.length ? 'Primero registre una plantación o lote' : undefined}>+ Nuevo registro</button>}
+        {canEdit && <button className="btn btn-primary" onClick={() => openActivityForm()} disabled={!safePlots.length} title={!safePlots.length ? 'Primero registre una plantación' : undefined}>+ Nuevo registro</button>}
       </div>
 
-      {!plots.length && <div className="card p-4 border-l-4" style={{ borderLeftColor: 'var(--accent-gold)', background: 'var(--accent-gold-bg)' }}>
+      {!safePlots.length && <div className="card p-4 border-l-4" style={{ borderLeftColor: 'var(--accent-gold)', background: 'var(--accent-gold-bg)' }}>
         <strong>Falta configurar la estructura agrícola de esta UoC</strong>
-        <p className="text-sm mt-1">1. Cree la fuente en <b>Base de suministro</b>. 2. Regrese a <b>Panorama</b> y cree la plantación/lote. 3. Registre la actividad.</p>
+        <p className="text-sm mt-1">1. Cree el productor en <b>Base de suministro</b>. 2. Regrese a <b>Panorama</b> y cree la plantación. 3. Agregue sus lotes y registros.</p>
         <button className="btn btn-secondary btn-sm mt-3" onClick={() => setTab('overview')}>Ir a Panorama</button>
       </div>}
 
       <div className="card p-4">
         <span className="text-xs font-bold text-secondary uppercase">Actividades habituales</span>
         <div className="flex gap-2 flex-wrap mt-2">{current.examples.map(example =>
-          <button key={example} className="btn btn-secondary btn-sm" disabled={!plots.length} title={!plots.length ? 'Primero registre una plantación o lote' : undefined} onClick={() => openActivityForm(example)}>{example}</button>
+          <button key={example} className="btn btn-secondary btn-sm" disabled={!safePlots.length} title={!safePlots.length ? 'Primero registre una plantación' : undefined} onClick={() => openActivityForm(example)}>{example}</button>
         )}</div>
       </div>
 
       {showActivity && <form className="card form-grid" onSubmit={createActivity}>
-        <select required className="form-select" value={activityForm.farmPlotId} onChange={e => setActivityForm({ ...activityForm, farmPlotId: e.target.value })}><option value="">Plantación / lote</option>{plots.map(plot => <option key={plot.id} value={plot.id}>{plot.farmName || plot.name} — {plot.name}</option>)}</select>
+        <select required className="form-select" value={activityForm.farmPlotId} onChange={e => setActivityForm({ ...activityForm, farmPlotId: e.target.value, plantationLotId: '' })}><option value="">Plantación</option>{safePlots.map(plot => <option key={plot.id} value={plot.id}>{plot.farmName || plot.name}</option>)}</select>
+        <select className="form-select" value={activityForm.plantationLotId} disabled={!activityForm.farmPlotId} onChange={e => setActivityForm({ ...activityForm, plantationLotId: e.target.value })}>
+          <option value="">Todos los lotes / no aplica</option>
+          {safeLots.filter(lot => lot.farmPlotId === activityForm.farmPlotId && lot.status === 'ACTIVE').map(lot => <option key={lot.id} value={lot.id}>{lot.name}</option>)}
+        </select>
         <div><label className="form-label">{current.activityLabel}</label><input required className="form-input" placeholder={current.activityPlaceholder} value={activityForm.title} onChange={e => setActivityForm({ ...activityForm, title: e.target.value })} /></div>
         <div style={{ gridColumn: '1 / -1' }}><label className="form-label">Detalle técnico</label><textarea className="form-input" rows={3} placeholder={current.descriptionPlaceholder} value={activityForm.description} onChange={e => setActivityForm({ ...activityForm, description: e.target.value })} /></div>
         <input className="form-input" placeholder="Responsable o cuadrilla" value={activityForm.responsible} onChange={e => setActivityForm({ ...activityForm, responsible: e.target.value })} />

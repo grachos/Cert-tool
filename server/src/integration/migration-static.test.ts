@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const migration = fs.readFileSync(path.resolve(__dirname, '../../migrations/001_rspo_tech_core.sql'), 'utf8');
+const producerMigration = fs.readFileSync(path.resolve(__dirname, '../../migrations/002_producer_plantation_structure.sql'), 'utf8');
 const schema = fs.readFileSync(path.resolve(__dirname, '../../schema.sql'), 'utf8');
 
 test('migración no usa ADD COLUMN IF NOT EXISTS incompatible', () => {
@@ -17,4 +18,13 @@ test('migración declara índices y relaciones UoC críticas', () => {
 
 test('esquema base incluye ActionPlan ampliado, asignaciones y PlantRecord', () => {
   for (const token of ['brecha TEXT','causaRaiz TEXT','correccion TEXT','eficacia TEXT','UserCertificationUnit','PlantRecord']) assert.match(schema, new RegExp(token));
+});
+
+test('migración de productores separa plantaciones, lotes y residentes sin borrar datos', () => {
+  for (const token of [
+    'personType', 'legalRepresentativeId', 'relationshipType', 'PlantationLot',
+    'PlantationResident', 'plantationLotId', 'dataConsentAccepted'
+  ]) assert.match(producerMigration, new RegExp(token));
+  assert.doesNotMatch(producerMigration, /\bDROP\s+TABLE\b|\bTRUNCATE\b/i);
+  assert.match(producerMigration, /INSERT\s+IGNORE\s+INTO\s+PlantationLot/i);
 });

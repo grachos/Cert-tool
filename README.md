@@ -9,7 +9,7 @@ Requisitos: Node.js 20+, npm y MySQL 8.
 1. Copie `.env.example` como `.env` y configure `DATABASE_URL`, `JWT_SECRET`, `CORS_ORIGINS` y `VITE_API_URL`.
 2. Instale dependencias con `npm install` y `npm install --prefix server`.
 3. Cree la base inicial con `mysql --database SU_BASE < server/schema.sql`.
-4. Aplique, en orden, los archivos de `server/migrations/` con el cliente MySQL (procesa `DELIMITER`): `mysql --database SU_BASE < server/migrations/001_rspo_tech_core.sql`. La migración consulta `information_schema`, es incremental y no elimina datos.
+4. Aplique, en orden, los archivos de `server/migrations/` con el cliente MySQL (procesa `DELIMITER`): primero `001_rspo_tech_core.sql` y después `002_producer_plantation_structure.sql`. Las migraciones consultan `information_schema`, son incrementales y no eliminan datos.
 5. Inicie el backend con `npm run dev --prefix server`.
 6. Inicie el frontend con `npm run dev`.
 
@@ -26,8 +26,8 @@ En producción, el backend no inicia sin `JWT_SECRET` ni `DATABASE_URL`. Los arc
 
 ## Módulos RSPO TECH
 
-- Supply Base: fuentes, áreas, polígonos, riesgo, elegibilidad y certificación.
-- P&C Plantaciones: fincas/lotes, BPA, mantenimiento, sanidad, insumos, visitas, documentos y evaluaciones.
+- Base de suministro: productores naturales o jurídicos, vínculo con la extractora, identificación, representante legal, autorización de datos, riesgo y elegibilidad.
+- P&C Plantaciones: plantaciones vinculadas a cada productor, ubicación, coordenadas, un KML por plantación, trabajadores, residentes autorizados y lotes con control de áreas; además BPA, mantenimiento, sanidad, insumos, visitas, documentos y evaluaciones.
 - Trazabilidad RFF: báscula, pesos bruto/tara/neto, lotes, vehículo, origen, elegibilidad, producción estimada/acumulada y alertas.
 - SCC: cada recepción RFF aceptada crea su transacción de entrada en el balance.
 - PRISMA interno: anuncios, confirmaciones, remociones, ajustes, fechas límite y bitácora. No representa una integración oficial con RSPO PRISMA.

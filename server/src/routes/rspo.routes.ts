@@ -7,7 +7,8 @@ import {
   listDeliveries, listFarmPlots, listPlantationActivities, listPrismaOperations, listSupplySources,
   listTraceabilityAlerts, updateDelivery, updatePrismaOperation, updateSupplySource
   ,listSupplySourceHistory, updateFarmPlot, updatePlantationActivity, listPrismaAdjustments, listPrismaAttachments, addPrismaAttachment,
-  analyzeFarmPlotKml, listFarmPlotSoilStudies
+  analyzeFarmPlotKml, listFarmPlotSoilStudies, listPlantationLots, createPlantationLot, updatePlantationLot,
+  listPlantationResidents, createPlantationResident, updatePlantationResident
 } from '../controllers/rspo.controller';
 
 const router = Router();
@@ -24,6 +25,12 @@ router.post('/farm-plots', requireRole(['ADMIN','MANAGER']), createFarmPlot);
 router.put('/farm-plots/:id', requireRole(['ADMIN','MANAGER']), updateFarmPlot);
 router.get('/farm-plots/:id/soil-studies', listFarmPlotSoilStudies);
 router.post('/farm-plots/:id/soil-studies', requireRole(['ADMIN','MANAGER','AUDITOR']), kmlUpload.single('kml'), analyzeFarmPlotKml);
+router.get('/plantation-lots', listPlantationLots);
+router.post('/plantation-lots', requireRole(['ADMIN','MANAGER']), createPlantationLot);
+router.put('/plantation-lots/:id', requireRole(['ADMIN','MANAGER']), updatePlantationLot);
+router.get('/plantation-residents', listPlantationResidents);
+router.post('/plantation-residents', requireRole(['ADMIN','MANAGER']), createPlantationResident);
+router.put('/plantation-residents/:id', requireRole(['ADMIN','MANAGER']), updatePlantationResident);
 router.get('/plantation-activities', listPlantationActivities);
 router.post('/plantation-activities', requireRole(['ADMIN','MANAGER','AUDITOR']), createPlantationActivity);
 router.put('/plantation-activities/:id', requireRole(['ADMIN','MANAGER','AUDITOR']), updatePlantationActivity);

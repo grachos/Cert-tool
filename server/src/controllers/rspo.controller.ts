@@ -6,6 +6,16 @@ import { buildAiSoilStudy, parseKmlGeometry } from '../kmlSoilAnalysis';
 
 const fail = (res: Response, status: number, error: string) => res.status(status).json({ error });
 const cleanNumber = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
+const legacySourceType = (relationshipType: string) => ({
+  PARTNER: 'ASSOCIATED', THIRD_PARTY: 'INDEPENDENT', SMALLHOLDER: 'INDIVIDUAL', OWN: 'OWN'
+}[relationshipType] || 'INDEPENDENT');
+const workerDistributionIsValid = (field: unknown, administrative: unknown, permanent: unknown, contractor: unknown) =>
+  Math.trunc(cleanNumber(field)) + Math.trunc(cleanNumber(administrative)) ===
+  Math.trunc(cleanNumber(permanent)) + Math.trunc(cleanNumber(contractor));
+const maskIdentifier = (value: unknown) => {
+  const text = String(value || '');
+  return text ? `••••${text.slice(-4)}` : null;
+};
 export const calculateDeliveryWeights = (grossValue: unknown, tareValue: unknown) => {
   const gross = cleanNumber(grossValue);
   const tare = cleanNumber(tareValue);
@@ -15,19 +25,53 @@ export const calculateDeliveryWeights = (grossValue: unknown, tareValue: unknown
 };
 
 export const listSupplySources = async (req: ScopedRequest, res: Response) => {
-  const [rows] = await db.query('SELECT * FROM SupplySource WHERE uocId = ? ORDER BY createdAt DESC', [req.uocId]);
-  res.json(rows);
+  const [rows] = await db.query(
+    `SELECT ss.*,
+      (SELECT COUNT(*) FROM FarmPlot fp WHERE fp.supplySourceId=ss.id AND fp.uocId=ss.uocId) AS plantationCount,
+      (SELECT COALESCE(SUM(fp.area),0) FROM FarmPlot fp WHERE fp.supplySourceId=ss.id AND fp.uocId=ss.uocId) AS plantationArea
+     FROM SupplySource ss WHERE ss.uocId = ? ORDER BY ss.createdAt DESC`,
+    [req.uocId]
+  );
+  const canSeePersonalIds = ['ADMIN', 'MANAGER'].includes(req.user?.role || '');
+  res.json((rows as any[]).map(row => canSeePersonalIds ? row : {
+    ...row,
+    identifier: row.personType === 'JURIDICAL' ? row.identifier : maskIdentifier(row.identifier),
+    legalRepresentativeId: maskIdentifier(row.legalRepresentativeId)
+  }));
 };
 
 export const createSupplySource = async (req: ScopedRequest, res: Response) => {
-  const { name, identifier, sourceType, totalArea, plantedArea, certifiedArea, polygonReference, polygonStatus, riskLevel, eligibilityStatus, certificationStatus, responsible, lastEvaluation, expiryDate, notes } = req.body;
-  if (!name?.trim() || !identifier?.trim() || !sourceType) return fail(res, 400, 'Nombre, identificador y tipo son obligatorios.');
+  const {
+    name, identifier, sourceType, personType, identifierType, relationshipType,
+    legalRepresentativeName, legalRepresentativeId, address, phone, email,
+    dataConsentAccepted, dataConsentHolderName, totalArea, plantedArea, certifiedArea,
+    polygonReference, polygonStatus, riskLevel, eligibilityStatus, certificationStatus,
+    responsible, lastEvaluation, expiryDate, notes
+  } = req.body;
+  if (!name?.trim() || !identifier?.trim() || !relationshipType) return fail(res, 400, 'Nombre o razón social, identificación y vínculo con la extractora son obligatorios.');
+  if (personType === 'JURIDICAL' && (!legalRepresentativeName?.trim() || !legalRepresentativeId?.trim())) {
+    return fail(res, 400, 'La persona jurídica requiere nombre y cédula del representante legal.');
+  }
+  if (!dataConsentAccepted) return fail(res, 400, 'Debe registrar la autorización para el tratamiento de datos personales.');
   if (cleanNumber(plantedArea) > cleanNumber(totalArea) || cleanNumber(certifiedArea) > cleanNumber(plantedArea)) return fail(res, 400, 'El área sembrada no puede superar el área total ni el área certificada superar la sembrada.');
   const id = uuidv4();
   await db.query(
-    `INSERT INTO SupplySource (id,uocId,name,identifier,sourceType,totalArea,plantedArea,certifiedArea,polygonReference,polygonStatus,riskLevel,eligibilityStatus,certificationStatus,responsible,lastEvaluation,expiryDate,notes)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, req.uocId, name.trim(), identifier.trim(), sourceType, cleanNumber(totalArea), cleanNumber(plantedArea), cleanNumber(certifiedArea), polygonReference || null, polygonStatus || 'PENDING', riskLevel || 'MEDIUM', eligibilityStatus || 'PENDING', certificationStatus || 'PENDING', responsible || null, lastEvaluation || null, expiryDate || null, notes || null]
+    `INSERT INTO SupplySource
+      (id,uocId,name,identifier,sourceType,personType,identifierType,relationshipType,
+       legalRepresentativeName,legalRepresentativeId,address,phone,email,
+       dataConsentAccepted,dataConsentAcceptedAt,dataConsentHolderName,dataConsentVersion,
+       totalArea,plantedArea,certifiedArea,polygonReference,polygonStatus,riskLevel,
+       eligibilityStatus,certificationStatus,responsible,lastEvaluation,expiryDate,notes)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, req.uocId, name.trim(), identifier.trim(), sourceType || legacySourceType(relationshipType), personType || 'NATURAL',
+      identifierType || (personType === 'JURIDICAL' ? 'NIT' : 'CC'), relationshipType,
+      legalRepresentativeName?.trim() || null, legalRepresentativeId?.trim() || null,
+      address?.trim() || null, phone?.trim() || null, email?.trim() || null, true,
+      dataConsentHolderName?.trim() || name.trim(), 'LEY1581-2026-01',
+      cleanNumber(totalArea), cleanNumber(plantedArea), cleanNumber(certifiedArea),
+      polygonReference || null, polygonStatus || 'PENDING', riskLevel || 'MEDIUM',
+      eligibilityStatus || 'PENDING', certificationStatus || 'PENDING', responsible || null,
+      lastEvaluation || null, expiryDate || null, notes || null]
   );
   const [rows] = await db.query('SELECT * FROM SupplySource WHERE id = ?', [id]);
   res.status(201).json((rows as any[])[0]);
@@ -42,8 +86,24 @@ export const updateSupplySource = async (req: ScopedRequest, res: Response) => {
   const nextPlanted = cleanNumber(req.body.plantedArea ?? current.plantedArea);
   const nextCertified = cleanNumber(req.body.certifiedArea ?? current.certifiedArea);
   if (nextPlanted > nextTotal || nextCertified > nextPlanted) return fail(res, 400, 'Las áreas no cumplen total ≥ sembrada ≥ certificada.');
-  const allowed = ['name','identifier','sourceType','totalArea','plantedArea','certifiedArea','polygonReference','polygonStatus','riskLevel','eligibilityStatus','certificationStatus','responsible','lastEvaluation','expiryDate','notes','status'];
+  const nextPersonType = req.body.personType ?? current.personType;
+  const nextRepresentativeName = req.body.legalRepresentativeName ?? current.legalRepresentativeName;
+  const nextRepresentativeId = req.body.legalRepresentativeId ?? current.legalRepresentativeId;
+  if (nextPersonType === 'JURIDICAL' && (!String(nextRepresentativeName || '').trim() || !String(nextRepresentativeId || '').trim())) {
+    return fail(res, 400, 'La persona jurídica requiere nombre y cédula del representante legal.');
+  }
+  if (req.body.relationshipType && req.body.sourceType === undefined) {
+    req.body.sourceType = legacySourceType(req.body.relationshipType);
+  }
+  const allowed = [
+    'name','identifier','sourceType','personType','identifierType','relationshipType',
+    'legalRepresentativeName','legalRepresentativeId','address','phone','email',
+    'dataConsentAccepted','dataConsentHolderName','dataConsentVersion',
+    'totalArea','plantedArea','certifiedArea','polygonReference','polygonStatus','riskLevel',
+    'eligibilityStatus','certificationStatus','responsible','lastEvaluation','expiryDate','notes','status'
+  ];
   const entries = allowed.filter(key => req.body[key] !== undefined).map(key => [key, req.body[key]]);
+  if (req.body.dataConsentAccepted && !current.dataConsentAccepted) entries.push(['dataConsentAcceptedAt', new Date()]);
   if (!entries.length) return fail(res, 400, 'No hay cambios para guardar.');
   await db.query(`UPDATE SupplySource SET ${entries.map(([key]) => `${key} = ?`).join(', ')} WHERE id = ? AND uocId = ?`, [...entries.map(([, value]) => value), id, req.uocId]);
   await db.query('INSERT INTO SupplySourceHistory (id,supplySourceId,uocId,changedBy,changesJson) VALUES (?,?,?,?,?)',
@@ -60,7 +120,10 @@ export const listSupplySourceHistory = async (req: ScopedRequest, res: Response)
 
 export const listFarmPlots = async (req: ScopedRequest, res: Response) => {
   const [rows] = await db.query(
-    `SELECT fp.*, ss.name AS sourceName, ss.sourceType,
+    `SELECT fp.*, ss.name AS sourceName, ss.sourceType, ss.personType,
+      (SELECT COUNT(*) FROM PlantationLot pl WHERE pl.farmPlotId=fp.id AND pl.status='ACTIVE') AS lotCount,
+      (SELECT COALESCE(SUM(pl.area),0) FROM PlantationLot pl WHERE pl.farmPlotId=fp.id AND pl.status='ACTIVE') AS lotsArea,
+      (SELECT COUNT(*) FROM PlantationResident pr WHERE pr.farmPlotId=fp.id) AS residentCount,
       COALESCE(ROUND(AVG(CASE WHEN pa.category='EVALUATION' THEN pa.score END),2),0) AS compliance,
       SUM(CASE WHEN pa.isCritical=1 AND pa.status NOT IN ('COMPLETED','COMPLIANT','CLOSED') THEN 1 ELSE 0 END) AS criticalRequirements
      FROM FarmPlot fp JOIN SupplySource ss ON ss.id=fp.supplySourceId
@@ -71,16 +134,37 @@ export const listFarmPlots = async (req: ScopedRequest, res: Response) => {
 };
 
 export const createFarmPlot = async (req: ScopedRequest, res: Response) => {
-  const { supplySourceId, name, farmName, area, plantedArea, estimatedProductionMt, eligibilityStatus, certificationStatus, polygonReference } = req.body;
-  if (!supplySourceId || !name?.trim()) return fail(res, 400, 'Fuente de suministro y nombre son obligatorios.');
+  const {
+    supplySourceId, name, farmName, area, plantedArea, estimatedProductionMt,
+    eligibilityStatus, certificationStatus, polygonReference, locationDescription,
+    latitude, longitude, fieldWorkers, administrativeWorkers, permanentWorkers,
+    contractorWorkers, hasResidents
+  } = req.body;
+  const plantationName = String(farmName || name || '').trim();
+  if (!supplySourceId || !plantationName) return fail(res, 400, 'Productor y nombre de la plantación son obligatorios.');
   if (cleanNumber(plantedArea) > cleanNumber(area)) return fail(res, 400, 'El área sembrada no puede superar el área total.');
+  if (!workerDistributionIsValid(fieldWorkers, administrativeWorkers, permanentWorkers, contractorWorkers)) {
+    return fail(res, 400, 'El total de trabajadores de campo y administrativos debe coincidir con el total de personal fijo y contratistas.');
+  }
+  if (latitude !== '' && latitude != null && (Number(latitude) < -90 || Number(latitude) > 90)) return fail(res, 400, 'La latitud debe estar entre -90 y 90.');
+  if (longitude !== '' && longitude != null && (Number(longitude) < -180 || Number(longitude) > 180)) return fail(res, 400, 'La longitud debe estar entre -180 y 180.');
   const [source] = await db.query('SELECT id FROM SupplySource WHERE id=? AND uocId=?', [supplySourceId, req.uocId]);
-  if (!(source as any[]).length) return fail(res, 400, 'La fuente no pertenece a la UoC.');
+  if (!(source as any[]).length) return fail(res, 400, 'El productor no pertenece a la UoC.');
   const id = uuidv4();
   await db.query(
-    `INSERT INTO FarmPlot (id,uocId,supplySourceId,name,farmName,area,plantedArea,estimatedProductionMt,eligibilityStatus,certificationStatus,polygonReference)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, req.uocId, supplySourceId, name.trim(), farmName || null, cleanNumber(area), cleanNumber(plantedArea), cleanNumber(estimatedProductionMt), eligibilityStatus || 'PENDING', certificationStatus || 'PENDING', polygonReference || null]
+    `INSERT INTO FarmPlot
+      (id,uocId,supplySourceId,name,farmName,area,plantedArea,estimatedProductionMt,
+       eligibilityStatus,certificationStatus,polygonReference,locationDescription,latitude,longitude,
+       fieldWorkers,administrativeWorkers,permanentWorkers,contractorWorkers,hasResidents)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, req.uocId, supplySourceId, plantationName, plantationName, cleanNumber(area),
+      cleanNumber(plantedArea), cleanNumber(estimatedProductionMt), eligibilityStatus || 'PENDING',
+      certificationStatus || 'PENDING', polygonReference || null, locationDescription?.trim() || null,
+      latitude === '' || latitude == null ? null : Number(latitude),
+      longitude === '' || longitude == null ? null : Number(longitude),
+      Math.max(0, Math.trunc(cleanNumber(fieldWorkers))), Math.max(0, Math.trunc(cleanNumber(administrativeWorkers))),
+      Math.max(0, Math.trunc(cleanNumber(permanentWorkers))), Math.max(0, Math.trunc(cleanNumber(contractorWorkers))),
+      Boolean(hasResidents)]
   );
   const [rows] = await db.query('SELECT * FROM FarmPlot WHERE id=?', [id]);
   res.status(201).json((rows as any[])[0]);
@@ -90,14 +174,184 @@ export const updateFarmPlot = async (req: ScopedRequest, res: Response) => {
   const [currentRows] = await db.query('SELECT * FROM FarmPlot WHERE id=? AND uocId=?', [req.params.id, req.uocId]);
   const current = (currentRows as any[])[0];
   if (!current) return fail(res, 404, 'Plantación no encontrada.');
-  if (cleanNumber(req.body.plantedArea ?? current.plantedArea) > cleanNumber(req.body.area ?? current.area)) return fail(res, 400, 'El área sembrada no puede superar el área total.');
-  const allowed = ['name','farmName','area','plantedArea','estimatedProductionMt','eligibilityStatus','certificationStatus','polygonReference'];
+  const nextArea = cleanNumber(req.body.area ?? current.area);
+  if (cleanNumber(req.body.plantedArea ?? current.plantedArea) > nextArea) return fail(res, 400, 'El área sembrada no puede superar el área total.');
+  const [lotAreaRows] = await db.query(
+    `SELECT COALESCE(SUM(area),0) lotArea FROM PlantationLot
+     WHERE farmPlotId=? AND uocId=? AND status='ACTIVE'`,
+    [req.params.id, req.uocId]
+  );
+  const lotArea = cleanNumber((lotAreaRows as any[])[0]?.lotArea);
+  if (lotArea > nextArea + 0.01) return fail(res, 400, `El área de la plantación no puede ser menor que la suma de sus lotes (${lotArea} ha).`);
+  if (!workerDistributionIsValid(
+    req.body.fieldWorkers ?? current.fieldWorkers,
+    req.body.administrativeWorkers ?? current.administrativeWorkers,
+    req.body.permanentWorkers ?? current.permanentWorkers,
+    req.body.contractorWorkers ?? current.contractorWorkers
+  )) return fail(res, 400, 'El total de trabajadores de campo y administrativos debe coincidir con el total de personal fijo y contratistas.');
+  if (req.body.hasResidents === false || req.body.hasResidents === 0) {
+    const [residentRows] = await db.query('SELECT COUNT(*) total FROM PlantationResident WHERE farmPlotId=? AND uocId=?', [req.params.id, req.uocId]);
+    if (cleanNumber((residentRows as any[])[0]?.total) > 0) return fail(res, 400, 'No puede indicar que no hay residentes mientras existan personas relacionadas.');
+  }
+  const nextLatitude = req.body.latitude ?? current.latitude;
+  const nextLongitude = req.body.longitude ?? current.longitude;
+  if (nextLatitude !== '' && nextLatitude != null && (Number(nextLatitude) < -90 || Number(nextLatitude) > 90)) return fail(res, 400, 'La latitud debe estar entre -90 y 90.');
+  if (nextLongitude !== '' && nextLongitude != null && (Number(nextLongitude) < -180 || Number(nextLongitude) > 180)) return fail(res, 400, 'La longitud debe estar entre -180 y 180.');
+  const allowed = [
+    'name','farmName','area','plantedArea','estimatedProductionMt','eligibilityStatus',
+    'certificationStatus','polygonReference','locationDescription','latitude','longitude',
+    'fieldWorkers','administrativeWorkers','permanentWorkers','contractorWorkers','hasResidents'
+  ];
   const entries = allowed.filter(k => req.body[k] !== undefined).map(k => [k, req.body[k]]);
   if (!entries.length) return fail(res, 400, 'No hay cambios para guardar.');
   const [result]: any = await db.query(`UPDATE FarmPlot SET ${entries.map(([k]) => `${k}=?`).join(',')} WHERE id=? AND uocId=?`, [...entries.map(([,v]) => v), req.params.id, req.uocId]);
   if (!result.affectedRows) return fail(res, 404, 'Plantación no encontrada.');
   const [rows] = await db.query('SELECT * FROM FarmPlot WHERE id=? AND uocId=?', [req.params.id, req.uocId]);
   res.json((rows as any[])[0]);
+};
+
+export const listPlantationLots = async (req: ScopedRequest, res: Response) => {
+  const farmPlotId = String(req.query.farmPlotId || '');
+  const params: any[] = [req.uocId];
+  let sql = `SELECT pl.*, fp.farmName AS plantationName
+    FROM PlantationLot pl JOIN FarmPlot fp ON fp.id=pl.farmPlotId
+    WHERE pl.uocId=?`;
+  if (farmPlotId) { sql += ' AND pl.farmPlotId=?'; params.push(farmPlotId); }
+  sql += ' ORDER BY fp.farmName, pl.name';
+  const [rows] = await db.query(sql, params);
+  res.json(rows);
+};
+
+export const createPlantationLot = async (req: ScopedRequest, res: Response) => {
+  const { farmPlotId, name, area, notes } = req.body;
+  if (!farmPlotId || !String(name || '').trim() || cleanNumber(area) <= 0) {
+    return fail(res, 400, 'Plantación, nombre del lote y área mayor que cero son obligatorios.');
+  }
+  const [plots] = await db.query('SELECT id,area FROM FarmPlot WHERE id=? AND uocId=?', [farmPlotId, req.uocId]);
+  const plot = (plots as any[])[0];
+  if (!plot) return fail(res, 404, 'Plantación no encontrada.');
+  const [totals] = await db.query(
+    `SELECT COALESCE(SUM(area),0) total FROM PlantationLot
+     WHERE farmPlotId=? AND uocId=? AND status='ACTIVE'`,
+    [farmPlotId, req.uocId]
+  );
+  const projectedArea = cleanNumber((totals as any[])[0]?.total) + cleanNumber(area);
+  if (projectedArea > cleanNumber(plot.area) + 0.01) {
+    return fail(res, 400, `La suma de los lotes (${projectedArea} ha) supera el área de la plantación (${cleanNumber(plot.area)} ha).`);
+  }
+  const id = uuidv4();
+  try {
+    await db.query(
+      'INSERT INTO PlantationLot (id,uocId,farmPlotId,name,area,notes) VALUES (?,?,?,?,?,?)',
+      [id, req.uocId, farmPlotId, String(name).trim(), cleanNumber(area), String(notes || '').trim() || null]
+    );
+  } catch (error: any) {
+    if (error?.code === 'ER_DUP_ENTRY') return fail(res, 409, 'Ya existe un lote con ese nombre en la plantación.');
+    throw error;
+  }
+  const [rows] = await db.query('SELECT * FROM PlantationLot WHERE id=? AND uocId=?', [id, req.uocId]);
+  res.status(201).json((rows as any[])[0]);
+};
+
+export const updatePlantationLot = async (req: ScopedRequest, res: Response) => {
+  const [rows] = await db.query(
+    `SELECT pl.*,fp.area AS plantationArea FROM PlantationLot pl
+     JOIN FarmPlot fp ON fp.id=pl.farmPlotId WHERE pl.id=? AND pl.uocId=?`,
+    [req.params.id, req.uocId]
+  );
+  const current = (rows as any[])[0];
+  if (!current) return fail(res, 404, 'Lote no encontrado.');
+  const nextName = String(req.body.name ?? current.name).trim();
+  const nextArea = cleanNumber(req.body.area ?? current.area);
+  const nextStatus = req.body.status ?? current.status;
+  if (!nextName || nextArea <= 0) return fail(res, 400, 'Nombre y área mayor que cero son obligatorios.');
+  const [totals] = await db.query(
+    `SELECT COALESCE(SUM(area),0) total FROM PlantationLot
+     WHERE farmPlotId=? AND uocId=? AND id<>? AND status='ACTIVE'`,
+    [current.farmPlotId, req.uocId, req.params.id]
+  );
+  const projectedArea = cleanNumber((totals as any[])[0]?.total) + (nextStatus === 'ACTIVE' ? nextArea : 0);
+  if (projectedArea > cleanNumber(current.plantationArea) + 0.01) {
+    return fail(res, 400, `La suma de los lotes (${projectedArea} ha) supera el área de la plantación (${cleanNumber(current.plantationArea)} ha).`);
+  }
+  try {
+    await db.query(
+      'UPDATE PlantationLot SET name=?,area=?,notes=?,status=? WHERE id=? AND uocId=?',
+      [nextName, nextArea, req.body.notes ?? current.notes, nextStatus, req.params.id, req.uocId]
+    );
+  } catch (error: any) {
+    if (error?.code === 'ER_DUP_ENTRY') return fail(res, 409, 'Ya existe un lote con ese nombre en la plantación.');
+    throw error;
+  }
+  const [updated] = await db.query('SELECT * FROM PlantationLot WHERE id=? AND uocId=?', [req.params.id, req.uocId]);
+  res.json((updated as any[])[0]);
+};
+
+export const listPlantationResidents = async (req: ScopedRequest, res: Response) => {
+  const farmPlotId = String(req.query.farmPlotId || '');
+  const params: any[] = [req.uocId];
+  let sql = `SELECT pr.*,fp.farmName AS plantationName
+    FROM PlantationResident pr JOIN FarmPlot fp ON fp.id=pr.farmPlotId
+    WHERE pr.uocId=?`;
+  if (farmPlotId) { sql += ' AND pr.farmPlotId=?'; params.push(farmPlotId); }
+  sql += ' ORDER BY fp.farmName, pr.fullName';
+  const [rows] = await db.query(sql, params);
+  const canSeePersonalIds = ['ADMIN', 'MANAGER'].includes(req.user?.role || '');
+  res.json((rows as any[]).map(row => canSeePersonalIds ? row : { ...row, identifier: maskIdentifier(row.identifier) }));
+};
+
+export const createPlantationResident = async (req: ScopedRequest, res: Response) => {
+  const { farmPlotId, fullName, identifier, age, dataConsentAccepted, dataConsentHolderName } = req.body;
+  if (!farmPlotId || !String(fullName || '').trim() || !String(identifier || '').trim() || !Number.isInteger(Number(age)) || Number(age) < 0 || Number(age) > 120) {
+    return fail(res, 400, 'Plantación, nombre, cédula y edad válida son obligatorios.');
+  }
+  if (!dataConsentAccepted || !String(dataConsentHolderName || '').trim()) {
+    return fail(res, 400, 'Debe registrar la autorización del titular o de su representante.');
+  }
+  const [plots] = await db.query('SELECT id FROM FarmPlot WHERE id=? AND uocId=?', [farmPlotId, req.uocId]);
+  if (!(plots as any[]).length) return fail(res, 404, 'Plantación no encontrada.');
+  const id = uuidv4();
+  try {
+    await db.query(
+      `INSERT INTO PlantationResident
+        (id,uocId,farmPlotId,fullName,identifier,age,dataConsentAccepted,dataConsentAcceptedAt,dataConsentHolderName)
+       VALUES (?,?,?,?,?,?,TRUE,CURRENT_TIMESTAMP,?)`,
+      [id, req.uocId, farmPlotId, String(fullName).trim(), String(identifier).trim(), Number(age), String(dataConsentHolderName).trim()]
+    );
+    await db.query('UPDATE FarmPlot SET hasResidents=TRUE WHERE id=? AND uocId=?', [farmPlotId, req.uocId]);
+  } catch (error: any) {
+    if (error?.code === 'ER_DUP_ENTRY') return fail(res, 409, 'Esta persona ya está relacionada con la plantación.');
+    throw error;
+  }
+  const [rows] = await db.query('SELECT * FROM PlantationResident WHERE id=? AND uocId=?', [id, req.uocId]);
+  res.status(201).json((rows as any[])[0]);
+};
+
+export const updatePlantationResident = async (req: ScopedRequest, res: Response) => {
+  const [rows] = await db.query('SELECT * FROM PlantationResident WHERE id=? AND uocId=?', [req.params.id, req.uocId]);
+  const current = (rows as any[])[0];
+  if (!current) return fail(res, 404, 'Residente no encontrado.');
+  const fullName = String(req.body.fullName ?? current.fullName).trim();
+  const identifier = String(req.body.identifier ?? current.identifier).trim();
+  const age = Number(req.body.age ?? current.age);
+  if (!fullName || !identifier || !Number.isInteger(age) || age < 0 || age > 120) return fail(res, 400, 'Nombre, cédula y edad válida son obligatorios.');
+  const consentAccepted = req.body.dataConsentAccepted ?? current.dataConsentAccepted;
+  const consentHolderName = String(req.body.dataConsentHolderName ?? current.dataConsentHolderName ?? '').trim();
+  if (!consentAccepted || !consentHolderName) return fail(res, 400, 'Debe registrar la autorización del titular o de su representante.');
+  try {
+    await db.query(
+      `UPDATE PlantationResident
+       SET fullName=?,identifier=?,age=?,dataConsentAccepted=?,dataConsentHolderName=?,
+           dataConsentAcceptedAt=COALESCE(dataConsentAcceptedAt,CURRENT_TIMESTAMP)
+       WHERE id=? AND uocId=?`,
+      [fullName, identifier, age, Boolean(consentAccepted), consentHolderName, req.params.id, req.uocId]
+    );
+  } catch (error: any) {
+    if (error?.code === 'ER_DUP_ENTRY') return fail(res, 409, 'Esta persona ya está relacionada con la plantación.');
+    throw error;
+  }
+  const [updated] = await db.query('SELECT * FROM PlantationResident WHERE id=? AND uocId=?', [req.params.id, req.uocId]);
+  res.json((updated as any[])[0]);
 };
 
 const ensureSoilStudyTable = async () => {
@@ -173,7 +427,9 @@ export const analyzeFarmPlotKml = async (req: ScopedRequest, res: Response) => {
 
 export const listPlantationActivities = async (req: ScopedRequest, res: Response) => {
   const { farmPlotId, category } = req.query;
-  let sql = 'SELECT pa.*, fp.name AS plotName, fp.farmName FROM PlantationActivity pa JOIN FarmPlot fp ON fp.id=pa.farmPlotId WHERE pa.uocId=?';
+  let sql = `SELECT pa.*, fp.name AS plotName, fp.farmName, pl.name AS lotName
+    FROM PlantationActivity pa JOIN FarmPlot fp ON fp.id=pa.farmPlotId
+    LEFT JOIN PlantationLot pl ON pl.id=pa.plantationLotId WHERE pa.uocId=?`;
   const params: any[] = [req.uocId];
   if (farmPlotId) { sql += ' AND pa.farmPlotId=?'; params.push(farmPlotId); }
   if (category) { sql += ' AND pa.category=?'; params.push(category); }
@@ -183,22 +439,26 @@ export const listPlantationActivities = async (req: ScopedRequest, res: Response
 };
 
 export const createPlantationActivity = async (req: ScopedRequest, res: Response) => {
-  const { farmPlotId, category, title, description, requirementId, status, score, isCritical, responsible, activityDate, dueDate } = req.body;
+  const { farmPlotId, plantationLotId, category, title, description, requirementId, status, score, isCritical, responsible, activityDate, dueDate } = req.body;
   if (!farmPlotId || !category || !title?.trim()) return fail(res, 400, 'Plantación, categoría y título son obligatorios.');
   const [plot] = await db.query('SELECT id FROM FarmPlot WHERE id=? AND uocId=?', [farmPlotId, req.uocId]);
   if (!(plot as any[]).length) return fail(res, 400, 'La plantación no pertenece a la UoC.');
+  if (plantationLotId) {
+    const [lot] = await db.query('SELECT id FROM PlantationLot WHERE id=? AND farmPlotId=? AND uocId=? AND status="ACTIVE"', [plantationLotId, farmPlotId, req.uocId]);
+    if (!(lot as any[]).length) return fail(res, 400, 'El lote no pertenece a la plantación seleccionada.');
+  }
   const id = uuidv4();
   await db.query(
-    `INSERT INTO PlantationActivity (id,uocId,farmPlotId,category,title,description,requirementId,status,score,isCritical,responsible,activityDate,dueDate)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, req.uocId, farmPlotId, category, title.trim(), description || null, requirementId || null, status || 'PENDING', score ?? null, Boolean(isCritical), responsible || null, activityDate || null, dueDate || null]
+    `INSERT INTO PlantationActivity (id,uocId,farmPlotId,plantationLotId,category,title,description,requirementId,status,score,isCritical,responsible,activityDate,dueDate)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, req.uocId, farmPlotId, plantationLotId || null, category, title.trim(), description || null, requirementId || null, status || 'PENDING', score ?? null, Boolean(isCritical), responsible || null, activityDate || null, dueDate || null]
   );
   const [rows] = await db.query('SELECT * FROM PlantationActivity WHERE id=?', [id]);
   res.status(201).json((rows as any[])[0]);
 };
 
 export const updatePlantationActivity = async (req: ScopedRequest, res: Response) => {
-  const allowed = ['title','description','status','score','isCritical','responsible','activityDate','dueDate'];
+  const allowed = ['plantationLotId','title','description','status','score','isCritical','responsible','activityDate','dueDate'];
   const entries = allowed.filter(k => req.body[k] !== undefined).map(k => [k, req.body[k]]);
   if (!entries.length) return fail(res, 400, 'No hay cambios para guardar.');
   const [result]: any = await db.query(`UPDATE PlantationActivity SET ${entries.map(([k]) => `${k}=?`).join(',')} WHERE id=? AND uocId=?`, [...entries.map(([,v]) => v), req.params.id, req.uocId]);
