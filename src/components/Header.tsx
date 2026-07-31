@@ -290,7 +290,7 @@ export default function Header({ title, subtitle, onToggleSidebar, onNavigateNot
     <header className="page-header">
       <div className="header-left">
         {onToggleSidebar && (
-          <button className="btn-icon d-lg-none" onClick={onToggleSidebar}>
+          <button className="btn-icon d-lg-none" onClick={onToggleSidebar} aria-label="Abrir menú principal">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px' }}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>

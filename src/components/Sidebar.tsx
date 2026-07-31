@@ -35,7 +35,7 @@ const Icons = {
 
 const topItems: NavItem[] = [
   { id: 'dashboard', labelKey: 'Resumen', icon: Icons.Dashboard },
-  { id: 'plant', labelKey: 'P&C Planta Extractora', icon: Icons.Plant },
+  { id: 'plant', labelKey: 'Cumplimiento P&C', icon: Icons.Plant },
   { id: 'plantations', labelKey: 'Cumplimiento de plantaciones', icon: Icons.Plantations },
   { id: 'supply', labelKey: 'Base de suministro', icon: Icons.Supply },
   { id: 'traceability', labelKey: 'Trazabilidad RFF', icon: Icons.Scc },
@@ -48,7 +48,6 @@ const topItems: NavItem[] = [
 ];
 
 const managementItems: NavItem[] = [
-  { id: 'compliance', labelKey: 'Cumplimiento RSPO P&C', icon: Icons.Compliance },
   { id: 'documents', labelKey: 'Revisión documental', icon: Icons.Documents },
   { id: 'risks', labelKey: 'Análisis de riesgos', icon: Icons.Risks },
   { id: 'stakeholders', labelKey: 'Partes interesadas', icon: Icons.Stakeholders },

@@ -306,7 +306,7 @@ export default function Evidence() {
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '24px', height: '24px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
           </div>
           <p className="font-semibold text-primary">{language === 'es' ? 'Añadir Evidencia' : 'Add Evidence'}</p>
-          <p className="text-xs text-secondary mt-1">{language === 'es' ? 'Sube archivos para auditar con IA' : 'Upload files to audit with AI'}</p>
+          <p className="text-xs text-secondary mt-1">{language === 'es' ? 'Carga controlada para revisión, aprobación e historial' : 'Controlled upload for review, approval, and history'}</p>
         </div>
       </div>
 

@@ -9,7 +9,7 @@ const router = Router();
 router.use(authenticateToken);
 router.use(requireUocAccess());
 router.get('/', getEvidence);
-router.post('/', createEvidence);
+router.post('/', requireRole(['SUPERADMIN','ADMIN','MANAGER','SUSTAINABILITY','COORDINATOR','AUDITOR','PROCESS_OWNER','PLANT_ADMIN','PLANTATION_ADMIN','USER']), createEvidence);
 router.put('/:id/review', requireRole(['ADMIN','MANAGER','AUDITOR']), reviewEvidence);
 
 export default router;

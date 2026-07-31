@@ -27,6 +27,7 @@ import alertsRoutes from './src/routes/alerts.routes';
 import approvalsRoutes from './src/routes/approvals.routes';
 import plantRoutes from './src/routes/plant.routes';
 import rspoRoutes from './src/routes/rspo.routes';
+import pcRoutes from './src/routes/pc.routes';
 import { authenticateToken, AuthRequest } from './src/middleware/auth.middleware';
 import { canAccessUoc } from './src/middleware/uoc.middleware';
 
@@ -87,6 +88,7 @@ app.use('/api/alerts', alertsRoutes);
 app.use('/api/approvals', approvalsRoutes);
 app.use('/api/plant', plantRoutes);
 app.use('/api/rspo', rspoRoutes);
+app.use('/api/pc', pcRoutes);
 
 // File Upload Endpoint
 app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => {

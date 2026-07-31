@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import pool from '../db';
 import { AuthRequest } from '../middleware/auth.middleware';
-import { getAuthorizedUocIds } from '../middleware/uoc.middleware';
+import { getAuthorizedUocIds, ScopedRequest } from '../middleware/uoc.middleware';
 
 export const getUocs = async (req: AuthRequest, res: Response) => {
   try {
@@ -43,6 +43,41 @@ export const createUoc = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error creating UoC:', error);
     res.status(500).json({ error: 'Failed to create certification unit' });
+  }
+};
+
+const editableUocFields = [
+  'name','companyName','country','area','status','managerName','managerEmail','certifiedSince','nextAuditDate',
+  'type','millName','membershipNumber','certificationCode','certificationBody','certificationType',
+  'scopeDescription','processingCapacityMt','estimatedRffMt','processedRffMt','cpoProducedMt','pkProducedMt'
+];
+
+export const updateUoc = async (req: ScopedRequest, res: Response) => {
+  const entries = editableUocFields
+    .filter(field => req.body[field] !== undefined)
+    .map(field => [field, req.body[field] === '' ? null : req.body[field]]);
+  if (!entries.length) {
+    res.status(400).json({ error: 'No hay datos de la UoC para actualizar.' });
+    return;
+  }
+  if (req.body.name !== undefined && !String(req.body.name).trim()) {
+    res.status(400).json({ error: 'El nombre de la UoC es obligatorio.' });
+    return;
+  }
+  try {
+    const [result]: any = await pool.query(
+      `UPDATE CertificationUnit SET ${entries.map(([field]) => `\`${field}\`=?`).join(',')} WHERE id=?`,
+      [...entries.map(([, value]) => value), req.uocId]
+    );
+    if (!result.affectedRows) {
+      res.status(404).json({ error: 'Unidad de certificación no encontrada.' });
+      return;
+    }
+    const [rows] = await pool.query('SELECT * FROM CertificationUnit WHERE id=?', [req.uocId]);
+    res.json((rows as any[])[0]);
+  } catch (error) {
+    console.error('Error updating UoC:', error);
+    res.status(500).json({ error: 'No fue posible actualizar la Unidad de Certificación.' });
   }
 };
 

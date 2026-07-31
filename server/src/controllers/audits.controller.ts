@@ -16,7 +16,9 @@ export const getAudits = async (req: Request, res: Response) => {
 // Get all requirements for dropdown
 export const getAllRequirements = async (req: Request, res: Response) => {
   try {
-    const [rows] = await pool.query('SELECT id, clause, title, standardId FROM Requirement ORDER BY standardId, clause');
+    const [rows] = await pool.query(
+      "SELECT id,clause,title,standardId FROM Requirement WHERE standardId IN ('RSPO','SCC') ORDER BY standardId,clause"
+    );
     res.json(rows);
   } catch (error) {
     console.error('Error in getAllRequirements:', error);
@@ -77,7 +79,7 @@ export const createFinding = async (req: Request, res: Response) => {
   }
 };
 
-// AI Verification Mock for Closing a Finding
+// Validación determinística del cierre: no simula una evaluación de IA.
 export const verifyFindingClosure = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
@@ -100,23 +102,23 @@ export const verifyFindingClosure = async (req: Request, res: Response): Promise
 
     if (plans.length === 0) {
       isApproved = false;
-      aiJustification = `La IA determinó que no se puede cerrar la No Conformidad (${finding.type}) porque no existe ningún Plan de Acción asociado para abordarla. Por favor, crea un plan de acción correctivo y complétalo.`;
+      aiJustification = `El cierre no procede: la No Conformidad (${finding.type}) no tiene un Plan de Acción asociado. Registre el plan correctivo y complete su ejecución.`;
     } else {
       const allCompleted = plans.every(p => p.status === 'COMPLETED' || p.progress === 100);
       
       if (allCompleted) {
         isApproved = true;
-        aiJustification = `La IA ha validado exitosamente el cierre de la No Conformidad. Se encontró evidencia de ${plans.length} plan(es) de acción asociado(s) completado(s) al 100%, cumpliendo con la resolución del hallazgo.`;
+        aiJustification = `Cierre validado mediante reglas de control: ${plans.length} plan(es) de acción asociado(s) están completados al 100%.`;
         
         await pool.query('UPDATE NonConformance SET status = ? WHERE id = ? AND uocId=?', ['CLOSED', id, (req as any).uocId]);
       } else {
         isApproved = false;
         const pendingPlans = plans.filter(p => p.status !== 'COMPLETED' && p.progress < 100).length;
-        aiJustification = `La IA rechaza el cierre de esta No Conformidad. Existen ${pendingPlans} plan(es) de acción asociado(s) que aún no están al 100% de progreso.`;
+        aiJustification = `El cierre no procede: existen ${pendingPlans} plan(es) de acción asociado(s) que aún no están al 100% de progreso.`;
       }
     }
 
-    res.json({ isApproved, aiJustification });
+    res.json({ isApproved, justification: aiJustification, aiJustification });
   } catch (error) {
     console.error('Error in verifyFindingClosure:', error);
     res.status(500).json({ error: 'Failed to verify finding closure' });

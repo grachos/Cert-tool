@@ -7,7 +7,7 @@ export interface ScopedRequest extends Request {
 }
 
 export async function canAccessUoc(user: { id: string; role: string }, uocId: string): Promise<boolean> {
-  if (user.role === 'ADMIN') return true;
+  if (['SUPERADMIN', 'ADMIN'].includes(user.role)) return true;
   const [rows] = await db.query(
     'SELECT 1 FROM UserCertificationUnit WHERE userId = ? AND uocId = ? LIMIT 1',
     [user.id, uocId]
@@ -25,7 +25,7 @@ export const requireUocAccess = (options: { allowAllForAdmin?: boolean } = {}) =
       const raw = req.params.uocId || req.body?.uocId || req.query?.uocId;
       const uocId = typeof raw === 'string' ? raw.trim() : '';
       if (!uocId || uocId === 'all') {
-        if (req.user.role === 'ADMIN' && options.allowAllForAdmin) {
+        if (['SUPERADMIN', 'ADMIN'].includes(req.user.role) && options.allowAllForAdmin) {
           next();
           return;
         }
@@ -45,7 +45,7 @@ export const requireUocAccess = (options: { allowAllForAdmin?: boolean } = {}) =
 };
 
 export async function getAuthorizedUocIds(user: { id: string; role: string }): Promise<string[] | null> {
-  if (user.role === 'ADMIN') return null;
+  if (['SUPERADMIN', 'ADMIN'].includes(user.role)) return null;
   const [rows] = await db.query('SELECT uocId FROM UserCertificationUnit WHERE userId = ?', [user.id]);
   return (rows as any[]).map(row => row.uocId);
 }

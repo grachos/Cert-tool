@@ -234,6 +234,10 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [evId, title, description, standardId, clause, type, evStatus, parsedExpiryDate, scopedUocId, companyName || null, supplySourceId || null, farmPlotId || null, requirementId, indicator || null, responsible || null, fileName, originalFileName, mimeType || null, observations || null]
     );
+    await db.query(
+      'INSERT INTO EvidenceHistory (id,evidenceId,uocId,changedBy,action,snapshotJson) VALUES (?,?,?,?,?,?)',
+      [uuidv4(), evId, scopedUocId, userId, 'CREATED', JSON.stringify({ title, standardId, clause, type, status: evStatus, expiryDate: parsedExpiryDate, requirementId, fileName })]
+    );
 
     const [evRows] = await db.query('SELECT * FROM Evidence WHERE id = ?', [evId]);
     const newEvidence = (evRows as any[])[0];
@@ -258,7 +262,7 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
 
 export const reviewEvidence = async (req: Request, res: Response): Promise<void> => {
   const { status, observations } = req.body;
-  if (!['VALID','EXPIRED','PENDING_REVIEW'].includes(status)) { res.status(400).json({ error: 'Estado de revisión inválido.' }); return; }
+  if (!['VALID','EXPIRED','PENDING_REVIEW','IN_REVIEW','APPROVED','REJECTED','REPLACED'].includes(status)) { res.status(400).json({ error: 'Estado de revisión inválido.' }); return; }
   const authReq = req as any;
   const [result]: any = await db.query(
     'UPDATE Evidence SET status=?,observations=COALESCE(?,observations),reviewedBy=?,reviewedAt=NOW() WHERE id=? AND uocId=?',
@@ -266,5 +270,9 @@ export const reviewEvidence = async (req: Request, res: Response): Promise<void>
   );
   if (!result.affectedRows) { res.status(404).json({ error: 'Evidencia no encontrada.' }); return; }
   const [rows] = await db.query('SELECT * FROM Evidence WHERE id=? AND uocId=?', [req.params.id, authReq.uocId]);
+  await db.query(
+    'INSERT INTO EvidenceHistory (id,evidenceId,uocId,changedBy,action,snapshotJson) VALUES (?,?,?,?,?,?)',
+    [uuidv4(), req.params.id, authReq.uocId, authReq.user.id, 'REVIEWED', JSON.stringify((rows as any[])[0])]
+  );
   res.json((rows as any[])[0]);
 };

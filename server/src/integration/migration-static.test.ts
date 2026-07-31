@@ -5,6 +5,8 @@ import path from 'node:path';
 
 const migration = fs.readFileSync(path.resolve(__dirname, '../../migrations/001_rspo_tech_core.sql'), 'utf8');
 const producerMigration = fs.readFileSync(path.resolve(__dirname, '../../migrations/002_producer_plantation_structure.sql'), 'utf8');
+const pcMigration = fs.readFileSync(path.resolve(__dirname, '../../migrations/003_pc_uoc_compliance.sql'), 'utf8');
+const pcImporter = fs.readFileSync(path.resolve(__dirname, '../../import_rspo_pc.ts'), 'utf8');
 const schema = fs.readFileSync(path.resolve(__dirname, '../../schema.sql'), 'utf8');
 
 test('migración no usa ADD COLUMN IF NOT EXISTS incompatible', () => {
@@ -27,4 +29,31 @@ test('migración de productores separa plantaciones, lotes y residentes sin borr
   ]) assert.match(producerMigration, new RegExp(token));
   assert.doesNotMatch(producerMigration, /\bDROP\s+TABLE\b|\bTRUNCATE\b/i);
   assert.match(producerMigration, /INSERT\s+IGNORE\s+INTO\s+PlantationLot/i);
+});
+
+test('migración P&C crea alcance UoC, evaluación, historial y revisión sin borrar datos', () => {
+  for (const token of [
+    'PcEvaluation', 'PcEvaluationHistory', 'EvidenceHistory', 'ManagementReview',
+    'officialText', 'isCritical', 'noApplyJustification', 'idx_alert_uoc_dismissed'
+  ]) assert.match(pcMigration, new RegExp(token));
+  assert.doesNotMatch(pcMigration, /\bDROP\s+TABLE\b|\bTRUNCATE\b|\bDELETE\s+FROM\b/i);
+  assert.match(pcMigration, /2024 v4\.2/i);
+});
+
+test('esquema base refleja las nuevas entidades de Cumplimiento P&C', () => {
+  for (const token of [
+    'CREATE TABLE IF NOT EXISTS PcEvaluation',
+    'CREATE TABLE IF NOT EXISTS ManagementReview',
+    'pcWorkflowState',
+    'scopeDescription TEXT',
+    'workflowStatus VARCHAR'
+  ]) assert.match(schema, new RegExp(token));
+});
+
+test('importador controlado exige la versión oficial y los 162 indicadores', () => {
+  for (const token of [
+    'RSPO-STD-T01-001', 'Version', '4.2', 'indicators.length !== 162',
+    'officialSourceUrl', 'officialImportedAt', 'active=FALSE'
+  ]) assert.match(pcImporter, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.doesNotMatch(pcImporter, /TRUNCATE|DROP\s+TABLE/i);
 });

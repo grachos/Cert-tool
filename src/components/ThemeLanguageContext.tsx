@@ -189,11 +189,11 @@ const translations = {
     'audits.type.minor': 'No Conformidad Menor',
     'audits.type.obs': 'Observación',
     'audits.type.opp': 'Oportunidad de Mejora',
-    'audits.aiVerifyBtn': 'Solicitar Cierre a IA',
+    'audits.aiVerifyBtn': 'Validar cierre',
     'audits.finding.open': 'ABIERTO',
     'audits.finding.closed': 'CERRADO',
     'audits.finding.rejected': 'RECHAZADO POR IA',
-    'audits.aiTitle': 'Veredicto de Inteligencia Artificial',
+    'audits.aiTitle': 'Validación de cierre',
 
     // Users module
     'users.title': 'Usuarios Registrados',
@@ -479,11 +479,11 @@ const translations = {
     'audits.type.minor': 'Minor Non-Conformance',
     'audits.type.obs': 'Observation',
     'audits.type.opp': 'Opportunity for Improvement',
-    'audits.aiVerifyBtn': 'Request AI Closure',
+    'audits.aiVerifyBtn': 'Validate closure',
     'audits.finding.open': 'OPEN',
     'audits.finding.closed': 'CLOSED',
     'audits.finding.rejected': 'REJECTED BY AI',
-    'audits.aiTitle': 'Artificial Intelligence Verdict',
+    'audits.aiTitle': 'Closure validation',
 
     // Users module
     'users.title': 'Registered Users',
