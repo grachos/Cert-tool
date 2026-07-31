@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import api from '../api';
 import { useUoc } from '../components/UoCContext';
 import { useAuth } from '../components/AuthContext';
+import { MatrixView } from './PcComplianceHub';
 
 type Tab = 'overview' | 'GAP' | 'MAINTENANCE' | 'PLANT_HEALTH' | 'INPUT' | 'DOCUMENT' | 'VISIT' | 'EVALUATION';
 
@@ -149,10 +150,12 @@ export default function PlantationCompliance() {
   const [residents, setResidents] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [sources, setSources] = useState<any[]>([]);
+  const [pcSummary, setPcSummary] = useState<any>(null);
   const [tab, setTab] = useState<Tab>('overview');
   const [showPlot, setShowPlot] = useState(false);
   const [editingPlotId, setEditingPlotId] = useState<string | null>(null);
   const [expandedPlotId, setExpandedPlotId] = useState<string | null>(null);
+  const [pcPlotId, setPcPlotId] = useState<string | null>(null);
   const [lotForm, setLotForm] = useState(emptyLotForm);
   const [residentForm, setResidentForm] = useState(emptyResidentForm);
   const [showActivity, setShowActivity] = useState(false);
@@ -181,19 +184,22 @@ export default function PlantationCompliance() {
       api.get('/rspo/plantation-activities', { params }),
       api.get('/rspo/supply-sources', { params }),
       api.get('/rspo/plantation-lots', { params }),
-      api.get('/rspo/plantation-residents', { params })
-    ]).then(([plotRes, activityRes, sourceRes, lotRes, residentRes]) => {
+      api.get('/rspo/plantation-residents', { params }),
+      api.get('/pc/summary')
+    ]).then(([plotRes, activityRes, sourceRes, lotRes, residentRes, pcSummaryRes]) => {
       setPlots(Array.isArray(plotRes.data) ? plotRes.data : []);
       setActivities(Array.isArray(activityRes.data) ? activityRes.data : []);
       setSources(Array.isArray(sourceRes.data) ? sourceRes.data : []);
       setLots(Array.isArray(lotRes.data) ? lotRes.data : []);
       setResidents(Array.isArray(residentRes.data) ? residentRes.data : []);
+      setPcSummary(pcSummaryRes.data || null);
     }).catch(e => {
       setPlots([]);
       setActivities([]);
       setSources([]);
       setLots([]);
       setResidents([]);
+      setPcSummary(null);
       setError(e.response?.data?.error || 'No fue posible cargar el cumplimiento agrícola.');
     });
   };
@@ -207,13 +213,15 @@ export default function PlantationCompliance() {
   const safeResidents = Array.isArray(residents) ? residents : [];
 
   const filtered = useMemo(
-    () => tab === 'overview' ? [] : safeActivities.filter(activity => activity.category === tab),
-    [tab, safeActivities]
+    () => tab === 'overview' || !Array.isArray(activities) ? [] : activities.filter(activity => activity.category === tab),
+    [tab, activities]
   );
 
-  const averageCompliance = safePlots.length
-    ? Math.round(safePlots.reduce((sum, plot) => sum + Number(plot.compliance || 0), 0) / safePlots.length)
-    : 0;
+  const plotComplianceById = new Map(
+    (Array.isArray(pcSummary?.plantationCompliance) ? pcSummary.plantationCompliance : [])
+      .map((item: any) => [item.id, item])
+  );
+  const averageCompliance = Number(pcSummary?.nucleusCompliance || 0);
   const totalArea = safePlots.reduce((sum, plot) => sum + Number(plot.area || 0), 0);
   const totalLots = safeLots.filter(lot => lot.status === 'ACTIVE').length;
   const openCritical = safeActivities.filter(activity =>
@@ -294,42 +302,6 @@ export default function PlantationCompliance() {
     setShowActivity(true);
   };
 
-  const openPlotForm = () => {
-    if (!safeSources.length) {
-      setShowPlot(false);
-      setError('Primero registre el productor o razón social en “Base de suministro”. Después podrá crear aquí sus plantaciones.');
-      return;
-    }
-    setError('');
-    setEditingPlotId(null);
-    setPlotForm(emptyPlotForm);
-    setShowPlot(value => !value);
-  };
-
-  const openEditPlot = (plot: any) => {
-    setError('');
-    setEditingPlotId(plot.id);
-    setPlotForm({
-      supplySourceId: plot.supplySourceId || '',
-      farmName: plot.farmName || plot.name || '',
-      locationDescription: plot.locationDescription || '',
-      latitude: plot.latitude == null ? '' : String(plot.latitude),
-      longitude: plot.longitude == null ? '' : String(plot.longitude),
-      area: String(plot.area ?? ''),
-      plantedArea: String(plot.plantedArea ?? ''),
-      estimatedProductionMt: String(plot.estimatedProductionMt ?? ''),
-      fieldWorkers: String(plot.fieldWorkers ?? ''),
-      administrativeWorkers: String(plot.administrativeWorkers ?? ''),
-      permanentWorkers: String(plot.permanentWorkers ?? ''),
-      contractorWorkers: String(plot.contractorWorkers ?? ''),
-      hasResidents: Boolean(plot.hasResidents),
-      eligibilityStatus: plot.eligibilityStatus || 'PENDING',
-      certificationStatus: plot.certificationStatus || 'PENDING'
-    });
-    setShowPlot(true);
-    window.scrollTo({ top: 300, behavior: 'smooth' });
-  };
-
   const cancelPlotForm = () => {
     setShowPlot(false);
     setEditingPlotId(null);
@@ -337,6 +309,7 @@ export default function PlantationCompliance() {
 
   const openPlantationDetail = (plotId: string) => {
     setExpandedPlotId(current => current === plotId ? null : plotId);
+    setPcPlotId(null);
     setLotForm({ ...emptyLotForm, farmPlotId: plotId });
     setResidentForm({ ...emptyResidentForm, farmPlotId: plotId });
     setError('');
@@ -444,8 +417,8 @@ export default function PlantationCompliance() {
       <div className="flex-between gap-4 flex-wrap">
         <div>
           <span className="text-xs font-bold uppercase" style={{ color: '#bbf7d0' }}>Gestión agrícola · {selectedUoc?.name}</span>
-          <h2 className="text-2xl font-bold mt-1">Núcleo de cumplimiento de plantaciones</h2>
-          <p className="text-sm mt-1" style={{ color: '#d1fae5' }}>Información organizada por productor, plantación, lote y tipo de labor.</p>
+          <h2 className="text-2xl font-bold mt-1">Cumplimiento P&amp;C Núcleo</h2>
+          <p className="text-sm mt-1" style={{ color: '#d1fae5' }}>Evaluación independiente por plantación, con perfil automático para pequeños productores de 50 ha o menos.</p>
         </div>
         <div className="flex gap-4">
           <div><strong className="text-2xl">{safePlots.length}</strong><small className="block">plantaciones</small></div>
@@ -457,7 +430,7 @@ export default function PlantationCompliance() {
     </section>
 
     <nav className="nexo-module-tabs">
-      {(Object.keys(tabConfig) as Tab[]).map(id =>
+      {(Object.keys(tabConfig) as Tab[]).filter(id => id !== 'EVALUATION').map(id =>
         <button key={id} className={tab === id ? 'selected' : ''}
           onClick={() => { setTab(id); setShowActivity(false); }}>
           {tabConfig[id].icon} {tabConfig[id].label}
@@ -475,8 +448,7 @@ export default function PlantationCompliance() {
         <div className="card"><small>Requisitos críticos abiertos</small><div className="stat-value-lg">{openCritical}</div></div>
       </div>
       <div className="flex-between">
-        <div><h2 className="text-xl font-bold">Ficha individual de plantaciones</h2><p className="text-sm text-secondary">Cada plantación conserva sus lotes, personal, ubicación y registros.</p></div>
-        {canCreatePlot && <button className="btn btn-primary" onClick={openPlotForm}>+ Nueva plantación</button>}
+        <div><h2 className="text-xl font-bold">Plantaciones del núcleo</h2><p className="text-sm text-secondary">Abra una plantación para consultar su ficha completa o evaluar su matriz P&amp;C. La creación y edición se realiza en Base de suministro.</p></div>
       </div>
       {showPlot && <form className="card flex-col gap-5" onSubmit={savePlot}>
         <div style={{ gridColumn: '1 / -1' }}>
@@ -555,30 +527,24 @@ export default function PlantationCompliance() {
           <button type="button" className="btn btn-secondary" onClick={cancelPlotForm}>Cancelar</button>
         </div>
       </form>}
-      {safePlots.length === 0 ? <div className="empty-state card"><h3>No hay plantaciones registradas</h3><p>Registre la primera ficha para iniciar la gestión agrícola.</p></div> :
-        <section className="nexo-plant-grid">{safePlots.map(plot => {
-          const score = Number(plot.compliance || 0);
-          const critical = Number(plot.criticalRequirements || 0);
+      {safePlots.length === 0 ? <div className="empty-state card"><h3>No hay plantaciones registradas</h3><p>Registre la primera plantación desde Base de suministro.</p></div> :
+        <section className="pc-plantation-list">{safePlots.map(plot => {
+          const complianceRecord: any = plotComplianceById.get(plot.id);
+          const score = Number(complianceRecord?.compliance?.overall || 0);
+          const critical = Number(complianceRecord?.compliance?.criticalNonCompliant || 0);
+          const smallholder = Number(plot.area || 0) <= 50;
           const state = plot.eligibilityStatus === 'ELIGIBLE' ? 'Elegible' : plot.eligibilityStatus || 'Pendiente';
-          return <article className="nexo-plant-unit" key={plot.id}>
-            <div><span className="nexo-palm-avatar">♧</span><em className={`nexo-risk ${critical > 2 ? 'high' : critical ? 'medium' : 'low'}`}>{state}</em></div>
-            <h3>{plot.farmName || plot.name}</h3>
-            <p><strong>Productor:</strong> {plot.sourceName || 'Sin identificar'} · {Number(plot.area || 0).toLocaleString('es-CO')} ha</p>
-            <small>{Number(plot.lotCount || 0)} lotes · {Number(plot.residentCount || 0)} residentes · Certificación: {plot.certificationStatus || 'Pendiente'}</small>
-            <div className="nexo-plant-score"><strong>{score}%</strong><span>{critical} críticos</span></div>
-            <div className="progress"><i style={{ width: `${score}%` }} /></div>
-            <div className="nexo-plant-actions">
-              <button className="nexo-follow-link" onClick={() => setTab('EVALUATION')}>Ver seguimiento →</button>
-              <button className="btn btn-secondary btn-sm" onClick={() => openPlantationDetail(plot.id)}>
-                {expandedPlotId === plot.id ? 'Cerrar ficha detallada' : 'Administrar lotes y residentes'}
-              </button>
-              {canCreatePlot && <button className="btn btn-secondary btn-sm" onClick={() => openEditPlot(plot)}>✎ Editar datos de la plantación</button>}
-              {canEdit && <button
-                className={plot.polygonReference ? 'btn btn-secondary btn-sm kml-analysis-button' : 'btn btn-primary btn-sm kml-analysis-button'}
-                onClick={() => openKmlAnalysis(plot)}>
-                {plot.polygonReference ? '⌖ Revisar KML y estudio' : '⌖ Adjuntar KML y analizar suelo'}
-              </button>}
+          return <article className="pc-plantation-row" key={plot.id}>
+            <div className="pc-plantation-main">
+              <span className="nexo-palm-avatar">♧</span>
+              <div><h3>{plot.farmName || plot.name}</h3><p>{plot.sourceName || 'Productor sin identificar'} · {Number(plot.area || 0).toLocaleString('es-CO')} ha · {Number(plot.lotCount || 0)} lotes</p></div>
             </div>
+            <div className="pc-plantation-profile"><span>{smallholder ? 'Pequeño productor' : 'Plantación'}</span><small>{smallholder ? '≤ 50 ha' : '> 50 ha'}</small></div>
+            <div className="pc-plantation-result"><strong>{score}%</strong><span>{critical} críticos no conformes</span><div className="progress"><i style={{ width: `${score}%` }} /></div></div>
+            <em className={`nexo-risk ${critical ? 'high' : 'low'}`}>{state}</em>
+            <button className="btn btn-primary btn-sm" onClick={() => openPlantationDetail(plot.id)}>
+              {expandedPlotId === plot.id ? 'Cerrar ficha' : 'Abrir ficha'}
+            </button>
           </article>;
         })}</section>}
       {expandedPlot && <section className="card plantation-detail flex-col gap-5">
@@ -588,7 +554,13 @@ export default function PlantationCompliance() {
             <h2 className="text-xl font-bold">{expandedPlot.farmName || expandedPlot.name}</h2>
             <p className="text-sm text-secondary">{expandedPlot.locationDescription || 'Ubicación pendiente'} · {expandedPlot.latitude && expandedPlot.longitude ? `${expandedPlot.latitude}, ${expandedPlot.longitude}` : 'Coordenadas pendientes'}</p>
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={() => setExpandedPlotId(null)}>Cerrar</button>
+          <div className="flex gap-2 flex-wrap">
+            {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => openKmlAnalysis(expandedPlot)}>{expandedPlot.polygonReference ? 'Revisar KML y suelo' : 'Adjuntar KML y analizar suelo'}</button>}
+            <button className="btn btn-primary btn-sm" onClick={() => setPcPlotId(current => current === expandedPlot.id ? null : expandedPlot.id)}>
+              {pcPlotId === expandedPlot.id ? 'Cerrar matriz P&C' : 'Evaluar P&C'}
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setExpandedPlotId(null)}>Cerrar ficha</button>
+          </div>
         </div>
 
         <div className="stats-grid">
@@ -596,6 +568,17 @@ export default function PlantationCompliance() {
           <div><small>Área distribuida en lotes</small><strong className="block">{expandedLotsArea.toLocaleString('es-CO')} ha</strong></div>
           <div><small>Campo / administrativos</small><strong className="block">{Number(expandedPlot.fieldWorkers || 0)} / {Number(expandedPlot.administrativeWorkers || 0)}</strong></div>
           <div><small>Fijos / contratistas</small><strong className="block">{Number(expandedPlot.permanentWorkers || 0)} / {Number(expandedPlot.contractorWorkers || 0)}</strong></div>
+        </div>
+
+        <div className="pc-plantation-information">
+          <div><small>Productor o razón social</small><strong>{expandedPlot.sourceName || 'Pendiente'}</strong></div>
+          <div><small>Perfil de evaluación</small><strong>{Number(expandedPlot.area || 0) <= 50 ? 'Pequeño productor (≤ 50 ha)' : 'Plantación'}</strong></div>
+          <div><small>Área sembrada</small><strong>{Number(expandedPlot.plantedArea || 0).toLocaleString('es-CO')} ha</strong></div>
+          <div><small>Producción estimada</small><strong>{Number(expandedPlot.estimatedProductionMt || 0).toLocaleString('es-CO')} t</strong></div>
+          <div><small>Elegibilidad</small><strong>{expandedPlot.eligibilityStatus || 'Pendiente'}</strong></div>
+          <div><small>Certificación</small><strong>{expandedPlot.certificationStatus || 'Pendiente'}</strong></div>
+          <div><small>Polígono KML</small><strong>{expandedPlot.polygonReference ? 'Registrado' : 'Pendiente'}</strong></div>
+          <div><small>Residentes</small><strong>{expandedPlot.hasResidents ? `${expandedResidents.length} relacionados` : 'No reporta'}</strong></div>
         </div>
 
         <div className={Math.abs(expandedLotsArea - Number(expandedPlot.area || 0)) <= 0.01 ? 'area-balance complete' : 'area-balance'}>
@@ -664,6 +647,9 @@ export default function PlantationCompliance() {
             </>}
           </section>
         </div>
+        {pcPlotId === expandedPlot.id && <section className="pc-plantation-matrix">
+          <MatrixView farmPlotId={expandedPlot.id} scopeTitle={`Matriz P&C · ${expandedPlot.farmName || expandedPlot.name}`} onChanged={load} />
+        </section>}
       </section>}
       {kmlPlot && <section className="card flex-col gap-4">
         <div className="flex-between gap-4 flex-wrap">

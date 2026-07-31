@@ -2,14 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../api';
 import { useAuth } from '../components/AuthContext';
 import { useUoc } from '../components/UoCContext';
-import SupplyBase from './SupplyBase';
-import PlantationCompliance from './PlantationCompliance';
 import Evidence from './Evidence';
 import Findings from './Findings';
 import ActionPlans from './ActionPlans';
 import Audits from './Audits';
 
-type PcTab = 'overview' | 'mill' | 'supply' | 'plantations' | 'matrix' | 'evidence' | 'findings' | 'audits' | 'review' | 'reports';
+type PcTab = 'overview' | 'matrix' | 'evidence' | 'findings' | 'audits' | 'review' | 'reports';
 type EvaluationStatus = 'NOT_EVALUATED' | 'IN_PROGRESS' | 'COMPLIANT' | 'PARTIAL' | 'NON_COMPLIANT' | 'NOT_APPLICABLE' | 'PENDING_VERIFICATION' | 'CLOSED';
 
 interface PcSummary {
@@ -20,6 +18,8 @@ interface PcSummary {
   processStats: Array<Record<string, any>>;
   alerts: Array<{ type: string; severity: string; count: number; label: string }>;
   latestManagementReview: Record<string, any> | null;
+  plantationCompliance?: Array<Record<string, any>>;
+  nucleusCompliance?: number;
 }
 
 interface PcIndicator {
@@ -78,11 +78,8 @@ interface ManagementReview {
 }
 
 const tabItems: Array<{ id: PcTab; label: string; short: string }> = [
-  { id: 'overview', label: 'Resumen de la UoC', short: 'Resumen' },
-  { id: 'mill', label: 'Planta extractora', short: 'Extractora' },
-  { id: 'supply', label: 'Base de suministro', short: 'Suministro' },
-  { id: 'plantations', label: 'Plantaciones', short: 'Plantaciones' },
-  { id: 'matrix', label: 'Principios e indicadores', short: 'Matriz P&C' },
+  { id: 'overview', label: 'Resumen de la planta extractora', short: 'Resumen' },
+  { id: 'matrix', label: 'Matriz P&C de la planta extractora', short: 'Matriz P&C' },
   { id: 'evidence', label: 'Evidencias', short: 'Evidencias' },
   { id: 'findings', label: 'Hallazgos y acciones', short: 'Hallazgos' },
   { id: 'audits', label: 'Auditorías', short: 'Auditorías' },
@@ -164,7 +161,7 @@ function Overview({ summary, loading, onOpen, onChanged }: {
       <div>
         <p className="pc-eyebrow">UNIDAD DE CERTIFICACIÓN · RSPO P&C 2024 V4.2</p>
         <h2>{uoc.name}</h2>
-        <p>{uoc.scopeDescription || 'Planta extractora, base de suministro y plantaciones vinculadas.'}</p>
+        <p>{uoc.scopeDescription || 'Alcance operativo y de certificación de la planta extractora.'}</p>
         <div className="pc-tags">
           <span>{uoc.millName || uoc.companyName}</span>
           <span>{uoc.certificationCode || 'Código por registrar'}</span>
@@ -198,9 +195,7 @@ function Overview({ summary, loading, onOpen, onChanged }: {
     </form>}
 
     <section className="pc-stats-grid">
-      <StatCard label="Área certificada" value={`${metrics.certifiedArea.toLocaleString()} ha`} />
-      <StatCard label="Productores" value={metrics.producers} />
-      <StatCard label="Plantaciones" value={metrics.plantations} />
+      <StatCard label="Capacidad de procesamiento" value={`${Number(uoc.processingCapacityMt).toLocaleString()} t`} />
       <StatCard label="RFF estimado" value={`${Number(uoc.estimatedRffMt).toLocaleString()} t`} />
       <StatCard label="RFF procesado" value={`${Number(uoc.processedRffMt).toLocaleString()} t`} />
       <StatCard label="CPO / PK" value={`${Number(uoc.cpoProducedMt).toLocaleString()} / ${Number(uoc.pkProducedMt).toLocaleString()} t`} />
@@ -239,51 +234,69 @@ function Overview({ summary, loading, onOpen, onChanged }: {
   </div>;
 }
 
-function MatrixView({ millOnly = false, onChanged }: { millOnly?: boolean; onChanged: () => void }) {
+export function MatrixView({ farmPlotId, scopeTitle, onChanged }: {
+  farmPlotId?: string;
+  scopeTitle?: string;
+  onChanged: () => void;
+}) {
   const { user } = useAuth();
   const [items, setItems] = useState<PcIndicator[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<PcIndicator | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [filters, setFilters] = useState({ search: '', principle: '', status: '', critical: '', process: millOnly ? 'Planta extractora' : '' });
+  const [scopeMeta, setScopeMeta] = useState<Record<string, any>>({});
+  const [filters, setFilters] = useState({ search: '', principle: '', status: '', critical: '', process: '' });
   const canEdit = ['SUPERADMIN','ADMIN','MANAGER','SUSTAINABILITY','COORDINATOR','AUDITOR','PROCESS_OWNER','PLANT_ADMIN','PLANTATION_ADMIN'].includes(user?.role || '');
   const canApprove = ['SUPERADMIN','ADMIN','MANAGER','SUSTAINABILITY','COORDINATOR','AUDITOR'].includes(user?.role || '');
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value));
+      const params = {
+        ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value)),
+        ...(farmPlotId ? { farmPlotId } : {})
+      };
       const { data } = await api.get('/pc/indicators', { params });
-      setItems(Array.isArray(data) ? data : []);
+      setItems(Array.isArray(data?.indicators) ? data.indicators : Array.isArray(data) ? data : []);
+      setScopeMeta(data?.scope || {});
     } catch (err: any) { setError(err.response?.data?.error || 'No fue posible cargar la matriz.'); setItems([]); }
     finally { setLoading(false); }
-  }, [filters]);
+  }, [filters, farmPlotId]);
 
   useEffect(() => { const timer = setTimeout(load, 180); return () => clearTimeout(timer); }, [load]);
 
   const openDetail = async (id: string) => {
     setDetailLoading(true);
-    try { const { data } = await api.get(`/pc/indicators/${id}`); setSelected(data); }
+    try {
+      const { data } = await api.get(`/pc/indicators/${id}`, { params: farmPlotId ? { farmPlotId } : {} });
+      setSelected(data);
+    }
     catch (err: any) { setError(err.response?.data?.error || 'No fue posible abrir el indicador.'); }
     finally { setDetailLoading(false); }
   };
 
   const saveEvaluation = async (payload: Record<string, any>) => {
     if (!selected) return;
-    await api.put(`/pc/indicators/${selected.id}/evaluation`, payload);
+    await api.put(`/pc/indicators/${selected.id}/evaluation`, { ...payload, farmPlotId: farmPlotId || null });
     await openDetail(selected.id); await load(); onChanged();
   };
 
   const approveNoApply = async (approved: boolean) => {
     if (!selected) return;
-    await api.post(`/pc/indicators/${selected.id}/no-applicability/approval`, { approved });
+    await api.post(`/pc/indicators/${selected.id}/no-applicability/approval`, { approved, farmPlotId: farmPlotId || null });
     await openDetail(selected.id); await load(); onChanged();
   };
 
   return <div className="pc-view-stack">
     <section className="pc-view-heading">
-      <div><p className="pc-eyebrow">{millOnly ? 'ALCANCE OPERATIVO' : 'MATRIZ MAESTRA'}</p><h2>{millOnly ? 'Planta extractora y procesos corporativos' : 'Principios, criterios e indicadores'}</h2><p>{millOnly ? 'Indicadores asignados a la extractora y sus procesos.' : 'Evaluación controlada por UoC, con evidencias, hallazgos e historial.'}</p></div>
+      <div>
+        <p className="pc-eyebrow">{farmPlotId ? 'EVALUACIÓN POR PLANTACIÓN' : 'PLANTA EXTRACTORA'}</p>
+        <h2>{scopeTitle || (farmPlotId ? scopeMeta?.farmPlot?.farmName || scopeMeta?.farmPlot?.name : 'Matriz P&C de la planta extractora')}</h2>
+        <p>{farmPlotId
+          ? `${scopeMeta.profileLabel || 'Plantación'} · evaluación independiente con evidencias propias.`
+          : 'Único sitio de evaluación de los indicadores aplicables a la planta extractora.'}</p>
+      </div>
       <span className="pc-version-badge">RSPO P&C 2024 · v4.2</span>
     </section>
     <section className="card pc-filters">
@@ -291,7 +304,7 @@ function MatrixView({ millOnly = false, onChanged }: { millOnly?: boolean; onCha
       <select className="form-select" aria-label="Filtrar principio" value={filters.principle} onChange={event => setFilters({ ...filters, principle: event.target.value })}><option value="">Todos los principios</option>{[1,2,3,4,5,6,7].map(value => <option key={value} value={`P${value}`}>Principio {value}</option>)}</select>
       <select className="form-select" aria-label="Filtrar estado" value={filters.status} onChange={event => setFilters({ ...filters, status: event.target.value })}><option value="">Todos los estados</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
       <select className="form-select" aria-label="Filtrar criticidad" value={filters.critical} onChange={event => setFilters({ ...filters, critical: event.target.value })}><option value="">Críticos y no críticos</option><option value="true">Solo críticos</option><option value="false">No críticos</option></select>
-      {!millOnly && <select className="form-select" aria-label="Filtrar proceso" value={filters.process} onChange={event => setFilters({ ...filters, process: event.target.value })}><option value="">Todos los procesos</option>{processOptions.map(process => <option key={process}>{process}</option>)}</select>}
+      <select className="form-select" aria-label="Filtrar proceso" value={filters.process} onChange={event => setFilters({ ...filters, process: event.target.value })}><option value="">Todos los procesos</option>{processOptions.map(process => <option key={process}>{process}</option>)}</select>
     </section>
     {error && <div className="integration-note">{error}</div>}
     {loading ? <div className="pc-loading">Cargando matriz…</div> : <div className="pc-indicator-list">
@@ -303,16 +316,24 @@ function MatrixView({ millOnly = false, onChanged }: { millOnly?: boolean; onCha
       {!items.length && <div className="pc-empty">No hay indicadores que coincidan con los filtros.</div>}
     </div>}
 
-    {(selected || detailLoading) && <IndicatorDrawer indicator={selected} loading={detailLoading} canEdit={canEdit} canApprove={canApprove} onClose={() => setSelected(null)} onSave={saveEvaluation} onApprove={approveNoApply} />}
+    {(selected || detailLoading) && <IndicatorDrawer indicator={selected} farmPlotId={farmPlotId} loading={detailLoading} canEdit={canEdit} canApprove={canApprove} onClose={() => setSelected(null)} onSave={saveEvaluation} onApprove={approveNoApply} onRefresh={async () => { if (selected) await openDetail(selected.id); }} />}
   </div>;
 }
 
-function IndicatorDrawer({ indicator, loading, canEdit, canApprove, onClose, onSave, onApprove }: {
+function IndicatorDrawer({ indicator, farmPlotId, loading, canEdit, canApprove, onClose, onSave, onApprove, onRefresh }: {
   indicator: PcIndicator | null; loading: boolean; canEdit: boolean; canApprove: boolean;
-  onClose: () => void; onSave: (payload: Record<string, any>) => Promise<void>; onApprove: (approved: boolean) => Promise<void>;
+  farmPlotId?: string;
+  onClose: () => void;
+  onSave: (payload: Record<string, any>) => Promise<void>;
+  onApprove: (approved: boolean) => Promise<void>;
+  onRefresh: () => Promise<void> | void;
 }) {
   const [section, setSection] = useState<'evaluation' | 'evidence' | 'findings' | 'history'>('evaluation');
   const [saving, setSaving] = useState(false);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const [evidenceError, setEvidenceError] = useState('');
+  const [evidenceTitle, setEvidenceTitle] = useState('');
+  const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [form, setForm] = useState<Record<string, any>>({});
   useEffect(() => {
     if (!indicator) return;
@@ -328,6 +349,40 @@ function IndicatorDrawer({ indicator, loading, canEdit, canApprove, onClose, onS
     event.preventDefault(); setSaving(true);
     try { await onSave({ ...form, complianceLevel: form.complianceLevel === '' ? null : Number(form.complianceLevel) }); }
     finally { setSaving(false); }
+  };
+  const uploadEvidence = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!indicator || !evidenceFiles.length) return;
+    setUploadingEvidence(true);
+    setEvidenceError('');
+    try {
+      for (const file of evidenceFiles) {
+        const binary = new FormData();
+        binary.append('file', file);
+        const { data: uploaded } = await api.post('/upload', binary, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        await api.post('/evidence', {
+          title: `${evidenceTitle.trim() || file.name}|${uploaded.name}`,
+          description: `Evidencia vinculada al indicador ${indicator.clause}`,
+          standardId: 'RSPO',
+          clause: indicator.clause,
+          type: file.type.startsWith('image/') ? 'PHOTO' : 'DOCUMENT',
+          status: 'PENDING_REVIEW',
+          requirementId: indicator.id,
+          farmPlotId: farmPlotId || null,
+          indicator: indicator.clause,
+          mimeType: uploaded.mimeType || file.type
+        });
+      }
+      setEvidenceTitle('');
+      setEvidenceFiles([]);
+      await onRefresh();
+    } catch (error: any) {
+      setEvidenceError(error.response?.data?.error || 'No fue posible adjuntar las evidencias.');
+    } finally {
+      setUploadingEvidence(false);
+    }
   };
   return <div className="pc-drawer-overlay" onClick={onClose}>
     <aside className="pc-drawer" onClick={event => event.stopPropagation()}>
@@ -356,7 +411,21 @@ function IndicatorDrawer({ indicator, loading, canEdit, canApprove, onClose, onS
           {canEdit && <button className="btn btn-primary pc-form-wide" disabled={saving}>{saving ? 'Guardando…' : 'Guardar evaluación'}</button>}
           {indicator.applicability === 'PENDING_APPROVAL' && canApprove && <div className="pc-approval pc-form-wide"><strong>Solicitud “No aplica” pendiente</strong><p>{indicator.noApplyJustification}</p><div><button type="button" className="btn btn-secondary" onClick={() => onApprove(false)}>Devolver</button><button type="button" className="btn btn-primary" onClick={() => onApprove(true)}>Aprobar No aplica</button></div></div>}
         </form>}
-        {section === 'evidence' && <div className="pc-drawer-body pc-records">{(indicator.evidence || []).map(item => <article key={item.id}><div><strong>{item.title}</strong><span>{item.type} · {item.status}</span></div><small>{item.expiryDate ? `Vence: ${new Date(item.expiryDate).toLocaleDateString()}` : 'Sin vencimiento'}</small></article>)}{!indicator.evidence?.length && <div className="pc-empty">No hay evidencias vinculadas a este indicador.</div>}</div>}
+        {section === 'evidence' && <div className="pc-drawer-body pc-records">
+          {canEdit && <form className="pc-evidence-upload" onSubmit={uploadEvidence}>
+            <div>
+              <strong>Adjuntar varias evidencias</strong>
+              <span>Cada archivo quedará relacionado con este indicador y {farmPlotId ? 'esta plantación' : 'la planta extractora'}.</span>
+            </div>
+            <input className="form-input" placeholder="Título común (opcional)" value={evidenceTitle} onChange={event => setEvidenceTitle(event.target.value)} />
+            <input className="form-input" required multiple type="file" onChange={event => setEvidenceFiles(Array.from(event.target.files || []))} />
+            {evidenceFiles.length > 0 && <small>{evidenceFiles.length} archivo(s) seleccionado(s)</small>}
+            {evidenceError && <div className="integration-note">{evidenceError}</div>}
+            <button className="btn btn-primary" disabled={uploadingEvidence || !evidenceFiles.length}>{uploadingEvidence ? 'Adjuntando…' : 'Adjuntar evidencias'}</button>
+          </form>}
+          {(indicator.evidence || []).map(item => <article key={item.id}><div><strong>{String(item.title || '').split('|')[0]}</strong><span>{item.type} · {item.status}</span></div><small>{item.expiryDate ? `Vence: ${new Date(item.expiryDate).toLocaleDateString()}` : 'Sin vencimiento'}</small></article>)}
+          {!indicator.evidence?.length && <div className="pc-empty">No hay evidencias vinculadas a este indicador.</div>}
+        </div>}
         {section === 'findings' && <div className="pc-drawer-body pc-records">{(indicator.findings || []).map(item => <article key={item.id}><div><strong>{item.code || item.type}</strong><span>{item.description}</span></div><small>{item.workflowStatus || item.status}</small></article>)}{!indicator.findings?.length && <div className="pc-empty">No hay hallazgos asociados.</div>}</div>}
         {section === 'history' && <div className="pc-drawer-body pc-timeline">{(indicator.history || []).map(item => <article key={item.id}><i /><div><strong>{item.action}</strong><span>{item.userName} · {new Date(item.createdAt).toLocaleString()}</span><p>{item.previousStatus || 'Sin estado'} → {item.newStatus || 'Sin cambio'}</p></div></article>)}{!indicator.history?.length && <div className="pc-empty">Aún no hay cambios registrados.</div>}</div>}
       </>}
@@ -464,9 +533,6 @@ export default function PcComplianceHub({ onNavigate }: { onNavigate: (module: a
   const content = useMemo(() => {
     if (!selectedUoc || selectedUocId === 'all') return <div className="card pc-select-uoc"><span>UC</span><h2>Seleccione una Unidad de Certificación</h2><p>El cumplimiento P&C no puede consolidarse sin un alcance específico.</p></div>;
     if (tab === 'overview') return <Overview summary={summary} loading={loading} onOpen={open} onChanged={loadSummary} />;
-    if (tab === 'mill') return <MatrixView millOnly onChanged={loadSummary} />;
-    if (tab === 'supply') return <SupplyBase />;
-    if (tab === 'plantations') return <PlantationCompliance />;
     if (tab === 'matrix') return <MatrixView onChanged={loadSummary} />;
     if (tab === 'evidence') return <Evidence />;
     if (tab === 'findings') return <FindingsAndActions onNavigate={onNavigate} />;
@@ -476,7 +542,7 @@ export default function PcComplianceHub({ onNavigate }: { onNavigate: (module: a
   }, [tab, selectedUoc, selectedUocId, summary, loading, loadSummary, onNavigate]);
 
   return <div className="pc-hub animate-fade-in">
-    <div className="pc-title-row"><div><p className="pc-eyebrow">RSPO TECH</p><h1>Cumplimiento P&amp;C</h1><p>Gestión integral de la Unidad de Certificación.</p></div>{selectedUoc && <div className="pc-uoc-chip"><span>UoC activa</span><strong>{selectedUoc.name}</strong></div>}</div>
+    <div className="pc-title-row"><div><p className="pc-eyebrow">RSPO TECH</p><h1>Cumplimiento P&amp;C Planta Extractora</h1><p>Evaluación, evidencias y seguimiento exclusivos de la planta extractora.</p></div>{selectedUoc && <div className="pc-uoc-chip"><span>UoC activa</span><strong>{selectedUoc.name}</strong></div>}</div>
     <nav className="pc-tabbar" aria-label="Vistas de Cumplimiento P&C">{tabItems.map(item => <button key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => open(item.id)} title={item.label}>{item.short}</button>)}</nav>
     {error && <div className="integration-note">{error}</div>}
     {content}

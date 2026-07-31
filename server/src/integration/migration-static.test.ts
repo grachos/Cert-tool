@@ -6,6 +6,7 @@ import path from 'node:path';
 const migration = fs.readFileSync(path.resolve(__dirname, '../../migrations/001_rspo_tech_core.sql'), 'utf8');
 const producerMigration = fs.readFileSync(path.resolve(__dirname, '../../migrations/002_producer_plantation_structure.sql'), 'utf8');
 const pcMigration = fs.readFileSync(path.resolve(__dirname, '../../migrations/003_pc_uoc_compliance.sql'), 'utf8');
+const pcPlantationMigration = fs.readFileSync(path.resolve(__dirname, '../../migrations/004_pc_scope_by_plantation.sql'), 'utf8');
 const pcImporter = fs.readFileSync(path.resolve(__dirname, '../../import_rspo_pc.ts'), 'utf8');
 const schema = fs.readFileSync(path.resolve(__dirname, '../../schema.sql'), 'utf8');
 
@@ -38,6 +39,16 @@ test('migración P&C crea alcance UoC, evaluación, historial y revisión sin bo
   ]) assert.match(pcMigration, new RegExp(token));
   assert.doesNotMatch(pcMigration, /\bDROP\s+TABLE\b|\bTRUNCATE\b|\bDELETE\s+FROM\b/i);
   assert.match(pcMigration, /2024 v4\.2/i);
+});
+
+test('migración P&C por plantación separa alcances y evidencias sin borrar datos', () => {
+  for (const token of [
+    'scopeType', 'scopeId', 'farmPlotId', 'SMALLHOLDER',
+    'uq_pc_evaluation_scope', 'idx_evidence_plot_requirement',
+    'idx_nonconformance_plot_requirement'
+  ]) assert.match(pcPlantationMigration, new RegExp(token));
+  assert.doesNotMatch(pcPlantationMigration, /\bDROP\s+TABLE\b|\bTRUNCATE\b|\bDELETE\s+FROM\b/i);
+  assert.match(pcPlantationMigration, /UPDATE\s+PcEvaluation/i);
 });
 
 test('esquema base refleja las nuevas entidades de Cumplimiento P&C', () => {

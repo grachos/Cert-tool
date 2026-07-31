@@ -35,8 +35,8 @@ const Icons = {
 
 const topItems: NavItem[] = [
   { id: 'dashboard', labelKey: 'Resumen', icon: Icons.Dashboard },
-  { id: 'plant', labelKey: 'Cumplimiento P&C', icon: Icons.Plant },
-  { id: 'plantations', labelKey: 'Cumplimiento de plantaciones', icon: Icons.Plantations },
+  { id: 'plant', labelKey: 'Cumplimiento P&C Planta Extractora', icon: Icons.Plant },
+  { id: 'plantations', labelKey: 'Cumplimiento P&C Núcleo', icon: Icons.Plantations },
   { id: 'supply', labelKey: 'Base de suministro', icon: Icons.Supply },
   { id: 'traceability', labelKey: 'Trazabilidad RFF', icon: Icons.Scc },
   { id: 'ghg', labelKey: 'Calculadora GHG', icon: Icons.Ghg },

@@ -1328,8 +1328,8 @@ table tbody tr { border-top: 1px solid var(--border-light); }
    RESPONSIVE
    ============================ */
 
-/* Desktop Collapsed Sidebar overrides (ONLY applied on desktop viewports) */
-@media (min-width: 1024px) {
+/* Desktop Collapsed Sidebar overrides (ONLY applied when the full header fits) */
+@media (min-width: 1101px) {
   .app-layout.sidebar-collapsed .sidebar {
     width: var(--sidebar-collapsed);
     overflow-x: hidden;
@@ -1372,7 +1372,7 @@ table tbody tr { border-top: 1px solid var(--border-light); }
 
 .d-lg-none { display: none; }
 
-@media (max-width: 1023px) {
+@media (max-width: 1100px) {
   .app-layout,
   .app-layout.sidebar-collapsed {
     grid-template-columns: 1fr !important;
@@ -1997,4 +1997,105 @@ body { background: radial-gradient(circle at 75% 0,#e8eee2 0,transparent 30%),#f
   .pc-uoc-chip { max-width: 100%; margin-top: .7rem; }
   .pc-stat { padding: .85rem; }
   .pc-stat strong { font-size: 1.3rem; }
+}
+
+/* P&C scope separation: mill, nucleus and plantation records */
+.pc-evidence-upload {
+  display: grid;
+  gap: .75rem;
+  padding: 1rem;
+  margin-bottom: .75rem;
+  border: 1px dashed var(--border-color);
+  border-radius: 14px;
+  background: var(--bg-secondary);
+}
+.pc-evidence-upload > div:first-child { display: grid; gap: .2rem; }
+.pc-evidence-upload span { color: var(--text-secondary); font-size: .82rem; }
+.pc-plantation-list { display: grid; gap: .65rem; }
+.pc-plantation-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) minmax(150px, .7fr) minmax(190px, .8fr) auto auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--card-bg);
+  box-shadow: 0 8px 22px rgba(19, 59, 42, .05);
+}
+.pc-plantation-main { display: flex; align-items: center; gap: .85rem; min-width: 0; }
+.pc-plantation-main h3 { margin: 0; color: var(--text-primary); }
+.pc-plantation-main p { margin: .25rem 0 0; color: var(--text-secondary); font-size: .82rem; }
+.pc-plantation-profile, .pc-plantation-result { display: grid; gap: .2rem; }
+.pc-plantation-profile span, .pc-plantation-result strong { color: var(--text-primary); font-weight: 750; }
+.pc-plantation-profile small, .pc-plantation-result span { color: var(--text-secondary); font-size: .75rem; }
+.pc-plantation-result .progress { min-width: 150px; }
+.pc-plantation-information {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.pc-plantation-information > div { display: grid; gap: .3rem; padding: .9rem; border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
+.pc-plantation-information small { color: var(--text-secondary); }
+.pc-plantation-matrix { padding-top: 1rem; border-top: 1px solid var(--border-color); }
+.supply-plantations-section { display: grid; gap: 1rem; margin-top: 1.25rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); }
+.supply-plot-form label { display: grid; gap: .35rem; font-size: .82rem; font-weight: 650; color: var(--text-primary); }
+.supply-plantations-table td { vertical-align: middle; }
+.nexo-plantation-compliance {
+  padding: 1.25rem;
+  border: 1px solid var(--nexo-border, #dfe6dc);
+  border-radius: 18px;
+  background: var(--card-bg);
+  box-shadow: var(--nexo-shadow, 0 18px 40px rgba(34, 58, 42, .08));
+}
+.nexo-plantation-rings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: .75rem;
+  margin-top: 1rem;
+}
+.nexo-plantation-ring-card {
+  display: grid;
+  grid-template-columns: 68px 1fr auto;
+  align-items: center;
+  gap: .85rem;
+  padding: .85rem;
+  border: 1px solid var(--nexo-border, #dfe6dc);
+  border-radius: 14px;
+  background: var(--bg-secondary);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nexo-plantation-ring-card:hover { border-color: var(--accent-primary); transform: translateY(-1px); }
+.nexo-plantation-ring-card > div:nth-child(2) { display: grid; gap: .2rem; min-width: 0; }
+.nexo-plantation-ring-card span, .nexo-plantation-ring-card small { color: var(--text-secondary); font-size: .74rem; }
+.nexo-plantation-ring-card em { color: var(--success); font-size: .72rem; font-style: normal; font-weight: 700; }
+.nexo-plantation-ring-card em.danger { color: var(--danger); }
+.nexo-mini-ring {
+  --score: 0%;
+  width: 62px;
+  height: 62px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(var(--accent-primary) var(--score), #dfe8dd 0);
+  position: relative;
+}
+.nexo-mini-ring::after { content: ""; position: absolute; inset: 7px; border-radius: 50%; background: var(--card-bg); }
+.nexo-mini-ring strong { position: relative; z-index: 1; color: var(--text-primary); font-family: var(--font-display); }
+@media (max-width: 1100px) {
+  .pc-plantation-row { grid-template-columns: 1fr 1fr; }
+  .pc-plantation-row .btn { justify-self: start; }
+  .pc-plantation-information { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .pc-plantation-row { grid-template-columns: 1fr; }
+  .pc-plantation-result .progress { min-width: 0; }
+  .pc-plantation-information { grid-template-columns: 1fr; }
+  .nexo-plantation-ring-card { grid-template-columns: 58px 1fr; }
+  .nexo-plantation-ring-card em { grid-column: 2; }
+  .nexo-mini-ring { width: 54px; height: 54px; }
 }

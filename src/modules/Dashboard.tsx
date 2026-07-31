@@ -37,6 +37,19 @@ interface StandardCompliance {
   overallScore: number;
 }
 
+interface PcDashboardSummary {
+  compliance?: { overall?: number; total?: number; applicable?: number; criticalCompliant?: number; criticalNonCompliant?: number; statusCounts?: Record<string, number> };
+  nucleusCompliance?: number;
+  plantationCompliance?: Array<{
+    id: string;
+    name: string;
+    sourceName?: string;
+    area: number;
+    profileLabel: string;
+    compliance: { overall: number; criticalNonCompliant: number; criticalPending: number };
+  }>;
+}
+
 const clamp = (value: number) => Math.max(0, Math.min(100, Math.round(value || 0)));
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
@@ -44,20 +57,23 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [complianceStatuses, setComplianceStatuses] = useState<StandardCompliance[]>([]);
+  const [pcSummary, setPcSummary] = useState<PcDashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setIsLoading(true);
-        const [statsRes, activitiesRes, complianceRes] = await Promise.all([
+        const [statsRes, activitiesRes, complianceRes, pcSummaryRes] = await Promise.all([
           api.get('/dashboard/stats', { params: { uocId: selectedUocId } }),
           api.get('/dashboard/activities', { params: { uocId: selectedUocId } }),
-          api.get('/compliance/standards')
+          api.get('/compliance/standards'),
+          selectedUocId === 'all' ? Promise.resolve({ data: null }) : api.get('/pc/summary')
         ]);
         setStats(statsRes.data);
         setActivities(Array.isArray(activitiesRes.data) ? activitiesRes.data : []);
         setComplianceStatuses(Array.isArray(complianceRes.data) ? complianceRes.data : []);
+        setPcSummary(pcSummaryRes.data || null);
       } catch (error) {
         console.error('Error al cargar datos del dashboard', error);
       } finally {
@@ -72,14 +88,21 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     [complianceStatuses]
   );
   const score = clamp(
-    (stats?.overallCompliance ?? 0) > 0
+    pcSummary?.compliance?.overall != null
+      ? Number(pcSummary.compliance.overall)
+      : (stats?.overallCompliance ?? 0) > 0
       ? stats?.overallCompliance ?? 0
       : rspo?.overallScore ?? 0
   );
-  const compliant = rspo?.compliant ?? 0;
-  const partial = rspo?.partial ?? 0;
-  const nonCompliant = rspo?.nonCompliant ?? 0;
-  const totalRequirements = rspo?.totalRequirements ?? 0;
+  const statusCounts = pcSummary?.compliance?.statusCounts;
+  const compliant = statusCounts
+    ? (statusCounts.COMPLIANT || 0) + (statusCounts.CLOSED || 0)
+    : rspo?.compliant ?? 0;
+  const partial = statusCounts
+    ? (statusCounts.PARTIAL || 0) + (statusCounts.IN_PROGRESS || 0) + (statusCounts.PENDING_VERIFICATION || 0)
+    : rspo?.partial ?? 0;
+  const nonCompliant = statusCounts ? statusCounts.NON_COMPLIANT || 0 : rspo?.nonCompliant ?? 0;
+  const totalRequirements = pcSummary?.compliance?.total ?? rspo?.totalRequirements ?? 0;
   const scopeName = selectedUocId === 'all'
     ? `${uocs.length} unidades de certificación`
     : selectedUoc?.name || 'Unidad de certificación';
@@ -124,9 +147,9 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               <div><strong>{score}%</strong><small>cumplimiento</small></div>
             </div>
             <div className="nexo-cert-copy">
-              <p className="nexo-eyebrow">ESTÁNDAR RSPO P&C 2024</p>
-              <h2>Avance de certificación</h2>
-              <p>Evaluación consolidada con la información registrada para {scopeName}.</p>
+              <p className="nexo-eyebrow">PLANTA EXTRACTORA · RSPO P&C 2024</p>
+              <h2>Cumplimiento de la extractora</h2>
+              <p>Resultado independiente de la matriz P&amp;C de la planta extractora.</p>
               <div className="nexo-cert-meta">
                 <span><i className="nexo-dot green" />{compliant}<small>Cumplen</small></span>
                 <span><i className="nexo-dot amber" />{partial}<small>Parciales</small></span>
@@ -152,6 +175,24 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             <button onClick={() => onNavigate('audits')} aria-label="Abrir auditorías">→</button>
           </div>
         </article>
+      </section>
+
+      <section className="nexo-plantation-compliance">
+        <div className="nexo-panel-head">
+          <div><p className="nexo-eyebrow">CUMPLIMIENTO P&amp;C NÚCLEO</p><h3>Resultado por plantación</h3><p>Cada círculo corresponde exclusivamente a la evaluación de esa plantación.</p></div>
+          <button onClick={() => onNavigate('plantations')}>Abrir núcleo →</button>
+        </div>
+        <div className="nexo-plantation-rings">
+          {(pcSummary?.plantationCompliance || []).map(plantation => {
+            const plantationScore = clamp(plantation.compliance.overall);
+            return <button key={plantation.id} className="nexo-plantation-ring-card" onClick={() => onNavigate('plantations')}>
+              <div className="nexo-mini-ring" style={{ '--score': `${plantationScore}%` } as React.CSSProperties}><strong>{plantationScore}%</strong></div>
+              <div><strong>{plantation.name}</strong><span>{plantation.sourceName || 'Productor por identificar'}</span><small>{plantation.profileLabel} · {Number(plantation.area || 0).toLocaleString('es-CO')} ha</small></div>
+              <em className={plantation.compliance.criticalNonCompliant ? 'danger' : ''}>{plantation.compliance.criticalNonCompliant} críticos NC</em>
+            </button>;
+          })}
+          {!pcSummary?.plantationCompliance?.length && <div className="nexo-empty">No hay plantaciones registradas para mostrar.</div>}
+        </div>
       </section>
 
       <section className="nexo-metrics" aria-label="Indicadores principales">

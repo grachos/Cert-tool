@@ -27,58 +27,70 @@ interface SupplySource {
   notes?: string;
 }
 
-const emptyForm = {
-  personType: 'NATURAL',
-  relationshipType: 'THIRD_PARTY',
-  name: '',
-  identifier: '',
-  legalRepresentativeName: '',
-  legalRepresentativeId: '',
-  address: '',
-  phone: '',
-  email: '',
-  riskLevel: 'MEDIUM',
+interface FarmPlot {
+  id: string;
+  supplySourceId: string;
+  farmName?: string;
+  name?: string;
+  sourceName?: string;
+  locationDescription?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  area: number;
+  plantedArea?: number;
+  estimatedProductionMt?: number;
+  fieldWorkers?: number;
+  administrativeWorkers?: number;
+  permanentWorkers?: number;
+  contractorWorkers?: number;
+  hasResidents?: boolean;
+  eligibilityStatus?: string;
+  certificationStatus?: string;
+  lotCount?: number;
+}
+
+const emptyPlotForm = {
+  supplySourceId: '',
+  farmName: '',
+  locationDescription: '',
+  latitude: '',
+  longitude: '',
+  area: '',
+  plantedArea: '',
+  estimatedProductionMt: '',
+  fieldWorkers: '',
+  administrativeWorkers: '',
+  permanentWorkers: '',
+  contractorWorkers: '',
+  hasResidents: false,
   eligibilityStatus: 'PENDING',
-  certificationStatus: 'PENDING',
-  notes: '',
-  dataConsentAccepted: false,
-  dataConsentHolderName: ''
+  certificationStatus: 'PENDING'
 };
-
-const relationshipLabels: Record<string, string> = {
-  PARTNER: 'Productor socio',
-  THIRD_PARTY: 'Productor tercero',
-  SMALLHOLDER: 'Pequeño productor',
-  OWN: 'Plantación propia'
-};
-
-const legacyRelationship = (sourceType?: string) => ({
-  OWN: 'OWN',
-  ASSOCIATED: 'PARTNER',
-  INDEPENDENT: 'THIRD_PARTY',
-  ASSOCIATION: 'PARTNER',
-  SMALLHOLDER_GROUP: 'SMALLHOLDER',
-  INDIVIDUAL: 'SMALLHOLDER'
-}[sourceType || ''] || 'THIRD_PARTY');
 
 export default function SupplyBase() {
   const { selectedUocId } = useUoc();
   const { user } = useAuth();
   const [rows, setRows] = useState<SupplySource[]>([]);
+  const [plots, setPlots] = useState<FarmPlot[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
-  const [editingId, setEditingId] = useState('');
-  const canEdit = user?.role === 'ADMIN' || user?.role === 'MANAGER';
-  const isJuridical = form.personType === 'JURIDICAL';
+  const [showPlotForm, setShowPlotForm] = useState(false);
+  const [editingPlotId, setEditingPlotId] = useState('');
+  const [plotForm, setPlotForm] = useState(emptyPlotForm);
+  const canEdit = ['SUPERADMIN','ADMIN','MANAGER'].includes(user?.role || '');
 
   const load = () => {
-    if (!selectedUocId || selectedUocId === 'all') { setRows([]); return; }
+    if (!selectedUocId || selectedUocId === 'all') { setRows([]); setPlots([]); return; }
     setLoading(true);
-    api.get('/rspo/supply-sources', { params: { uocId: selectedUocId } })
-      .then(({ data }) => setRows(Array.isArray(data) ? data : []))
-      .catch(e => { setRows([]); setError(e.response?.data?.error || 'No fue posible cargar los productores.'); })
+    Promise.all([
+      api.get('/rspo/supply-sources', { params: { uocId: selectedUocId } }),
+      api.get('/rspo/farm-plots', { params: { uocId: selectedUocId } })
+    ])
+      .then(([sourceResponse, plotResponse]) => {
+        setRows(Array.isArray(sourceResponse.data) ? sourceResponse.data : []);
+        setPlots(Array.isArray(plotResponse.data) ? plotResponse.data : []);
+      })
+      .catch(e => { setRows([]); setPlots([]); setError(e.response?.data?.error || 'No fue posible cargar la base de suministro.'); })
       .finally(() => setLoading(false));
   };
   useEffect(load, [selectedUocId]);
@@ -86,223 +98,128 @@ export default function SupplyBase() {
   const safeRows = Array.isArray(rows) ? rows : [];
 
   const stats = useMemo(() => ({
-    plantations: safeRows.reduce((sum, row) => sum + Number(row.plantationCount || 0), 0),
-    area: safeRows.reduce((sum, row) => sum + Number(row.plantationArea || 0), 0),
-    eligible: safeRows.filter(row => row.eligibilityStatus === 'ELIGIBLE').length
-  }), [safeRows]);
+    plantations: plots.length,
+    area: plots.reduce((sum, row) => sum + Number(row.area || 0), 0),
+    smallholders: plots.filter(row => Number(row.area || 0) <= 50).length
+  }), [plots]);
 
-  const resetForm = () => {
-    setForm(emptyForm);
-    setEditingId('');
-    setShowForm(false);
+  const resetPlotForm = () => {
+    setPlotForm(emptyPlotForm);
+    setEditingPlotId('');
+    setShowPlotForm(false);
   };
 
-  const submit = async (event: React.FormEvent) => {
+  const savePlot = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
     try {
       const body = {
-        ...form,
+        ...plotForm,
+        name: plotForm.farmName,
         uocId: selectedUocId,
-        identifierType: isJuridical ? 'NIT' : 'CC',
-        totalArea: 0,
-        plantedArea: 0,
-        certifiedArea: 0
+        area: Number(plotForm.area),
+        plantedArea: Number(plotForm.plantedArea || plotForm.area),
+        estimatedProductionMt: Number(plotForm.estimatedProductionMt || 0),
+        latitude: plotForm.latitude === '' ? null : Number(plotForm.latitude),
+        longitude: plotForm.longitude === '' ? null : Number(plotForm.longitude),
+        fieldWorkers: Number(plotForm.fieldWorkers || 0),
+        administrativeWorkers: Number(plotForm.administrativeWorkers || 0),
+        permanentWorkers: Number(plotForm.permanentWorkers || 0),
+        contractorWorkers: Number(plotForm.contractorWorkers || 0)
       };
-      if (editingId) await api.put(`/rspo/supply-sources/${editingId}`, body);
-      else await api.post('/rspo/supply-sources', body);
-      resetForm();
+      if (editingPlotId) await api.put(`/rspo/farm-plots/${editingPlotId}`, body);
+      else await api.post('/rspo/farm-plots', body);
+      resetPlotForm();
       load();
     } catch (e: any) {
-      setError(e.response?.data?.error || 'No fue posible guardar el productor.');
+      setError(e.response?.data?.error || 'No fue posible guardar la plantación.');
     }
   };
 
-  const edit = (row: SupplySource) => {
-    setEditingId(row.id);
-    setForm({
-      ...emptyForm,
-      personType: row.personType || (row.legalRepresentativeName ? 'JURIDICAL' : 'NATURAL'),
-      relationshipType: row.relationshipType || legacyRelationship(row.sourceType),
-      name: row.name || '',
-      identifier: row.identifier || '',
-      legalRepresentativeName: row.legalRepresentativeName || '',
-      legalRepresentativeId: row.legalRepresentativeId || '',
-      address: row.address || '',
-      phone: row.phone || '',
-      email: row.email || '',
-      riskLevel: row.riskLevel || 'MEDIUM',
-      eligibilityStatus: row.eligibilityStatus || 'PENDING',
-      certificationStatus: row.certificationStatus || 'PENDING',
-      notes: row.notes || '',
-      dataConsentAccepted: Boolean(row.dataConsentAccepted),
-      dataConsentHolderName: row.dataConsentHolderName || row.legalRepresentativeName || row.name || ''
+  const editPlot = (plot: FarmPlot) => {
+    setEditingPlotId(plot.id);
+    setPlotForm({
+      supplySourceId: plot.supplySourceId || '',
+      farmName: plot.farmName || plot.name || '',
+      locationDescription: plot.locationDescription || '',
+      latitude: plot.latitude == null ? '' : String(plot.latitude),
+      longitude: plot.longitude == null ? '' : String(plot.longitude),
+      area: String(plot.area ?? ''),
+      plantedArea: String(plot.plantedArea ?? ''),
+      estimatedProductionMt: String(plot.estimatedProductionMt ?? ''),
+      fieldWorkers: String(plot.fieldWorkers ?? ''),
+      administrativeWorkers: String(plot.administrativeWorkers ?? ''),
+      permanentWorkers: String(plot.permanentWorkers ?? ''),
+      contractorWorkers: String(plot.contractorWorkers ?? ''),
+      hasResidents: Boolean(plot.hasResidents),
+      eligibilityStatus: plot.eligibilityStatus || 'PENDING',
+      certificationStatus: plot.certificationStatus || 'PENDING'
     });
-    setShowForm(true);
-    window.scrollTo({ top: 250, behavior: 'smooth' });
-  };
-
-  const archive = async (row: SupplySource) => {
-    try {
-      await api.put(`/rspo/supply-sources/${row.id}`, { status: row.status === 'ARCHIVED' ? 'ACTIVE' : 'ARCHIVED' });
-      load();
-    } catch (e: any) {
-      setError(e.response?.data?.error || 'No fue posible cambiar el estado.');
-    }
+    setShowPlotForm(true);
   };
 
   if (!selectedUocId || selectedUocId === 'all') {
-    return <div className="empty-state card"><h3>Seleccione una UoC</h3><p>Los productores siempre se consultan dentro de una unidad autorizada.</p></div>;
+    return <div className="empty-state card"><h3>Seleccione una UoC</h3><p>Las plantaciones siempre se consultan dentro de una unidad autorizada.</p></div>;
   }
 
   return <div className="flex-col gap-5 animate-fade-in">
     <div className="stats-grid">
-      <div className="card"><small>Productores registrados</small><div className="stat-value-lg">{safeRows.length}</div></div>
-      <div className="card"><small>Plantaciones vinculadas</small><div className="stat-value-lg">{stats.plantations}</div></div>
+      <div className="card"><small>Plantaciones registradas</small><div className="stat-value-lg">{stats.plantations}</div></div>
       <div className="card"><small>Área de plantaciones</small><div className="stat-value-lg">{stats.area.toLocaleString('es-CO')} ha</div></div>
-      <div className="card"><small>Productores elegibles</small><div className="stat-value-lg">{stats.eligible}</div></div>
-    </div>
-
-    <div className="flex-between gap-4 flex-wrap">
-      <div>
-        <h2 className="text-xl font-bold">Productores y razones sociales</h2>
-        <p className="text-secondary text-sm">Socios, terceros, pequeños productores y plantaciones propias del núcleo palmero.</p>
-      </div>
-      {canEdit && <button className="btn btn-primary" onClick={() => showForm ? resetForm() : setShowForm(true)}>
-        {showForm ? 'Cancelar' : '+ Nuevo productor'}
-      </button>}
+      <div className="card"><small>Pequeños productores (≤ 50 ha)</small><div className="stat-value-lg">{stats.smallholders}</div></div>
     </div>
 
     {error && <div className="integration-note">{error}</div>}
 
-    {showForm && <form className="card flex-col gap-5" onSubmit={submit}>
-      <div>
-        <span className="text-xs font-bold uppercase text-secondary">Ficha general</span>
-        <h3>{editingId ? 'Editar productor o razón social' : 'Nuevo productor o razón social'}</h3>
+    <section className="supply-plantations-section">
+      <div className="flex-between gap-4 flex-wrap">
+        <div>
+          <p className="text-xs font-bold uppercase text-secondary">Inventario agrícola</p>
+          <h2 className="text-xl font-bold">Información general de plantaciones</h2>
+          <p className="text-secondary text-sm">Cree o modifique aquí la ficha general. La evaluación se realiza en Cumplimiento P&amp;C Núcleo.</p>
+        </div>
+        {canEdit && <button className="btn btn-primary" onClick={() => showPlotForm ? resetPlotForm() : setShowPlotForm(true)}>
+          {showPlotForm ? 'Cancelar' : '+ Nueva plantación'}
+        </button>}
       </div>
 
-      <section className="form-grid">
-        <div className="form-group flex-col gap-1">
-          <label className="form-label font-semibold">Tipo de persona</label>
-          <select className="form-select" value={form.personType} onChange={e => setForm({
-            ...form,
-            personType: e.target.value,
-            legalRepresentativeName: e.target.value === 'NATURAL' ? '' : form.legalRepresentativeName,
-            legalRepresentativeId: e.target.value === 'NATURAL' ? '' : form.legalRepresentativeId
-          })}>
-            <option value="NATURAL">Persona natural</option>
-            <option value="JURIDICAL">Persona jurídica</option>
+      {showPlotForm && <form className="card form-grid supply-plot-form" onSubmit={savePlot}>
+        <div className="pc-form-wide"><h3>{editingPlotId ? 'Editar plantación' : 'Nueva plantación'}</h3></div>
+        <label>Productor o razón social
+          <select required className="form-select" disabled={Boolean(editingPlotId)} value={plotForm.supplySourceId} onChange={event => setPlotForm({ ...plotForm, supplySourceId: event.target.value })}>
+            <option value="">Seleccione</option>{safeRows.filter(row => row.status !== 'ARCHIVED').map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
           </select>
-        </div>
-        <div className="form-group flex-col gap-1">
-          <label className="form-label font-semibold">Vínculo con la extractora</label>
-          <select className="form-select" value={form.relationshipType} onChange={e => setForm({ ...form, relationshipType: e.target.value })}>
-            {Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-        </div>
-        <div className="form-group flex-col gap-1">
-          <label className="form-label font-semibold">{isJuridical ? 'Razón social' : 'Nombre completo del productor'}</label>
-          <input required className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-        </div>
-        <div className="form-group flex-col gap-1">
-          <label className="form-label font-semibold">{isJuridical ? 'NIT' : 'Cédula'}</label>
-          <input required className="form-input" value={form.identifier} onChange={e => setForm({ ...form, identifier: e.target.value })} />
-        </div>
-        {isJuridical && <>
-          <div className="form-group flex-col gap-1">
-            <label className="form-label font-semibold">Representante legal</label>
-            <input required className="form-input" value={form.legalRepresentativeName} onChange={e => setForm({ ...form, legalRepresentativeName: e.target.value })} />
-          </div>
-          <div className="form-group flex-col gap-1">
-            <label className="form-label font-semibold">Cédula del representante legal</label>
-            <input required className="form-input" value={form.legalRepresentativeId} onChange={e => setForm({ ...form, legalRepresentativeId: e.target.value })} />
-          </div>
-        </>}
-        <div className="form-group flex-col gap-1">
-          <label className="form-label font-semibold">Dirección</label>
-          <input required className="form-input" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
-        </div>
-        <div className="form-group flex-col gap-1">
-          <label className="form-label font-semibold">Teléfono</label>
-          <input className="form-input" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-        </div>
-        <div className="form-group flex-col gap-1">
-          <label className="form-label font-semibold">Correo electrónico</label>
-          <input type="email" className="form-input" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-        </div>
-        <div className="form-group flex-col gap-1">
-          <label className="form-label font-semibold">Elegibilidad</label>
-          <select className="form-select" value={form.eligibilityStatus} onChange={e => setForm({ ...form, eligibilityStatus: e.target.value })}>
-            <option value="PENDING">Pendiente</option><option value="ELIGIBLE">Elegible</option>
-            <option value="CONDITIONAL">Condicionada</option><option value="INELIGIBLE">No elegible</option>
-          </select>
-        </div>
-        <div className="form-group flex-col gap-1">
-          <label className="form-label font-semibold">Nivel de riesgo</label>
-          <select className="form-select" value={form.riskLevel} onChange={e => setForm({ ...form, riskLevel: e.target.value })}>
-            <option value="LOW">Bajo</option><option value="MEDIUM">Medio</option>
-            <option value="HIGH">Alto</option><option value="CRITICAL">Crítico</option>
-          </select>
-        </div>
-        <div className="form-group flex-col gap-1" style={{ gridColumn: '1 / -1' }}>
-          <label className="form-label font-semibold">Observaciones</label>
-          <textarea rows={3} className="form-input" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
-        </div>
-      </section>
+        </label>
+        <label>Nombre de la plantación<input required className="form-input" value={plotForm.farmName} onChange={event => setPlotForm({ ...plotForm, farmName: event.target.value })} /></label>
+        <label className="pc-form-wide">Ubicación o dirección<input required className="form-input" value={plotForm.locationDescription} onChange={event => setPlotForm({ ...plotForm, locationDescription: event.target.value })} /></label>
+        <label>Latitud<input className="form-input" type="number" min="-90" max="90" step="0.0000001" value={plotForm.latitude} onChange={event => setPlotForm({ ...plotForm, latitude: event.target.value })} /></label>
+        <label>Longitud<input className="form-input" type="number" min="-180" max="180" step="0.0000001" value={plotForm.longitude} onChange={event => setPlotForm({ ...plotForm, longitude: event.target.value })} /></label>
+        <label>Área total (ha)<input required className="form-input" type="number" min="0.01" step="0.01" value={plotForm.area} onChange={event => setPlotForm({ ...plotForm, area: event.target.value })} /></label>
+        <label>Área sembrada (ha)<input className="form-input" type="number" min="0" step="0.01" value={plotForm.plantedArea} onChange={event => setPlotForm({ ...plotForm, plantedArea: event.target.value })} /></label>
+        <label>Producción estimada (t)<input className="form-input" type="number" min="0" step="0.01" value={plotForm.estimatedProductionMt} onChange={event => setPlotForm({ ...plotForm, estimatedProductionMt: event.target.value })} /></label>
+        <label>Trabajadores de campo<input className="form-input" type="number" min="0" value={plotForm.fieldWorkers} onChange={event => setPlotForm({ ...plotForm, fieldWorkers: event.target.value })} /></label>
+        <label>Administrativos<input className="form-input" type="number" min="0" value={plotForm.administrativeWorkers} onChange={event => setPlotForm({ ...plotForm, administrativeWorkers: event.target.value })} /></label>
+        <label>Trabajadores fijos<input className="form-input" type="number" min="0" value={plotForm.permanentWorkers} onChange={event => setPlotForm({ ...plotForm, permanentWorkers: event.target.value })} /></label>
+        <label>Contratistas<input className="form-input" type="number" min="0" value={plotForm.contractorWorkers} onChange={event => setPlotForm({ ...plotForm, contractorWorkers: event.target.value })} /></label>
+        <label>Elegibilidad<select className="form-select" value={plotForm.eligibilityStatus} onChange={event => setPlotForm({ ...plotForm, eligibilityStatus: event.target.value })}><option value="PENDING">Pendiente</option><option value="ELIGIBLE">Elegible</option><option value="CONDITIONAL">Condicionada</option><option value="INELIGIBLE">No elegible</option></select></label>
+        <label>Certificación<select className="form-select" value={plotForm.certificationStatus} onChange={event => setPlotForm({ ...plotForm, certificationStatus: event.target.value })}><option value="PENDING">Pendiente</option><option value="CERTIFIED">Certificada</option><option value="CONVENTIONAL">Convencional</option><option value="SUSPENDED">Suspendida</option></select></label>
+        <label className="consent-check pc-form-wide"><input type="checkbox" checked={plotForm.hasResidents} onChange={event => setPlotForm({ ...plotForm, hasResidents: event.target.checked })} /><span>La plantación tiene personas residentes.</span></label>
+        <div className="flex gap-2 flex-wrap pc-form-wide"><button className="btn btn-primary">{editingPlotId ? 'Guardar cambios' : 'Crear plantación'}</button><button type="button" className="btn btn-secondary" onClick={resetPlotForm}>Cancelar</button></div>
+      </form>}
 
-      <section className="privacy-consent">
-        <h4>Autorización para el tratamiento de datos personales</h4>
-        <p>
-          Autorizo de manera previa, expresa e informada la recolección, almacenamiento, uso,
-          actualización y consulta de los datos consignados en esta ficha para la gestión agrícola,
-          trazabilidad y cumplimiento RSPO. Declaro conocer los derechos de consultar, actualizar,
-          rectificar, solicitar prueba de la autorización, revocar la autorización y solicitar la
-          supresión de los datos cuando legalmente proceda, conforme a la Ley 1581 de 2012 y sus
-          normas reglamentarias. El tratamiento estará sujeto a la política de protección de datos de la UoC.
-        </p>
-        <div className="form-grid mt-3">
-          <div className="form-group flex-col gap-1">
-            <label className="form-label font-semibold">Nombre de quien autoriza</label>
-            <input required className="form-input" value={form.dataConsentHolderName} onChange={e => setForm({ ...form, dataConsentHolderName: e.target.value })} />
-          </div>
-          <label className="consent-check">
-            <input required type="checkbox" checked={form.dataConsentAccepted} onChange={e => setForm({ ...form, dataConsentAccepted: e.target.checked })} />
-            <span>Acepto y autorizo el tratamiento de los datos personales.</span>
-          </label>
-        </div>
-      </section>
-
-      <div className="flex gap-2 flex-wrap">
-        <button className="btn btn-primary" type="submit">{editingId ? 'Guardar cambios' : 'Guardar productor'}</button>
-        <button className="btn btn-secondary" type="button" onClick={resetForm}>Cancelar</button>
-      </div>
-    </form>}
-
-    {loading ? <div className="card">Cargando…</div> : safeRows.length === 0 ?
-      <div className="empty-state card">
-        <h3>No hay productores registrados</h3>
-        <p>Cree la primera ficha general antes de relacionar sus plantaciones.</p>
-        {canEdit && <button className="btn btn-primary" onClick={() => setShowForm(true)}>Crear primer productor</button>}
-      </div> :
-      <section className="nexo-plant-grid">
-        {safeRows.map(row => <article className="nexo-plant-unit" key={row.id}>
-          <div>
-            <span className="nexo-palm-avatar">{row.personType === 'JURIDICAL' ? '▦' : '♙'}</span>
-            <em className="nexo-risk low">{row.status === 'ARCHIVED' ? 'Archivado' : 'Activo'}</em>
-          </div>
-          <h3>{row.name}</h3>
-          <p><strong>{row.personType === 'JURIDICAL' ? 'NIT' : 'CC'}:</strong> {row.identifier}</p>
-          <small>{relationshipLabels[row.relationshipType || legacyRelationship(row.sourceType)]}</small>
-          {row.personType === 'JURIDICAL' && <small className="block mt-1">Representante: {row.legalRepresentativeName || 'Pendiente'}</small>}
-          <div className="nexo-plant-score">
-            <strong>{Number(row.plantationCount || 0)}</strong>
-            <span>plantaciones · {Number(row.plantationArea || 0).toLocaleString('es-CO')} ha</span>
-          </div>
-          {canEdit && <div className="nexo-plant-actions">
-            <button className="btn btn-secondary btn-sm" onClick={() => edit(row)}>✎ Editar ficha</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => archive(row)}>{row.status === 'ARCHIVED' ? 'Activar' : 'Archivar'}</button>
-          </div>}
-        </article>)}
-      </section>}
+      {loading ? <div className="card">Cargando plantaciones…</div> : plots.length === 0 ? <div className="empty-state card"><h3>No hay plantaciones registradas</h3><p>Cree la primera plantación y relaciónela con su productor.</p></div> :
+        <div className="card p-0"><div className="table-responsive"><table className="w-full supply-plantations-table">
+          <thead><tr><th>Plantación</th><th>Productor</th><th>Área</th><th>Perfil P&amp;C</th><th>Ubicación</th><th>Estado</th><th /></tr></thead>
+          <tbody>{plots.map(plot => <tr key={plot.id}>
+            <td><strong>{plot.farmName || plot.name}</strong><small className="block">{Number(plot.lotCount || 0)} lotes</small></td>
+            <td>{plot.sourceName || '—'}</td>
+            <td>{Number(plot.area || 0).toLocaleString('es-CO')} ha</td>
+            <td><span className="badge">{Number(plot.area || 0) <= 50 ? 'Pequeño productor' : 'Plantación'}</span></td>
+            <td>{plot.locationDescription || 'Pendiente'}</td>
+            <td>{plot.certificationStatus || 'PENDING'}</td>
+            <td>{canEdit && <button className="btn btn-secondary btn-sm" onClick={() => editPlot(plot)}>Editar</button>}</td>
+          </tr>)}</tbody>
+        </table></div></div>}
+    </section>
   </div>;
 }

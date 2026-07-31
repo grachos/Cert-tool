@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateCompliance } from './controllers/pc.controller';
+import { calculateCompliance, plantationPcScopeType } from './controllers/pc.controller';
 
 const row = (status: string, isCritical = false, applicability = 'APPLICABLE') => ({
   clause: '1.1.1',
@@ -39,4 +39,11 @@ test('No aplica aprobado se excluye del denominador', () => {
   assert.equal(result.applicable, 1);
   assert.equal(result.notApplicable, 1);
   assert.equal(result.overall, 100);
+});
+
+test('plantaciones de hasta 50 hectáreas usan el perfil de pequeño productor', () => {
+  assert.equal(plantationPcScopeType(38), 'SMALLHOLDER');
+  assert.equal(plantationPcScopeType(50), 'SMALLHOLDER');
+  assert.equal(plantationPcScopeType(50.01), 'PLANTATION');
+  assert.equal(plantationPcScopeType(120), 'PLANTATION');
 });

@@ -77,7 +77,51 @@ function groupCompliance(rows: EvaluationRow[], key: (row: EvaluationRow) => str
   return [...groups.entries()].map(([name, items]) => ({ name, ...calculateCompliance(items) }));
 }
 
-const indicatorSelect = `
+type PcScope = {
+  scopeType: 'MILL' | 'PLANTATION' | 'SMALLHOLDER';
+  scopeId: string;
+  farmPlotId: string | null;
+  profileLabel: string;
+  farmPlot?: Record<string, any>;
+};
+
+export function plantationPcScopeType(area: unknown): 'PLANTATION' | 'SMALLHOLDER' {
+  return asNumber(area) <= 50 ? 'SMALLHOLDER' : 'PLANTATION';
+}
+
+async function resolvePcScope(uocId: string, farmPlotId?: unknown): Promise<PcScope> {
+  const plotId = String(farmPlotId || '').trim();
+  if (!plotId) {
+    return {
+      scopeType: 'MILL',
+      scopeId: 'MILL',
+      farmPlotId: null,
+      profileLabel: 'Planta extractora'
+    };
+  }
+  const [rows] = await db.query(
+    `SELECT fp.*,ss.name sourceName,ss.relationshipType
+     FROM FarmPlot fp
+     JOIN SupplySource ss ON ss.id=fp.supplySourceId
+     WHERE fp.id=? AND fp.uocId=?`,
+    [plotId, uocId]
+  );
+  const farmPlot = (rows as any[])[0];
+  if (!farmPlot) throw Object.assign(new Error('Plantación no encontrada en la UoC.'), { statusCode: 404 });
+  const scopeType = plantationPcScopeType(farmPlot.area);
+  return {
+    scopeType,
+    scopeId: farmPlot.id,
+    farmPlotId: farmPlot.id,
+    profileLabel: scopeType === 'SMALLHOLDER' ? 'Pequeño productor (≤ 50 ha)' : 'Plantación',
+    farmPlot
+  };
+}
+
+function indicatorSelect(scope: PcScope, uocId: string) {
+  const evidenceScope = scope.farmPlotId ? 'e.farmPlotId=?' : 'e.farmPlotId IS NULL';
+  const findingScope = scope.farmPlotId ? 'n.farmPlotId=?' : 'n.farmPlotId IS NULL';
+  const sql = `
   SELECT r.id,r.clause,r.title,r.description,r.principleCode,r.criterionCode,
     r.indicatorText,r.officialText,r.officialSourceUrl,r.sourceLanguage,r.officialImportedAt,
     r.standardVersion,r.isCritical,r.expectedEvidence,
@@ -87,12 +131,19 @@ const indicatorSelect = `
     pe.responsible,pe.processes,pe.result,pe.observation,pe.evaluatedAt,pe.evaluatorId,
     pe.dueDate,pe.noApplyJustification,pe.noApplyEvidenceId,pe.noApplyApprovedBy,
     pe.noApplyApprovedAt,pe.updatedAt,
-    (SELECT COUNT(*) FROM Evidence e WHERE e.uocId=? AND e.requirementId=r.id) evidenceCount,
-    (SELECT COUNT(*) FROM NonConformance n WHERE n.uocId=? AND n.requirementId=r.id AND COALESCE(n.workflowStatus,n.status)<>'CLOSED') findingCount
+    (SELECT COUNT(*) FROM Evidence e WHERE e.uocId=? AND e.requirementId=r.id AND ${evidenceScope}) evidenceCount,
+    (SELECT COUNT(*) FROM NonConformance n WHERE n.uocId=? AND n.requirementId=r.id AND ${findingScope} AND COALESCE(n.workflowStatus,n.status)<>'CLOSED') findingCount
   FROM Requirement r
-  LEFT JOIN PcEvaluation pe ON pe.requirementId=r.id AND pe.uocId=?
+  LEFT JOIN PcEvaluation pe ON pe.requirementId=r.id AND pe.uocId=? AND pe.scopeType=? AND pe.scopeId=?
   WHERE r.standardId='RSPO' AND COALESCE(r.active,TRUE)=TRUE
 `;
+  const params: any[] = [
+    uocId, ...(scope.farmPlotId ? [scope.farmPlotId] : []),
+    uocId, ...(scope.farmPlotId ? [scope.farmPlotId] : []),
+    uocId, scope.scopeType, scope.scopeId
+  ];
+  return { sql, params };
+}
 
 function normalizeIndicator(row: any) {
   return {
@@ -119,7 +170,7 @@ export async function getPcSummary(req: ScopedRequest, res: Response) {
         COALESCE(pe.status,'NOT_EVALUATED') status,
         COALESCE(pe.applicability,'APPLICABLE') applicability,pe.processes
        FROM Requirement r
-       LEFT JOIN PcEvaluation pe ON pe.requirementId=r.id AND pe.uocId=?
+       LEFT JOIN PcEvaluation pe ON pe.requirementId=r.id AND pe.uocId=? AND pe.scopeType='MILL' AND pe.scopeId='MILL'
        WHERE r.standardId='RSPO' AND COALESCE(r.active,TRUE)=TRUE
        ORDER BY r.sortOrder,r.clause`,
       [uocId]
@@ -133,6 +184,45 @@ export async function getPcSummary(req: ScopedRequest, res: Response) {
       (processes.length ? processes : ['Sin asignar']).forEach(process => processExpanded.push({ ...row, processes: [process] }));
     });
     const processStats = groupCompliance(processExpanded, row => parseJson<string[]>(row.processes, ['Sin asignar'])[0]);
+
+    const [plantationRows] = await db.query(
+      `SELECT fp.id farmPlotId,fp.farmName,fp.name,fp.area,ss.name sourceName,
+        r.clause,r.principleCode,r.isCritical,r.processCodes,
+        COALESCE(pe.status,'NOT_EVALUATED') status,
+        COALESCE(pe.applicability,'APPLICABLE') applicability,pe.processes
+       FROM FarmPlot fp
+       JOIN SupplySource ss ON ss.id=fp.supplySourceId
+       CROSS JOIN Requirement r
+       LEFT JOIN PcEvaluation pe
+         ON pe.uocId=fp.uocId AND pe.requirementId=r.id AND pe.scopeId=fp.id
+        AND pe.scopeType=IF(fp.area<=50,'SMALLHOLDER','PLANTATION')
+       WHERE fp.uocId=? AND r.standardId='RSPO' AND COALESCE(r.active,TRUE)=TRUE
+       ORDER BY fp.createdAt,r.sortOrder,r.clause`,
+      [uocId]
+    );
+    const plantationGroups = new Map<string, { farmPlot: any; rows: EvaluationRow[] }>();
+    (plantationRows as any[]).forEach(row => {
+      const current = plantationGroups.get(row.farmPlotId) || {
+        farmPlot: {
+          id: row.farmPlotId,
+          name: row.farmName || row.name,
+          sourceName: row.sourceName,
+          area: asNumber(row.area),
+          profile: asNumber(row.area) <= 50 ? 'SMALLHOLDER' : 'PLANTATION',
+          profileLabel: asNumber(row.area) <= 50 ? 'Pequeño productor (≤ 50 ha)' : 'Plantación'
+        },
+        rows: []
+      };
+      current.rows.push(row);
+      plantationGroups.set(row.farmPlotId, current);
+    });
+    const plantationCompliance = [...plantationGroups.values()].map(group => ({
+      ...group.farmPlot,
+      compliance: calculateCompliance(group.rows)
+    }));
+    const nucleusCompliance = plantationCompliance.length
+      ? Math.round(plantationCompliance.reduce((total, item) => total + item.compliance.overall, 0) / plantationCompliance.length)
+      : 0;
 
     const countRows = await Promise.all([
       db.query('SELECT COUNT(*) count,COALESCE(SUM(certifiedArea),0) certifiedArea FROM SupplySource WHERE uocId=? AND status<>?', [uocId, 'ARCHIVED']),
@@ -176,6 +266,8 @@ export async function getPcSummary(req: ScopedRequest, res: Response) {
         activeAlerts: scalar(7)
       },
       compliance,
+      plantationCompliance,
+      nucleusCompliance,
       principleStats,
       processStats,
       alerts,
@@ -190,8 +282,10 @@ export async function getPcSummary(req: ScopedRequest, res: Response) {
 export async function getPcIndicators(req: ScopedRequest, res: Response) {
   try {
     const uocId = req.uocId!;
-    const params: any[] = [uocId, uocId, uocId];
-    let sql = indicatorSelect;
+    const scope = await resolvePcScope(uocId, req.query.farmPlotId);
+    const selection = indicatorSelect(scope, uocId);
+    const params: any[] = [...selection.params];
+    let sql = selection.sql;
     const { principle, status, critical, process, search } = req.query;
     if (principle) { sql += ' AND r.principleCode=?'; params.push(principle); }
     if (status) { sql += " AND COALESCE(pe.status,'NOT_EVALUATED')=?"; params.push(status); }
@@ -203,27 +297,41 @@ export async function getPcIndicators(req: ScopedRequest, res: Response) {
     }
     sql += ' ORDER BY r.sortOrder,r.clause LIMIT 500';
     const [rows] = await db.query(sql, params);
-    res.json((rows as any[]).map(normalizeIndicator));
+    res.json({
+      scope: {
+        scopeType: scope.scopeType,
+        scopeId: scope.scopeId,
+        farmPlotId: scope.farmPlotId,
+        profileLabel: scope.profileLabel,
+        farmPlot: scope.farmPlot || null
+      },
+      indicators: (rows as any[]).map(normalizeIndicator)
+    });
   } catch (error) {
     console.error('PC indicators error', error);
-    res.status(500).json({ error: 'No fue posible cargar la matriz P&C.' });
+    res.status((error as any)?.statusCode || 500).json({ error: (error as any)?.message || 'No fue posible cargar la matriz P&C.' });
   }
 }
 
 export async function getPcIndicator(req: ScopedRequest, res: Response) {
   try {
     const uocId = req.uocId!;
-    const [rows] = await db.query(`${indicatorSelect} AND r.id=? LIMIT 1`, [uocId, uocId, uocId, req.params.id]);
+    const scope = await resolvePcScope(uocId, req.query.farmPlotId);
+    const selection = indicatorSelect(scope, uocId);
+    const [rows] = await db.query(`${selection.sql} AND r.id=? LIMIT 1`, [...selection.params, req.params.id]);
     const indicator = (rows as any[])[0];
     if (!indicator) { res.status(404).json({ error: 'Indicador no encontrado.' }); return; }
+    const evidenceScope = scope.farmPlotId ? 'farmPlotId=?' : 'farmPlotId IS NULL';
+    const findingScope = scope.farmPlotId ? 'n.farmPlotId=?' : 'n.farmPlotId IS NULL';
     const [evidence, findings, history, actions] = await Promise.all([
-      db.query('SELECT * FROM Evidence WHERE uocId=? AND requirementId=? ORDER BY uploadDate DESC', [uocId, req.params.id]),
-      db.query('SELECT n.*,a.title auditTitle FROM NonConformance n LEFT JOIN Audit a ON a.id=n.auditId WHERE n.uocId=? AND n.requirementId=? ORDER BY n.createdAt DESC', [uocId, req.params.id]),
-      db.query('SELECT h.*,u.name userName FROM PcEvaluationHistory h JOIN User u ON u.id=h.changedBy JOIN PcEvaluation pe ON pe.id=h.evaluationId WHERE h.uocId=? AND pe.requirementId=? ORDER BY h.createdAt DESC', [uocId, req.params.id]),
-      db.query('SELECT ap.* FROM ActionPlan ap JOIN NonConformance n ON n.id=ap.nonConformanceId WHERE ap.uocId=? AND n.requirementId=? ORDER BY ap.createdDate DESC', [uocId, req.params.id])
+      db.query(`SELECT * FROM Evidence WHERE uocId=? AND requirementId=? AND ${evidenceScope} ORDER BY uploadDate DESC`, [uocId, req.params.id, ...(scope.farmPlotId ? [scope.farmPlotId] : [])]),
+      db.query(`SELECT n.*,a.title auditTitle FROM NonConformance n LEFT JOIN Audit a ON a.id=n.auditId WHERE n.uocId=? AND n.requirementId=? AND ${findingScope} ORDER BY n.createdAt DESC`, [uocId, req.params.id, ...(scope.farmPlotId ? [scope.farmPlotId] : [])]),
+      db.query('SELECT h.*,u.name userName FROM PcEvaluationHistory h JOIN User u ON u.id=h.changedBy JOIN PcEvaluation pe ON pe.id=h.evaluationId WHERE h.uocId=? AND pe.requirementId=? AND pe.scopeType=? AND pe.scopeId=? ORDER BY h.createdAt DESC', [uocId, req.params.id, scope.scopeType, scope.scopeId]),
+      db.query(`SELECT ap.* FROM ActionPlan ap JOIN NonConformance n ON n.id=ap.nonConformanceId WHERE ap.uocId=? AND n.requirementId=? AND ${findingScope} ORDER BY ap.createdDate DESC`, [uocId, req.params.id, ...(scope.farmPlotId ? [scope.farmPlotId] : [])])
     ]);
     res.json({
       ...normalizeIndicator(indicator),
+      scope,
       evidence: evidence[0],
       findings: findings[0],
       history: history[0],
@@ -231,7 +339,7 @@ export async function getPcIndicator(req: ScopedRequest, res: Response) {
     });
   } catch (error) {
     console.error('PC indicator detail error', error);
-    res.status(500).json({ error: 'No fue posible cargar la ficha del indicador.' });
+    res.status((error as any)?.statusCode || 500).json({ error: (error as any)?.message || 'No fue posible cargar la ficha del indicador.' });
   }
 }
 
@@ -248,14 +356,22 @@ export async function updatePcEvaluation(req: ScopedRequest, res: Response) {
   }
   const connection = await db.getConnection();
   try {
+    const scope = await resolvePcScope(uocId, req.body.farmPlotId || req.query.farmPlotId);
     await connection.beginTransaction();
     const [requirements] = await connection.query("SELECT id FROM Requirement WHERE id=? AND standardId='RSPO' AND COALESCE(active,TRUE)=TRUE", [req.params.id]);
     if (!(requirements as any[]).length) { await connection.rollback(); res.status(404).json({ error: 'Indicador no encontrado.' }); return; }
     if (noApplyEvidenceId) {
-      const [evidence] = await connection.query('SELECT id FROM Evidence WHERE id=? AND uocId=? AND requirementId=?', [noApplyEvidenceId, uocId, req.params.id]);
+      const evidenceScope = scope.farmPlotId ? 'farmPlotId=?' : 'farmPlotId IS NULL';
+      const [evidence] = await connection.query(
+        `SELECT id FROM Evidence WHERE id=? AND uocId=? AND requirementId=? AND ${evidenceScope}`,
+        [noApplyEvidenceId, uocId, req.params.id, ...(scope.farmPlotId ? [scope.farmPlotId] : [])]
+      );
       if (!(evidence as any[]).length) { await connection.rollback(); res.status(400).json({ error: 'La evidencia de soporte no pertenece al indicador y UoC.' }); return; }
     }
-    const [currentRows] = await connection.query('SELECT * FROM PcEvaluation WHERE uocId=? AND requirementId=? FOR UPDATE', [uocId, req.params.id]);
+    const [currentRows] = await connection.query(
+      'SELECT * FROM PcEvaluation WHERE uocId=? AND requirementId=? AND scopeType=? AND scopeId=? FOR UPDATE',
+      [uocId, req.params.id, scope.scopeType, scope.scopeId]
+    );
     const current = (currentRows as any[])[0];
     const evaluationId = current?.id || uuidv4();
     const requestedNoApply = status === 'NOT_APPLICABLE';
@@ -263,14 +379,15 @@ export async function updatePcEvaluation(req: ScopedRequest, res: Response) {
     const applicability = requestedNoApply ? 'PENDING_APPROVAL' : 'APPLICABLE';
     await connection.query(
       `INSERT INTO PcEvaluation
-       (id,uocId,requirementId,applicability,status,complianceLevel,responsible,processes,result,observation,evaluatedAt,evaluatorId,dueDate,noApplyJustification,noApplyEvidenceId)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       (id,uocId,requirementId,scopeType,scopeId,farmPlotId,applicability,status,complianceLevel,responsible,processes,result,observation,evaluatedAt,evaluatorId,dueDate,noApplyJustification,noApplyEvidenceId)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE applicability=VALUES(applicability),status=VALUES(status),
        complianceLevel=VALUES(complianceLevel),responsible=VALUES(responsible),processes=VALUES(processes),
        result=VALUES(result),observation=VALUES(observation),evaluatedAt=VALUES(evaluatedAt),
        evaluatorId=VALUES(evaluatorId),dueDate=VALUES(dueDate),noApplyJustification=VALUES(noApplyJustification),
        noApplyEvidenceId=VALUES(noApplyEvidenceId),noApplyApprovedBy=NULL,noApplyApprovedAt=NULL`,
-      [evaluationId, uocId, req.params.id, applicability, storedStatus, complianceLevel ?? null, responsible || null,
+      [evaluationId, uocId, req.params.id, scope.scopeType, scope.scopeId, scope.farmPlotId,
+        applicability, storedStatus, complianceLevel ?? null, responsible || null,
         JSON.stringify(Array.isArray(processes) ? processes : []), result || null, observation || null,
         evaluatedAt || null, userId, dueDate || null, noApplyJustification || null, noApplyEvidenceId || null]
     );
@@ -295,8 +412,12 @@ export async function updatePcEvaluation(req: ScopedRequest, res: Response) {
 export async function approvePcNoApplicability(req: ScopedRequest, res: Response) {
   const connection = await db.getConnection();
   try {
+    const scope = await resolvePcScope(req.uocId!, req.body.farmPlotId || req.query.farmPlotId);
     await connection.beginTransaction();
-    const [rows] = await connection.query('SELECT * FROM PcEvaluation WHERE uocId=? AND requirementId=? FOR UPDATE', [req.uocId, req.params.id]);
+    const [rows] = await connection.query(
+      'SELECT * FROM PcEvaluation WHERE uocId=? AND requirementId=? AND scopeType=? AND scopeId=? FOR UPDATE',
+      [req.uocId, req.params.id, scope.scopeType, scope.scopeId]
+    );
     const current = (rows as any[])[0];
     if (!current || current.applicability !== 'PENDING_APPROVAL') {
       await connection.rollback(); res.status(400).json({ error: 'No existe una solicitud de No aplica pendiente.' }); return;
@@ -390,15 +511,18 @@ function csvEscape(value: unknown) {
 }
 
 async function getReportContext(req: ScopedRequest) {
+  const scope = await resolvePcScope(req.uocId!, req.query.farmPlotId);
+  const selection = indicatorSelect(scope, req.uocId!);
   const [[uocRows], [userRows], [matrixRows]] = await Promise.all([
     db.query('SELECT name,companyName,certificationCode FROM CertificationUnit WHERE id=?', [req.uocId]),
     db.query('SELECT name,email FROM User WHERE id=?', [req.user!.id]),
-    db.query(`${indicatorSelect} ORDER BY r.sortOrder,r.clause`, [req.uocId, req.uocId, req.uocId])
+    db.query(`${selection.sql} ORDER BY r.sortOrder,r.clause`, selection.params)
   ]);
   return {
     uoc: (uocRows as any[])[0] || {},
     user: (userRows as any[])[0] || {},
     rows: matrixRows as any[],
+    scope,
     generatedAt: new Date()
   };
 }
@@ -407,7 +531,7 @@ export async function exportPcCsv(req: ScopedRequest, res: Response) {
   const { uoc, user, rows, generatedAt } = await getReportContext(req);
   const header = ['Código','Principio','Criterio','Indicador','Crítico','Estado','Aplicabilidad','Responsable','Procesos','Evidencias','Hallazgos'];
   const lines = rows.map(row => [
-    row.clause,row.principleCode,row.criterionCode,row.title,Boolean(row.isCritical) ? 'Sí' : 'No',
+    row.clause,row.principleCode,row.criterionCode,row.title,row.isCritical ? 'Sí' : 'No',
     row.status,row.applicability,row.responsible,parseJson<string[]>(row.processes, []).join(' | '),
     row.evidenceCount,row.findingCount
   ].map(csvEscape).join(';'));
@@ -435,7 +559,7 @@ export async function exportPcExcel(req: ScopedRequest, res: Response) {
   const { uoc, user, rows, generatedAt } = await getReportContext(req);
   const headers = ['Código','Principio','Criterio','Indicador','Crítico','Estado','Aplicabilidad','Responsable','Procesos','Evidencias','Hallazgos'];
   const recordRows = rows.map(row => [
-    row.clause,row.principleCode,row.criterionCode,row.title,Boolean(row.isCritical) ? 'Sí' : 'No',
+    row.clause,row.principleCode,row.criterionCode,row.title,row.isCritical ? 'Sí' : 'No',
     row.status,row.applicability,row.responsible,parseJson<string[]>(row.processes, []).join(' | '),
     row.evidenceCount,row.findingCount
   ]);

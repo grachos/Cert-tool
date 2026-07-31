@@ -4,7 +4,7 @@ const sourceRows = [
   ['c1000000-0000-4000-8000-000000000001','DEMO · Agropecuaria La Rivera S.A.S.','DEMO-PROD-001','ASSOCIATED',120,110,100,'Sandra Méndez'],
   ['c1000000-0000-4000-8000-000000000002','DEMO · Productor Carlos Moreno','DEMO-PROD-002','INDEPENDENT',85,78,70,'Carlos Moreno'],
   ['c1000000-0000-4000-8000-000000000003','DEMO · Palmas del Horizonte S.A.S.','DEMO-PROD-003','PROPRIETARY',210,195,185,'Diana Rojas'],
-  ['c1000000-0000-4000-8000-000000000004','DEMO · Asociación Sembrando Futuro','DEMO-PROD-004','SMALLHOLDERS',64,60,52,'Héctor Pardo'],
+  ['c1000000-0000-4000-8000-000000000004','DEMO · Asociación Sembrando Futuro','DEMO-PROD-004','SMALLHOLDERS',38,36,32,'Héctor Pardo'],
   ['c1000000-0000-4000-8000-000000000005','DEMO · Productora La Esperanza S.A.S.','DEMO-PROD-005','ASSOCIATED',145,138,125,'Natalia Torres']
 ] as const;
 
@@ -12,7 +12,7 @@ const plotRows = [
   ['c2000000-0000-4000-8000-000000000001','c1000000-0000-4000-8000-000000000001','Plantación La Rivera',120,110,2160],
   ['c2000000-0000-4000-8000-000000000002','c1000000-0000-4000-8000-000000000002','Plantación El Porvenir',85,78,1460],
   ['c2000000-0000-4000-8000-000000000003','c1000000-0000-4000-8000-000000000003','Plantación Horizonte',210,195,3820],
-  ['c2000000-0000-4000-8000-000000000004','c1000000-0000-4000-8000-000000000004','Plantación Nuevo Amanecer',64,60,1080],
+  ['c2000000-0000-4000-8000-000000000004','c1000000-0000-4000-8000-000000000004','Plantación Nuevo Amanecer',38,36,650],
   ['c2000000-0000-4000-8000-000000000005','c1000000-0000-4000-8000-000000000005','Plantación La Esperanza',145,138,2680]
 ] as const;
 
@@ -134,6 +134,56 @@ async function main() {
          VALUES (?,?,?,?,?,NULL,?,?,?)`,
         [`ca${String(index + 1).padStart(7,'0')}-0000-4000-8000-${String(index + 1).padStart(12,'0')}`,
           evaluationId,uocId,user.id,'DEMO_SEED',status,'Carga demostrativa identificada.',JSON.stringify({ status, level, demo: true })]
+      );
+    }
+
+    const smallholderPlotId = plotRows[3][0];
+    const smallholderStatuses = [
+      ['COMPLIANT', 100],
+      ['PARTIAL', 65],
+      ['IN_PROGRESS', 35]
+    ] as const;
+    for (let index = 0; index < smallholderStatuses.length; index += 1) {
+      const requirement = requirements[index];
+      const [status, level] = smallholderStatuses[index];
+      const evaluationId = `cb${String(index + 1).padStart(7,'0')}-0000-4000-8000-${String(index + 1).padStart(12,'0')}`;
+      await connection.query(
+        `INSERT INTO PcEvaluation
+         (id,uocId,requirementId,scopeType,scopeId,farmPlotId,applicability,status,complianceLevel,responsible,
+          processes,result,observation,evaluatedAt,evaluatorId,dueDate)
+         VALUES (?,?,?,'SMALLHOLDER',?,?,'APPLICABLE',?,?,?,?,?,?,CURRENT_DATE,?,DATE_ADD(CURRENT_DATE,INTERVAL 45 DAY))
+         ON DUPLICATE KEY UPDATE scopeType=VALUES(scopeType),scopeId=VALUES(scopeId),farmPlotId=VALUES(farmPlotId),
+         applicability=VALUES(applicability),status=VALUES(status),complianceLevel=VALUES(complianceLevel),
+         responsible=VALUES(responsible),processes=VALUES(processes),result=VALUES(result),
+         observation=VALUES(observation),evaluatedAt=VALUES(evaluatedAt),evaluatorId=VALUES(evaluatorId),
+         dueDate=VALUES(dueDate)`,
+        [evaluationId,uocId,requirement.id,smallholderPlotId,smallholderPlotId,status,level,user.name,
+          requirement.processCodes || JSON.stringify(['Gestión del núcleo']),
+          `Resultado de demostración para pequeño productor en ${requirement.clause}.`,
+          'Evaluación DEMO aislada de la planta extractora y de las demás plantaciones.',
+          user.id]
+      );
+    }
+
+    const smallholderEvidence = [
+      ['cc000000-0000-4000-8000-000000000001', 'DEMO · Registro de visita al pequeño productor', 'visita-pequeno-productor.pdf'],
+      ['cc000000-0000-4000-8000-000000000002', 'DEMO · Evidencia fotográfica del predio', 'fotografias-predio.zip']
+    ] as const;
+    for (const [id, title, fileName] of smallholderEvidence) {
+      await connection.query(
+        `INSERT INTO Evidence
+         (id,title,description,standardId,clause,type,status,uocId,companyName,requirementId,farmPlotId,indicator,
+          responsible,originalFileName,mimeType,observations,documentDate,evidenceVersion,processCode,entityType,
+          entityId,reviewedBy,reviewedAt)
+         SELECT ?,?,'Evidencia ficticia para comprobar adjuntos múltiples por indicador.','RSPO',?,'DOCUMENT',
+          'APPROVED',cu.id,cu.companyName,?,?,?,?,?,'application/octet-stream',
+          'Evidencia identificada expresamente como DEMO.',CURRENT_DATE,'1.0','Gestión del núcleo',
+          'FARM_PLOT',?,?,NOW()
+         FROM CertificationUnit cu WHERE cu.id=?
+         ON DUPLICATE KEY UPDATE title=VALUES(title),requirementId=VALUES(requirementId),
+          farmPlotId=VALUES(farmPlotId),status=VALUES(status)`,
+        [id,title,requirements[0].clause,requirements[0].id,smallholderPlotId,requirements[0].clause,
+          user.name,fileName,smallholderPlotId,user.id,uocId]
       );
     }
 
