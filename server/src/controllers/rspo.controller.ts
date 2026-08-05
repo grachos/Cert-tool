@@ -1,8 +1,15 @@
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db';
-import { ScopedRequest } from '../middleware/uoc.middleware';
 import { buildAiSoilStudy, parseKmlGeometry } from '../kmlSoilAnalysis';
+import {
+  PlantationScopedRequest,
+  canAccessFarmPlot,
+  canEditFarmPlot,
+  restrictedFarmPlotSql
+} from '../middleware/plantation.middleware';
+
+type ScopedRequest = PlantationScopedRequest;
 
 const fail = (res: Response, status: number, error: string) => res.status(status).json({ error });
 const cleanNumber = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -25,12 +32,19 @@ export const calculateDeliveryWeights = (grossValue: unknown, tareValue: unknown
 };
 
 export const listSupplySources = async (req: ScopedRequest, res: Response) => {
+  const restricted = req.plantationScope?.restricted
+    ? ` AND EXISTS (
+        SELECT 1 FROM FarmPlot allowedPlot
+        WHERE allowedPlot.supplySourceId=ss.id
+          AND allowedPlot.id IN (${req.plantationScope.farmPlotIds.map(() => '?').join(',')})
+      )`
+    : '';
   const [rows] = await db.query(
     `SELECT ss.*,
       (SELECT COUNT(*) FROM FarmPlot fp WHERE fp.supplySourceId=ss.id AND fp.uocId=ss.uocId) AS plantationCount,
       (SELECT COALESCE(SUM(fp.area),0) FROM FarmPlot fp WHERE fp.supplySourceId=ss.id AND fp.uocId=ss.uocId) AS plantationArea
-     FROM SupplySource ss WHERE ss.uocId = ? ORDER BY ss.createdAt DESC`,
-    [req.uocId]
+     FROM SupplySource ss WHERE ss.uocId = ?${restricted} ORDER BY ss.createdAt DESC`,
+    [req.uocId, ...(req.plantationScope?.restricted ? req.plantationScope.farmPlotIds : [])]
   );
   const canSeePersonalIds = ['ADMIN', 'MANAGER'].includes(req.user?.role || '');
   res.json((rows as any[]).map(row => canSeePersonalIds ? row : {
@@ -114,11 +128,20 @@ export const updateSupplySource = async (req: ScopedRequest, res: Response) => {
 };
 
 export const listSupplySourceHistory = async (req: ScopedRequest, res: Response) => {
+  if (req.plantationScope?.restricted) {
+    const placeholders = req.plantationScope.farmPlotIds.map(() => '?').join(',');
+    const [allowed] = await db.query(
+      `SELECT 1 FROM FarmPlot WHERE supplySourceId=? AND uocId=? AND id IN (${placeholders}) LIMIT 1`,
+      [req.params.id, req.uocId, ...req.plantationScope.farmPlotIds]
+    );
+    if (!(allowed as any[]).length) return fail(res, 403, 'No tiene acceso a este productor.');
+  }
   const [rows] = await db.query('SELECT h.*,u.name changedByName FROM SupplySourceHistory h JOIN User u ON u.id=h.changedBy WHERE h.supplySourceId=? AND h.uocId=? ORDER BY h.createdAt DESC', [req.params.id, req.uocId]);
   res.json(rows);
 };
 
 export const listFarmPlots = async (req: ScopedRequest, res: Response) => {
+  const access = restrictedFarmPlotSql(req, 'fp.id');
   const [rows] = await db.query(
     `SELECT fp.*, ss.name AS sourceName, ss.sourceType, ss.personType,
       (SELECT COUNT(*) FROM PlantationLot pl WHERE pl.farmPlotId=fp.id AND pl.status='ACTIVE') AS lotCount,
@@ -128,7 +151,7 @@ export const listFarmPlots = async (req: ScopedRequest, res: Response) => {
       SUM(CASE WHEN pa.isCritical=1 AND pa.status NOT IN ('COMPLETED','COMPLIANT','CLOSED') THEN 1 ELSE 0 END) AS criticalRequirements
      FROM FarmPlot fp JOIN SupplySource ss ON ss.id=fp.supplySourceId
      LEFT JOIN PlantationActivity pa ON pa.farmPlotId=fp.id
-     WHERE fp.uocId=? GROUP BY fp.id ORDER BY fp.createdAt DESC`, [req.uocId]
+     WHERE fp.uocId=?${access.clause} GROUP BY fp.id ORDER BY fp.createdAt DESC`, [req.uocId, ...access.params]
   );
   res.json(rows);
 };
@@ -171,6 +194,7 @@ export const createFarmPlot = async (req: ScopedRequest, res: Response) => {
 };
 
 export const updateFarmPlot = async (req: ScopedRequest, res: Response) => {
+  if (!canEditFarmPlot(req, req.params.id)) return fail(res, 403, 'No tiene permiso para modificar esta plantación.');
   const [currentRows] = await db.query('SELECT * FROM FarmPlot WHERE id=? AND uocId=?', [req.params.id, req.uocId]);
   const current = (currentRows as any[])[0];
   if (!current) return fail(res, 404, 'Plantación no encontrada.');
@@ -212,11 +236,15 @@ export const updateFarmPlot = async (req: ScopedRequest, res: Response) => {
 
 export const listPlantationLots = async (req: ScopedRequest, res: Response) => {
   const farmPlotId = String(req.query.farmPlotId || '');
+  if (farmPlotId && !canAccessFarmPlot(req, farmPlotId)) return fail(res, 403, 'No tiene acceso a esta plantación.');
   const params: any[] = [req.uocId];
   let sql = `SELECT pl.*, fp.farmName AS plantationName
     FROM PlantationLot pl JOIN FarmPlot fp ON fp.id=pl.farmPlotId
     WHERE pl.uocId=?`;
   if (farmPlotId) { sql += ' AND pl.farmPlotId=?'; params.push(farmPlotId); }
+  const access = restrictedFarmPlotSql(req, 'pl.farmPlotId');
+  sql += access.clause;
+  params.push(...access.params);
   sql += ' ORDER BY fp.farmName, pl.name';
   const [rows] = await db.query(sql, params);
   res.json(rows);
@@ -224,6 +252,7 @@ export const listPlantationLots = async (req: ScopedRequest, res: Response) => {
 
 export const createPlantationLot = async (req: ScopedRequest, res: Response) => {
   const { farmPlotId, name, area, notes } = req.body;
+  if (!canEditFarmPlot(req, farmPlotId)) return fail(res, 403, 'No tiene permiso para modificar esta plantación.');
   if (!farmPlotId || !String(name || '').trim() || cleanNumber(area) <= 0) {
     return fail(res, 400, 'Plantación, nombre del lote y área mayor que cero son obligatorios.');
   }
@@ -261,6 +290,7 @@ export const updatePlantationLot = async (req: ScopedRequest, res: Response) => 
   );
   const current = (rows as any[])[0];
   if (!current) return fail(res, 404, 'Lote no encontrado.');
+  if (!canEditFarmPlot(req, current.farmPlotId)) return fail(res, 403, 'No tiene permiso para modificar esta plantación.');
   const nextName = String(req.body.name ?? current.name).trim();
   const nextArea = cleanNumber(req.body.area ?? current.area);
   const nextStatus = req.body.status ?? current.status;
@@ -289,11 +319,15 @@ export const updatePlantationLot = async (req: ScopedRequest, res: Response) => 
 
 export const listPlantationResidents = async (req: ScopedRequest, res: Response) => {
   const farmPlotId = String(req.query.farmPlotId || '');
+  if (farmPlotId && !canAccessFarmPlot(req, farmPlotId)) return fail(res, 403, 'No tiene acceso a esta plantación.');
   const params: any[] = [req.uocId];
   let sql = `SELECT pr.*,fp.farmName AS plantationName
     FROM PlantationResident pr JOIN FarmPlot fp ON fp.id=pr.farmPlotId
     WHERE pr.uocId=?`;
   if (farmPlotId) { sql += ' AND pr.farmPlotId=?'; params.push(farmPlotId); }
+  const access = restrictedFarmPlotSql(req, 'pr.farmPlotId');
+  sql += access.clause;
+  params.push(...access.params);
   sql += ' ORDER BY fp.farmName, pr.fullName';
   const [rows] = await db.query(sql, params);
   const canSeePersonalIds = ['ADMIN', 'MANAGER'].includes(req.user?.role || '');
@@ -302,6 +336,7 @@ export const listPlantationResidents = async (req: ScopedRequest, res: Response)
 
 export const createPlantationResident = async (req: ScopedRequest, res: Response) => {
   const { farmPlotId, fullName, identifier, age, dataConsentAccepted, dataConsentHolderName } = req.body;
+  if (!canEditFarmPlot(req, farmPlotId)) return fail(res, 403, 'No tiene permiso para modificar esta plantación.');
   if (!farmPlotId || !String(fullName || '').trim() || !String(identifier || '').trim() || !Number.isInteger(Number(age)) || Number(age) < 0 || Number(age) > 120) {
     return fail(res, 400, 'Plantación, nombre, cédula y edad válida son obligatorios.');
   }
@@ -331,6 +366,7 @@ export const updatePlantationResident = async (req: ScopedRequest, res: Response
   const [rows] = await db.query('SELECT * FROM PlantationResident WHERE id=? AND uocId=?', [req.params.id, req.uocId]);
   const current = (rows as any[])[0];
   if (!current) return fail(res, 404, 'Residente no encontrado.');
+  if (!canEditFarmPlot(req, current.farmPlotId)) return fail(res, 403, 'No tiene permiso para modificar esta plantación.');
   const fullName = String(req.body.fullName ?? current.fullName).trim();
   const identifier = String(req.body.identifier ?? current.identifier).trim();
   const age = Number(req.body.age ?? current.age);
@@ -377,6 +413,7 @@ const ensureSoilStudyTable = async () => {
 
 export const listFarmPlotSoilStudies = async (req: ScopedRequest, res: Response) => {
   await ensureSoilStudyTable();
+  if (!canAccessFarmPlot(req, req.params.id)) return fail(res, 403, 'No tiene acceso a esta plantación.');
   const [plots] = await db.query('SELECT id FROM FarmPlot WHERE id=? AND uocId=?', [req.params.id, req.uocId]);
   if (!(plots as any[]).length) return fail(res, 404, 'Plantación no encontrada.');
   const [rows] = await db.query(
@@ -394,6 +431,7 @@ export const listFarmPlotSoilStudies = async (req: ScopedRequest, res: Response)
 };
 
 export const analyzeFarmPlotKml = async (req: ScopedRequest, res: Response) => {
+  if (!canEditFarmPlot(req, req.params.id)) return fail(res, 403, 'No tiene permiso para modificar esta plantación.');
   if (!req.file) return fail(res, 400, 'Seleccione un archivo KML.');
   if (req.file.size > 5 * 1024 * 1024) return fail(res, 400, 'El archivo KML no puede superar 5 MB.');
   const name = req.file.originalname || '';
@@ -427,11 +465,15 @@ export const analyzeFarmPlotKml = async (req: ScopedRequest, res: Response) => {
 
 export const listPlantationActivities = async (req: ScopedRequest, res: Response) => {
   const { farmPlotId, category } = req.query;
+  if (farmPlotId && !canAccessFarmPlot(req, farmPlotId)) return fail(res, 403, 'No tiene acceso a esta plantación.');
   let sql = `SELECT pa.*, fp.name AS plotName, fp.farmName, pl.name AS lotName
     FROM PlantationActivity pa JOIN FarmPlot fp ON fp.id=pa.farmPlotId
     LEFT JOIN PlantationLot pl ON pl.id=pa.plantationLotId WHERE pa.uocId=?`;
   const params: any[] = [req.uocId];
   if (farmPlotId) { sql += ' AND pa.farmPlotId=?'; params.push(farmPlotId); }
+  const access = restrictedFarmPlotSql(req, 'pa.farmPlotId');
+  sql += access.clause;
+  params.push(...access.params);
   if (category) { sql += ' AND pa.category=?'; params.push(category); }
   sql += ' ORDER BY pa.activityDate DESC, pa.createdAt DESC';
   const [rows] = await db.query(sql, params);
@@ -440,6 +482,7 @@ export const listPlantationActivities = async (req: ScopedRequest, res: Response
 
 export const createPlantationActivity = async (req: ScopedRequest, res: Response) => {
   const { farmPlotId, plantationLotId, category, title, description, requirementId, status, score, isCritical, responsible, activityDate, dueDate } = req.body;
+  if (!canEditFarmPlot(req, farmPlotId)) return fail(res, 403, 'No tiene permiso para modificar esta plantación.');
   if (!farmPlotId || !category || !title?.trim()) return fail(res, 400, 'Plantación, categoría y título son obligatorios.');
   const [plot] = await db.query('SELECT id FROM FarmPlot WHERE id=? AND uocId=?', [farmPlotId, req.uocId]);
   if (!(plot as any[]).length) return fail(res, 400, 'La plantación no pertenece a la UoC.');
@@ -458,6 +501,13 @@ export const createPlantationActivity = async (req: ScopedRequest, res: Response
 };
 
 export const updatePlantationActivity = async (req: ScopedRequest, res: Response) => {
+  const [currentRows] = await db.query(
+    'SELECT farmPlotId FROM PlantationActivity WHERE id=? AND uocId=?',
+    [req.params.id, req.uocId]
+  );
+  const current = (currentRows as any[])[0];
+  if (!current) return fail(res, 404, 'Actividad no encontrada.');
+  if (!canEditFarmPlot(req, current.farmPlotId)) return fail(res, 403, 'No tiene permiso para modificar esta plantación.');
   const allowed = ['plantationLotId','title','description','status','score','isCritical','responsible','activityDate','dueDate'];
   const entries = allowed.filter(k => req.body[k] !== undefined).map(k => [k, req.body[k]]);
   if (!entries.length) return fail(res, 400, 'No hay cambios para guardar.');

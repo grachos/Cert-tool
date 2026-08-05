@@ -1,12 +1,16 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db';
+import { PlantationScopedRequest, canAccessFarmPlot, restrictedFarmPlotSql } from '../middleware/plantation.middleware';
 
-export const getRisks = async (req: Request, res: Response): Promise<void> => {
+export const getRisks = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   try {
     const { standardId } = req.query;
     let query = 'SELECT * FROM Risk WHERE uocId=?';
     let params: any[] = [(req as any).uocId];
+    const access = restrictedFarmPlotSql(req, 'farmPlotId');
+    query += access.clause;
+    params.push(...access.params);
     
     if (standardId) {
       query += ' AND standardId = ?';
@@ -31,10 +35,18 @@ export const getRisks = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const createRisk = async (req: Request, res: Response): Promise<void> => {
+export const createRisk = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   try {
     const data = req.body;
     const authReq = req as any;
+    let farmPlotId = String(data.farmPlotId || '').trim() || null;
+    if (req.plantationScope?.restricted && !farmPlotId && req.plantationScope.farmPlotIds.length === 1) {
+      farmPlotId = req.plantationScope.farmPlotIds[0];
+    }
+    if (req.plantationScope?.restricted && (!farmPlotId || !canAccessFarmPlot(req, farmPlotId))) {
+      res.status(403).json({ error: 'El riesgo debe pertenecer a una plantación asignada.' });
+      return;
+    }
     
     // Calculate level based on probability * impact
     const score = data.probability * data.impact;
@@ -47,9 +59,9 @@ export const createRisk = async (req: Request, res: Response): Promise<void> => 
     const ownerName = authReq.user?.name || data.owner || 'Anonimo';
     
     await db.query(
-      `INSERT INTO Risk (id, title, description, category, standardId, probability, impact, level, status, owner,uocId)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)`,
-      [riskId, data.title, data.description, data.category, data.standardId, data.probability, data.impact, level, data.status || 'OPEN', ownerName, authReq.uocId]
+      `INSERT INTO Risk (id,title,description,category,standardId,probability,impact,level,status,owner,uocId,farmPlotId)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [riskId, data.title, data.description, data.category, data.standardId, data.probability, data.impact, level, data.status || 'OPEN', ownerName, authReq.uocId, farmPlotId]
     );
     
     const [riskRows] = await db.query('SELECT * FROM Risk WHERE id = ? AND uocId=?', [riskId, authReq.uocId]);

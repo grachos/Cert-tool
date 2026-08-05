@@ -2,7 +2,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { useThemeLanguage } from './ThemeLanguageContext';
 
-type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations' | 'traceability' | 'prisma' | 'actionPlans' | 'findings';
+type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations' | 'traceability' | 'transactions' | 'actionPlans' | 'findings' | 'sst' | 'training' | 'environment' | 'social';
 
 interface SidebarProps {
   activeModule: ModuleId;
@@ -13,7 +13,7 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
-interface NavItem { id: ModuleId; labelKey: any; icon: ReactNode; adminOnly?: boolean; }
+interface NavItem { id: ModuleId; labelKey: any; icon: ReactNode; portalAllowed?: boolean; }
 
 const Icons = {
   Dashboard: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
@@ -34,23 +34,26 @@ const Icons = {
 };
 
 const topItems: NavItem[] = [
-  { id: 'dashboard', labelKey: 'Resumen', icon: Icons.Dashboard },
+  { id: 'dashboard', labelKey: 'Resumen', icon: Icons.Dashboard, portalAllowed: true },
   { id: 'plant', labelKey: 'Cumplimiento P&C Planta Extractora', icon: Icons.Plant },
-  { id: 'plantations', labelKey: 'Cumplimiento P&C Núcleo', icon: Icons.Plantations },
+  { id: 'plantations', labelKey: 'Mi cumplimiento P&C', icon: Icons.Plantations, portalAllowed: true },
   { id: 'supply', labelKey: 'Base de suministro', icon: Icons.Supply },
   { id: 'traceability', labelKey: 'Trazabilidad RFF', icon: Icons.Scc },
   { id: 'ghg', labelKey: 'Calculadora GHG', icon: Icons.Ghg },
   { id: 'scc', labelKey: 'Cadena de suministro', icon: Icons.Scc },
-  { id: 'prisma', labelKey: 'PRISMA by RSPO', icon: Icons.Stakeholders },
-  { id: 'evidence', labelKey: 'Evidencias', icon: Icons.Evidence },
-  { id: 'actionPlans', labelKey: 'Planes de acción', icon: Icons.Automation },
-  { id: 'findings', labelKey: 'Hallazgos', icon: Icons.Alerts },
+  { id: 'transactions', labelKey: 'Transacciones', icon: Icons.Stakeholders },
+  { id: 'sst', labelKey: 'Seguridad y salud', icon: Icons.Risks, portalAllowed: true },
+  { id: 'training', labelKey: 'Capacitación', icon: Icons.Documents, portalAllowed: true },
+  { id: 'environment', labelKey: 'Gestión ambiental', icon: Icons.Ghg, portalAllowed: true },
+  { id: 'social', labelKey: 'Gestión social', icon: Icons.Stakeholders, portalAllowed: true },
+  { id: 'evidence', labelKey: 'Evidencias', icon: Icons.Evidence, portalAllowed: true },
+  { id: 'actionPlans', labelKey: 'Planes de acción', icon: Icons.Automation, portalAllowed: true },
+  { id: 'findings', labelKey: 'Hallazgos', icon: Icons.Alerts, portalAllowed: true },
 ];
 
 const managementItems: NavItem[] = [
-  { id: 'documents', labelKey: 'Revisión documental', icon: Icons.Documents },
-  { id: 'risks', labelKey: 'Análisis de riesgos', icon: Icons.Risks },
-  { id: 'stakeholders', labelKey: 'Partes interesadas', icon: Icons.Stakeholders },
+  { id: 'documents', labelKey: 'Revisión documental', icon: Icons.Documents, portalAllowed: true },
+  { id: 'risks', labelKey: 'Análisis de riesgos', icon: Icons.Risks, portalAllowed: true },
   { id: 'audits', labelKey: 'Auditorías', icon: Icons.Audits },
   { id: 'alerts', labelKey: 'Alertas', icon: Icons.Alerts },
 ];
@@ -71,7 +74,12 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
   // On mobile drawer (isMobileWindow && mobileOpen = true), render full 280px menu with labels.
   // On desktop (viewport >= 1024px), strictly follow desktop collapsed state.
   const effectiveCollapsed = (isMobileWindow && mobileOpen) ? false : collapsed;
-  const itemLabel = (item: NavItem) => item.labelKey.startsWith('nav.') ? t(item.labelKey as any) : item.labelKey;
+  const itemLabel = (item: NavItem) => {
+    if (item.id === 'plantations' && user?.isCentralUser) return 'Cumplimiento P&C Núcleo';
+    return item.labelKey.startsWith('nav.') ? t(item.labelKey as any) : item.labelKey;
+  };
+  const visibleTopItems = user?.isCentralUser ? topItems : topItems.filter(item => item.portalAllowed);
+  const visibleManagementItems = user?.isCentralUser ? managementItems : managementItems.filter(item => item.portalAllowed);
 
   return (
     <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
@@ -106,7 +114,7 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
 
       <nav className="sidebar-nav">
         {!effectiveCollapsed && <p className="nexo-nav-label">ESPACIO DE TRABAJO</p>}
-        {topItems.map((item) => (
+        {visibleTopItems.map((item) => (
           <div key={item.id}
             className={`sidebar-item ${activeModule === item.id ? 'active' : ''}`}
             onClick={() => onNavigate(item.id)}
@@ -117,7 +125,7 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
         ))}
 
         {!effectiveCollapsed && <p className="nexo-nav-label nexo-management-label">GESTIÓN Y CONTROL</p>}
-        {managementItems.map((item) => (
+        {visibleManagementItems.map((item) => (
           <div key={item.id}
             className={`sidebar-item ${activeModule === item.id ? 'active' : ''}`}
             onClick={() => onNavigate(item.id)}
@@ -149,7 +157,7 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
             </div>
           )}
         </div>
-        {!effectiveCollapsed && user?.role === 'ADMIN' && (
+        {!effectiveCollapsed && ['SUPERADMIN','ADMIN','MILL_ADMIN','MANAGER'].includes(user?.role || '') && (
           <button className="nexo-admin-link" onClick={() => onNavigate('users')}>
             {Icons.Users}<span>Usuarios y UoC</span>
           </button>

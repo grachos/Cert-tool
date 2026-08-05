@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db';
 import cache from '../cache';
@@ -7,6 +7,11 @@ import path from 'path';
 import axios from 'axios';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
+import {
+  PlantationScopedRequest,
+  canAccessFarmPlot,
+  restrictedFarmPlotSql
+} from '../middleware/plantation.middleware';
 
 const runEvidenceAiAnalysis = async (evidenceId: string, compoundTitle: string, standardId: string, clause: string, userId: string) => {
   const parts = compoundTitle.split('|');
@@ -158,12 +163,15 @@ Devuelve un JSON estrictamente estructurado según el siguiente formato:
   }
 };
 
-export const getEvidence = async (req: Request, res: Response): Promise<void> => {
+export const getEvidence = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   try {
-    const { standardId, uocId } = req.query;
+    const { standardId } = req.query;
     
     let query = 'SELECT * FROM Evidence WHERE uocId = ?';
-    let params: any[] = [uocId];
+    let params: any[] = [req.uocId];
+    const access = restrictedFarmPlotSql(req, 'farmPlotId');
+    query += access.clause;
+    params.push(...access.params);
     if (standardId) {
       query += ' AND standardId = ?';
       params.push(standardId);
@@ -199,9 +207,14 @@ export const getEvidence = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
-export const createEvidence = async (req: Request, res: Response): Promise<void> => {
+export const createEvidence = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   try {
-    const { title, description, standardId, clause, type, status, expiryDate, companyName, supplySourceId, farmPlotId, requirementId, indicator, responsible, observations, mimeType } = req.body;
+    const {
+      title, description, standardId, clause, type, status, expiryDate, companyName,
+      supplySourceId, requirementId, requirementIds, indicator, responsible,
+      observations, mimeType, moduleCode, programCode, plantationLotId,
+      documentDate, evidenceVersion
+    } = req.body;
     const authReq = req as any;
     const userId = authReq.user?.id;
 
@@ -214,9 +227,31 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
     const parsedExpiryDate = expiryDate ? new Date(expiryDate) : null;
     const evStatus = status || 'PENDING_REVIEW';
     const scopedUocId = (req as any).uocId;
-    if (!requirementId) { res.status(400).json({ error: 'Debe seleccionar un requisito válido.' }); return; }
-    const [requirements] = await db.query('SELECT id FROM Requirement WHERE id=? AND standardId=?', [requirementId, standardId]);
-    if (!(requirements as any[]).length) { res.status(400).json({ error: 'El requisito seleccionado no es válido.' }); return; }
+    const linkedRequirementIds = [...new Set(
+      (Array.isArray(requirementIds) ? requirementIds : [requirementId])
+        .map(value => String(value || '').trim())
+        .filter(Boolean)
+    )];
+    if (!linkedRequirementIds.length) { res.status(400).json({ error: 'Debe seleccionar al menos un indicador P&C válido.' }); return; }
+    const placeholders = linkedRequirementIds.map(() => '?').join(',');
+    const [requirements] = await db.query(
+      `SELECT id FROM Requirement WHERE id IN (${placeholders}) AND standardId=?`,
+      [...linkedRequirementIds, standardId]
+    );
+    if ((requirements as any[]).length !== linkedRequirementIds.length) {
+      res.status(400).json({ error: 'Uno o más indicadores seleccionados no son válidos.' });
+      return;
+    }
+    let farmPlotId = String(req.body.farmPlotId || '').trim() || null;
+    if (req.plantationScope?.restricted) {
+      if (!farmPlotId && req.plantationScope.farmPlotIds.length === 1) {
+        farmPlotId = req.plantationScope.farmPlotIds[0];
+      }
+      if (!farmPlotId || !canAccessFarmPlot(req, farmPlotId)) {
+        res.status(403).json({ error: 'La evidencia debe pertenecer a una plantación asignada al usuario.' });
+        return;
+      }
+    }
     if (supplySourceId) {
       const [sources] = await db.query('SELECT id FROM SupplySource WHERE id=? AND uocId=?', [supplySourceId, scopedUocId]);
       if (!(sources as any[]).length) { res.status(400).json({ error: 'La fuente no pertenece a la UoC.' }); return; }
@@ -225,18 +260,44 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
       const [plots] = await db.query('SELECT id FROM FarmPlot WHERE id=? AND uocId=? AND (? IS NULL OR supplySourceId=?)', [farmPlotId, scopedUocId, supplySourceId || null, supplySourceId || null]);
       if (!(plots as any[]).length) { res.status(400).json({ error: 'La plantación no pertenece a la UoC o fuente seleccionada.' }); return; }
     }
+    if (plantationLotId) {
+      const [lots] = await db.query(
+        'SELECT id FROM PlantationLot WHERE id=? AND farmPlotId=? AND uocId=?',
+        [plantationLotId, farmPlotId, scopedUocId]
+      );
+      if (!(lots as any[]).length) { res.status(400).json({ error: 'El lote no pertenece a la plantación seleccionada.' }); return; }
+    }
 
     const parts = title.split('|');
     const originalFileName = parts[1] || null;
     const fileName = parts[2] || parts[1] || null;
     await db.query(
-      `INSERT INTO Evidence (id,title,description,standardId,clause,type,status,expiryDate,uocId,companyName,supplySourceId,farmPlotId,requirementId,indicator,responsible,fileName,originalFileName,mimeType,observations)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [evId, title, description, standardId, clause, type, evStatus, parsedExpiryDate, scopedUocId, companyName || null, supplySourceId || null, farmPlotId || null, requirementId, indicator || null, responsible || null, fileName, originalFileName, mimeType || null, observations || null]
+      `INSERT INTO Evidence
+       (id,title,description,standardId,clause,type,status,expiryDate,uocId,companyName,
+        supplySourceId,farmPlotId,plantationLotId,requirementId,indicator,responsible,
+        fileName,originalFileName,mimeType,observations,moduleCode,programCode,uploadedBy,
+        documentDate,evidenceVersion)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        evId, title, description, standardId, clause, type, evStatus, parsedExpiryDate,
+        scopedUocId, companyName || null, supplySourceId || null, farmPlotId,
+        plantationLotId || null, linkedRequirementIds[0], indicator || null,
+        responsible || null, fileName, originalFileName, mimeType || null,
+        observations || null, moduleCode || null, programCode || null, userId,
+        documentDate || null, evidenceVersion || '1'
+      ]
     );
+    for (const linkedRequirementId of linkedRequirementIds) {
+      await db.query(
+        `INSERT IGNORE INTO EvidenceRequirementLink
+         (id,evidenceId,requirementId,uocId,farmPlotId,linkedBy)
+         VALUES (?,?,?,?,?,?)`,
+        [uuidv4(), evId, linkedRequirementId, scopedUocId, farmPlotId, userId]
+      );
+    }
     await db.query(
       'INSERT INTO EvidenceHistory (id,evidenceId,uocId,changedBy,action,snapshotJson) VALUES (?,?,?,?,?,?)',
-      [uuidv4(), evId, scopedUocId, userId, 'CREATED', JSON.stringify({ title, standardId, clause, type, status: evStatus, expiryDate: parsedExpiryDate, requirementId, fileName })]
+      [uuidv4(), evId, scopedUocId, userId, 'CREATED', JSON.stringify({ title, standardId, clause, type, status: evStatus, expiryDate: parsedExpiryDate, requirementIds: linkedRequirementIds, farmPlotId, fileName })]
     );
 
     const [evRows] = await db.query('SELECT * FROM Evidence WHERE id = ?', [evId]);
@@ -260,7 +321,7 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
   }
 };
 
-export const reviewEvidence = async (req: Request, res: Response): Promise<void> => {
+export const reviewEvidence = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   const { status, observations } = req.body;
   if (!['VALID','EXPIRED','PENDING_REVIEW','IN_REVIEW','APPROVED','REJECTED','REPLACED'].includes(status)) { res.status(400).json({ error: 'Estado de revisión inválido.' }); return; }
   const authReq = req as any;

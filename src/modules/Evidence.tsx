@@ -17,7 +17,7 @@ export default function Evidence() {
 
   // Modal & Form States
   const [showModal, setShowModal] = useState(false);
-  const [selectedClause, setSelectedClause] = useState('');
+  const [selectedClauses, setSelectedClauses] = useState<string[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [evidenceType, setEvidenceType] = useState<'DOCUMENT' | 'PHOTO' | 'RECORD' | 'REPORT' | 'CERTIFICATE'>('DOCUMENT');
@@ -110,8 +110,8 @@ export default function Evidence() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    if (!selectedClause) {
-      setErrorMsg(language === 'es' ? 'Por favor, selecciona una Cláusula antes.' : 'Please select a Clause first.');
+    if (selectedClauses.length === 0) {
+      setErrorMsg(language === 'es' ? 'Selecciona al menos un indicador antes.' : 'Select at least one indicator first.');
       return;
     }
     if (!title.trim()) {
@@ -138,13 +138,14 @@ export default function Evidence() {
         title: `${title}|${compoundName}`,
         description: description || (language === 'es' ? 'Cargado por el usuario' : 'Uploaded by user'),
         standardId: activeTab,
-        clause: activeStandard?.requirements.find(r => r.id === selectedClause)?.clause || '',
+        clause: activeStandard?.requirements.find(r => r.id === selectedClauses[0])?.clause || '',
         type: evidenceType,
         expiryDate: expiryDate || null,
         status: 'PENDING_REVIEW'
         ,uocId: selectedUocId,
         companyName: selectedUoc?.companyName,
-        requirementId: selectedClause,
+        requirementId: selectedClauses[0],
+        requirementIds: selectedClauses,
         supplySourceId: supplySourceId || null,
         farmPlotId: farmPlotId || null,
         indicator,
@@ -165,8 +166,8 @@ export default function Evidence() {
 
   const triggerUpload = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedClause) {
-      setErrorMsg(language === 'es' ? 'Por favor, selecciona una Cláusula.' : 'Please select a Clause.');
+    if (selectedClauses.length === 0) {
+      setErrorMsg(language === 'es' ? 'Selecciona al menos un indicador.' : 'Select at least one indicator.');
       return;
     }
     if (!title.trim()) {
@@ -197,7 +198,7 @@ export default function Evidence() {
   };
 
   const resetForm = () => {
-    setSelectedClause('');
+    setSelectedClauses([]);
     setTitle('');
     setDescription('');
     setEvidenceType('DOCUMENT');
@@ -250,8 +251,8 @@ export default function Evidence() {
                 {language === 'es' ? 'Cláusula' : 'Clause'} {ev.clause}
               </div>
               <span className="badge text-xs font-bold" style={{ 
-                background: ev.status === 'valid' ? 'var(--accent-green-bg)' : ev.status === 'expired' ? 'var(--accent-red-bg)' : 'var(--accent-gold-bg)',
-                color: ev.status === 'valid' ? 'var(--accent-green)' : ev.status === 'expired' ? 'var(--accent-red)' : 'var(--accent-gold)'
+                background: ev.status?.toUpperCase() === 'VALID' ? 'var(--accent-green-bg)' : ev.status?.toUpperCase() === 'EXPIRED' ? 'var(--accent-red-bg)' : 'var(--accent-gold-bg)',
+                color: ev.status?.toUpperCase() === 'VALID' ? 'var(--accent-green)' : ev.status?.toUpperCase() === 'EXPIRED' ? 'var(--accent-red)' : 'var(--accent-gold)'
               }}>
                 {getTranslatedStatus(ev.status)}
               </span>
@@ -286,13 +287,13 @@ export default function Evidence() {
               {ev.expiryDate && (
                 <div className="flex-col text-right">
                   <span className="text-xs text-muted">{language === 'es' ? 'Vence el' : 'Expires on'}</span>
-                  <span className={`text-sm font-medium ${ev.status === 'expired' ? 'text-red-600' : 'text-primary'}`}>
+                  <span className={`text-sm font-medium ${ev.status?.toUpperCase() === 'EXPIRED' ? 'text-red-600' : 'text-primary'}`}>
                     {new Date(ev.expiryDate).toLocaleDateString()}
                   </span>
                 </div>
               )}
             </div>
-            {['ADMIN','MANAGER','AUDITOR'].includes(user?.role || '') && (
+            {['SUPERADMIN','ADMIN','MILL_ADMIN','MANAGER','TECHNICAL_REVIEWER','AUDITOR'].includes(user?.role || '') && (
               <div className="flex gap-2">
                 <button className="btn btn-secondary btn-sm" onClick={() => review(ev, 'VALID')}>Aprobar</button>
                 <button className="btn btn-secondary btn-sm" onClick={() => review(ev, 'EXPIRED')}>Rechazar</button>
@@ -325,20 +326,33 @@ export default function Evidence() {
 
             <form onSubmit={triggerUpload} className="flex-col gap-4">
               <div className="form-group flex-col gap-1">
-                <label className="form-label font-semibold">{language === 'es' ? 'Cláusula / Requisito' : 'Clause / Requirement'}</label>
-                <select
-                  value={selectedClause}
-                  onChange={(e) => setSelectedClause(e.target.value)}
-                  className="form-input"
-                  required
-                >
-                  <option value="">{language === 'es' ? '-- Seleccione cláusula --' : '-- Select clause --'}</option>
+                <label className="form-label font-semibold">{language === 'es' ? 'Indicadores P&C relacionados' : 'Related P&C indicators'}</label>
+                <p className="text-xs text-secondary">
+                  {language === 'es'
+                    ? 'Una misma evidencia puede respaldar varios indicadores. Marca todos los que correspondan.'
+                    : 'The same evidence can support several indicators. Select every applicable one.'}
+                </p>
+                <div className="evidence-requirement-list">
                   {activeStandard?.requirements.map(r => (
-                    <option key={r.id} value={r.id}>
-                      {r.clause} - {r.title}
-                    </option>
+                    <label key={r.id} className="evidence-requirement-option">
+                      <input
+                        type="checkbox"
+                        checked={selectedClauses.includes(r.id)}
+                        onChange={(event) => {
+                          setSelectedClauses(current => event.target.checked
+                            ? [...current, r.id]
+                            : current.filter(id => id !== r.id));
+                        }}
+                      />
+                      <span><strong>{r.clause}</strong> — {r.title}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
+                {selectedClauses.length > 0 && (
+                  <span className="text-xs text-secondary">
+                    {selectedClauses.length} {language === 'es' ? 'indicador(es) seleccionado(s)' : 'indicator(s) selected'}
+                  </span>
+                )}
               </div>
 
               <div className="form-group flex-col gap-1">

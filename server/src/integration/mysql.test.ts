@@ -8,7 +8,12 @@ const integration = url ? test : test.skip;
 integration('MySQL: esquema y tablas RSPO TECH disponibles', async () => {
   const db = mysql.createPool(url!);
   try {
-    const required = ['UserCertificationUnit','SupplySource','SupplySourceHistory','FarmPlot','PlantationActivity','RffDelivery','TraceabilityAlert','PrismaOperation','PrismaAdjustment','PrismaAttachment','PlantRecord','ActionPlanHistory'];
+    const required = [
+      'UserCertificationUnit','UserPlantationAccess','SupplySource','SupplySourceHistory',
+      'FarmPlot','PlantationActivity','RffDelivery','TraceabilityAlert','PrismaOperation',
+      'PrismaAdjustment','PrismaAttachment','PlantRecord','ActionPlanHistory',
+      'EvidenceRequirementLink','OperationalRecord','OperationalRecordEvidence','SystemChangeLog'
+    ];
     const [rows] = await db.query(`SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN (${required.map(()=>'?').join(',')})`, required);
     assert.equal((rows as any[]).length, required.length);
   } finally { await db.end(); }
@@ -32,6 +37,40 @@ integration('MySQL: áreas, plantaciones y actividades TEST persisten', async ()
     assert.ok((sources as any[]).every(x => Number(x.totalArea) >= Number(x.plantedArea) && Number(x.plantedArea) >= Number(x.certifiedArea)));
     const [activities] = await db.query(`SELECT id FROM PlantationActivity WHERE id LIKE 'test-%'`);
     assert.ok((activities as any[]).length >= 2);
+  } finally { await db.end(); }
+});
+
+integration('MySQL: el portal de plantación queda limitado a su plantación asignada', async () => {
+  const db = mysql.createPool(url!);
+  try {
+    const [rows] = await db.query(`
+      SELECT upa.farmPlotId,upa.accessLevel,fp.uocId
+      FROM UserPlantationAccess upa
+      JOIN FarmPlot fp ON fp.id=upa.farmPlotId
+      WHERE upa.userId='test-user-limited-000000000000001' AND upa.status='ACTIVE'`);
+    assert.deepEqual(rows, [{
+      farmPlotId: 'test-plot-a-000000000000000000001',
+      accessLevel: 'OPERATOR',
+      uocId: 'test-uoc-a-00000000000000000000001'
+    }]);
+  } finally { await db.end(); }
+});
+
+integration('MySQL: evidencias reutilizables y módulos operativos conservan alcance', async () => {
+  const db = mysql.createPool(url!);
+  try {
+    const [links] = await db.query(`
+      SELECT erl.requirementId,erl.farmPlotId
+      FROM EvidenceRequirementLink erl
+      WHERE erl.evidenceId='test-evidence-00000000000000000001'`);
+    assert.equal((links as any[])[0]?.requirementId, 'test-requirement-0000000000000001');
+    assert.equal((links as any[])[0]?.farmPlotId, 'test-plot-a-000000000000000000001');
+    const [operations] = await db.query(`
+      SELECT moduleCode,category,resultValue,farmPlotId
+      FROM OperationalRecord WHERE id='test-operation-sst-00000000000001'`);
+    assert.equal((operations as any[])[0]?.moduleCode, 'SST');
+    assert.equal(Number((operations as any[])[0]?.resultValue), 1);
+    assert.equal((operations as any[])[0]?.farmPlotId, 'test-plot-a-000000000000000000001');
   } finally { await db.end(); }
 });
 

@@ -54,12 +54,26 @@ async function seed() {
            (?,?,?,'TEST LOTE B','TEST PREDIO B',8,6,8,'INELIGIBLE','CONVENTIONAL')
     ON DUPLICATE KEY UPDATE estimatedProductionMt=VALUES(estimatedProductionMt)`,
     [ids.plotA,ids.uocA,ids.own,ids.plotB,ids.uocA,ids.ineligible]);
+  await db.query(`INSERT INTO UserPlantationAccess
+    (id,userId,uocId,farmPlotId,accessLevel,status,assignedBy)
+    VALUES ('test-access-user-plot-a-00000000001',?,?,?,'OPERATOR','ACTIVE',?)
+    ON DUPLICATE KEY UPDATE accessLevel=VALUES(accessLevel),status=VALUES(status)`,
+    [ids.user,ids.uocA,ids.plotA,ids.manager]);
   await db.query(`INSERT INTO Requirement (id,clause,title,description,status,evidenceCount,standardId)
     VALUES (?,'TEST-1','TEST requisito','TEST requisito ficticio','PARTIAL',1,'RSPO')
     ON DUPLICATE KEY UPDATE title=VALUES(title)`,[ids.requirement]);
   await db.query(`INSERT INTO Evidence (id,title,description,standardId,clause,type,status,uocId,companyName,farmPlotId,requirementId,responsible,observations)
     VALUES (?,'TEST evidencia','TEST sin archivo real','RSPO','TEST-1','RECORD','VALID',?,'TEST PALMA A',?,?,?,'TEST seed')
     ON DUPLICATE KEY UPDATE description=VALUES(description)`,[ids.evidence,ids.uocA,ids.plotA,ids.requirement,ids.manager]);
+  await db.query(`INSERT IGNORE INTO EvidenceRequirementLink
+    (id,evidenceId,requirementId,uocId,farmPlotId,linkedBy)
+    VALUES ('test-evidence-link-000000000000001',?,?,?,?,?)`,
+    [ids.evidence,ids.requirement,ids.uocA,ids.plotA,ids.manager]);
+  await db.query(`INSERT INTO OperationalRecord
+    (id,uocId,farmPlotId,moduleCode,category,title,status,numeratorValue,denominatorValue,resultValue,createdBy,updatedBy)
+    VALUES ('test-operation-sst-00000000000001',?,?,'SST','ACCIDENT_RATE','TEST accidentalidad','COMPLETED',1,100,1,?,?)
+    ON DUPLICATE KEY UPDATE resultValue=VALUES(resultValue)`,
+    [ids.uocA,ids.plotA,ids.manager,ids.manager]);
   await db.query(`INSERT INTO Audit (id,title,date,type,auditorName,status,uocId)
     VALUES (?,'TEST auditoría',CURRENT_DATE,'INTERNAL','TEST AUDITOR','IN_PROGRESS',?)
     ON DUPLICATE KEY UPDATE status=VALUES(status)`,[ids.audit,ids.uocA]);
@@ -97,7 +111,7 @@ async function seed() {
 }
 
 async function clean() {
-  const tables = ['PrismaAdjustment','PrismaAttachment','PrismaOperation','ActionPlanHistory','ActionPlan','NonConformance','Audit','PlantationActivity','TraceabilityAlert','RffDelivery','SccTransaction','Evidence','FarmPlot','SupplySourceHistory','SupplySource','UserCertificationUnit','User','CertificationUnit'];
+  const tables = ['OperationalRecordEvidence','OperationalRecord','EvidenceRequirementLink','UserPlantationAccess','PrismaAdjustment','PrismaAttachment','PrismaOperation','ActionPlanHistory','ActionPlan','NonConformance','Audit','PlantationActivity','TraceabilityAlert','RffDelivery','SccTransaction','Evidence','FarmPlot','SupplySourceHistory','SupplySource','UserCertificationUnit','User','CertificationUnit'];
   for (const table of tables) {
     const key = table === 'UserCertificationUnit' ? 'userId' : 'id';
     await db.query(`DELETE FROM \`${table}\` WHERE \`${key}\` LIKE 'test-%'`).catch(() => undefined);

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import pool from '../db';
+import { PlantationScopedRequest, restrictedFarmPlotSql } from '../middleware/plantation.middleware';
 
 // Get all audits
 export const getAudits = async (req: Request, res: Response) => {
@@ -44,16 +45,17 @@ export const createAudit = async (req: Request, res: Response) => {
 };
 
 // Get findings for an audit
-export const getAuditFindings = async (req: Request, res: Response) => {
+export const getAuditFindings = async (req: PlantationScopedRequest, res: Response) => {
   const { id } = req.params;
   try {
+    const access = restrictedFarmPlotSql(req, 'nc.farmPlotId');
     const [rows] = await pool.query(`
       SELECT nc.*, r.clause, r.title as requirementTitle, r.standardId 
       FROM NonConformance nc
       JOIN Requirement r ON nc.requirementId = r.id
-      WHERE nc.auditId = ? AND nc.uocId=?
+      WHERE nc.auditId = ? AND nc.uocId=?${access.clause}
       ORDER BY nc.createdAt DESC
-    `, [id, (req as any).uocId]);
+    `, [id, (req as any).uocId, ...access.params]);
     res.json(rows);
   } catch (error) {
     console.error('Error in getAuditFindings:', error);
@@ -126,16 +128,17 @@ export const verifyFindingClosure = async (req: Request, res: Response): Promise
 };
 
 // Get all findings (across all audits)
-export const getAllFindings = async (req: Request, res: Response) => {
+export const getAllFindings = async (req: PlantationScopedRequest, res: Response) => {
   try {
+    const access = restrictedFarmPlotSql(req, 'n.farmPlotId');
     const [rows] = await pool.query(`
       SELECT n.*, r.title as requirementTitle, r.clause, a.title as auditTitle 
       FROM NonConformance n 
       LEFT JOIN Requirement r ON n.requirementId = r.id
       LEFT JOIN Audit a ON n.auditId = a.id
-      WHERE n.uocId=?
+      WHERE n.uocId=?${access.clause}
       ORDER BY n.createdAt DESC
-    `, [(req as any).uocId]);
+    `, [(req as any).uocId, ...access.params]);
     res.json(rows);
   } catch (error) {
     console.error('Error in getAllFindings:', error);

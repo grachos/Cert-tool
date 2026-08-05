@@ -6,6 +6,14 @@ interface User {
   name: string;
   email: string;
   role: string;
+  isCentralUser?: boolean;
+  plantationAccess?: Array<{
+    uocId: string;
+    farmPlotId: string;
+    accessLevel: 'ADMIN' | 'OPERATOR' | 'VIEWER';
+    farmName?: string;
+    plantationName?: string;
+  }>;
 }
 
 interface AuthContextType {

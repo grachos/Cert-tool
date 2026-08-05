@@ -4,7 +4,7 @@ import api from '../api';
 import nexopalmaHero from '../assets/nexopalma-hero.png?inline';
 
 interface DashboardProps {
-  onNavigate: (module: 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations' | 'audits' | 'traceability' | 'prisma' | 'actionPlans' | 'findings') => void;
+  onNavigate: (module: 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations' | 'audits' | 'traceability' | 'transactions' | 'actionPlans' | 'findings' | 'sst' | 'training' | 'environment' | 'social') => void;
 }
 
 interface Stats {

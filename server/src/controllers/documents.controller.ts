@@ -8,6 +8,11 @@ import path from 'path';
 import axios from 'axios';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
+import {
+  PlantationScopedRequest,
+  canAccessFarmPlot,
+  restrictedFarmPlotSql
+} from '../middleware/plantation.middleware';
 
 interface MockFinding {
   type: 'GAP' | 'RECOMMENDATION' | 'RISK' | 'IMPROVEMENT';
@@ -277,10 +282,13 @@ ${documentText}
   }
 };
 
-export const getDocuments = async (req: Request, res: Response): Promise<void> => {
+export const getDocuments = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   try {
     const enabledStandardsEnv = process.env.ENABLED_STANDARDS;
-    const cacheKey = `documents_all_${enabledStandardsEnv || 'ALL'}`;
+    const scopeKey = req.plantationScope?.restricted
+      ? req.plantationScope.farmPlotIds.slice().sort().join(',')
+      : 'CENTRAL';
+    const cacheKey = `documents_${req.uocId}_${scopeKey}_${enabledStandardsEnv || 'RSPO'}`;
     const cachedData = cache.get(cacheKey);
     
     if (cachedData) {
@@ -288,12 +296,17 @@ export const getDocuments = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    let query = 'SELECT * FROM Document';
-    let params: any[] = [];
+    let query = 'SELECT * FROM Document WHERE uocId=?';
+    let params: any[] = [req.uocId];
+    const access = restrictedFarmPlotSql(req, 'farmPlotId');
+    query += access.clause;
+    params.push(...access.params);
     if (enabledStandardsEnv) {
       const allowedIds = enabledStandardsEnv.split(',').map(s => s.trim().toUpperCase());
-      query += ' WHERE UPPER(standardId) IN (?)';
+      query += ' AND UPPER(standardId) IN (?)';
       params.push(allowedIds);
+    } else {
+      query += " AND UPPER(standardId) IN ('RSPO')";
     }
     query += ' ORDER BY uploadDate DESC';
 
@@ -322,9 +335,9 @@ export const getDocuments = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-export const createDocument = async (req: Request, res: Response): Promise<void> => {
+export const createDocument = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   try {
-    const { name, type, standardId, size, version } = req.body;
+    const { name, type, standardId, size, version, moduleCode } = req.body;
     const authReq = req as any;
     const userId = authReq.user?.id;
 
@@ -333,10 +346,32 @@ export const createDocument = async (req: Request, res: Response): Promise<void>
       return;
     }
     
+    let farmPlotId = String(req.body.farmPlotId || '').trim() || null;
+    if (req.plantationScope?.restricted) {
+      if (!farmPlotId && req.plantationScope.farmPlotIds.length === 1) {
+        farmPlotId = req.plantationScope.farmPlotIds[0];
+      }
+      if (!farmPlotId || !canAccessFarmPlot(req, farmPlotId)) {
+        res.status(403).json({ error: 'El documento debe pertenecer a una plantación asignada.' });
+        return;
+      }
+    }
+    if (farmPlotId) {
+      const [plots] = await db.query(
+        'SELECT id FROM FarmPlot WHERE id=? AND uocId=?',
+        [farmPlotId, req.uocId]
+      );
+      if (!(plots as any[]).length) {
+        res.status(400).json({ error: 'La plantación seleccionada no pertenece a la UoC.' });
+        return;
+      }
+    }
     const docId = uuidv4();
     await db.query(
-      'INSERT INTO Document (id, name, type, standardId, size, version, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [docId, name, type, standardId, size, version, 'PENDING']
+      `INSERT INTO Document
+       (id,name,type,standardId,size,version,status,uocId,farmPlotId,moduleCode)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [docId, name, type, standardId, size, version, 'PENDING', req.uocId, farmPlotId, moduleCode || null]
     );
 
     const [docRows] = await db.query('SELECT * FROM Document WHERE id = ?', [docId]);
@@ -346,7 +381,7 @@ export const createDocument = async (req: Request, res: Response): Promise<void>
     runRealAiAnalysis(newDoc.id, name, standardId, userId);
 
     // Invalidate cache immediately for document list & dashboard stats
-    cache.del('documents_all');
+    cache.flushAll();
     cache.del('dashboard_stats');
     
     alertEvidenciaCargada(name.split('|')[0], 'Revisor').catch(() => {});

@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS User (
   email VARCHAR(255) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
   name VARCHAR(255) NOT NULL,
-  role ENUM('SUPERADMIN','ADMIN','MANAGER','SUSTAINABILITY','AUDITOR','PROCESS_OWNER','PLANT_ADMIN','PLANTATION_ADMIN','VIEWER','CERTIFIER','COORDINATOR','REVIEWER','USER') DEFAULT 'USER',
+  role ENUM('SUPERADMIN','ADMIN','MILL_ADMIN','MANAGER','SUSTAINABILITY','TECHNICAL_REVIEWER','REVIEWER','AUDITOR','CERTIFIER','COORDINATOR','PROCESS_OWNER','PLANT_ADMIN','PLANTATION_ADMIN','PLANTATION_OPERATOR','VIEWER','READ_ONLY','USER') DEFAULT 'USER',
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS Document (
   size VARCHAR(50) NOT NULL,
   version VARCHAR(50) NOT NULL,
   uocId VARCHAR(36) NULL,
+  farmPlotId VARCHAR(36) NULL,
+  moduleCode VARCHAR(60) NULL,
   FOREIGN KEY (standardId) REFERENCES Standard(id) ON DELETE CASCADE,
   FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE SET NULL
 );
@@ -121,6 +123,7 @@ CREATE TABLE IF NOT EXISTS Risk (
   status ENUM('OPEN', 'MITIGATED', 'ACCEPTED', 'CLOSED') DEFAULT 'OPEN',
   owner VARCHAR(255) NOT NULL,
   uocId VARCHAR(36) NULL,
+  farmPlotId VARCHAR(36) NULL,
   createdDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updatedDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (standardId) REFERENCES Standard(id) ON DELETE CASCADE,
@@ -266,6 +269,7 @@ CREATE TABLE IF NOT EXISTS Evidence (
   companyName VARCHAR(255) NULL,
   supplySourceId VARCHAR(36) NULL,
   farmPlotId VARCHAR(36) NULL,
+  plantationLotId VARCHAR(36) NULL,
   requirementId VARCHAR(36) NULL,
   indicator VARCHAR(255) NULL,
   responsible VARCHAR(255) NULL,
@@ -273,6 +277,9 @@ CREATE TABLE IF NOT EXISTS Evidence (
   originalFileName VARCHAR(255) NULL,
   mimeType VARCHAR(100) NULL,
   observations TEXT NULL,
+  moduleCode VARCHAR(60) NULL,
+  programCode VARCHAR(100) NULL,
+  uploadedBy VARCHAR(36) NULL,
   documentDate DATE NULL,
   evidenceVersion VARCHAR(50) NULL,
   processCode VARCHAR(100) NULL,
@@ -299,6 +306,7 @@ CREATE TABLE IF NOT EXISTS Audit (
   auditorName VARCHAR(255) NOT NULL,
   status ENUM('SCHEDULED', 'IN_PROGRESS', 'CLOSED') DEFAULT 'SCHEDULED',
   uocId VARCHAR(36) NULL,
+  farmPlotId VARCHAR(36) NULL,
   scopeDescription TEXT NULL,
   criteriaDescription TEXT NULL,
   auditTeamJson JSON NULL,
@@ -363,6 +371,7 @@ CREATE TABLE IF NOT EXISTS ActionPlan (
   eficacia TEXT NULL,
   closedAt TIMESTAMP NULL,
   uocId VARCHAR(36) NULL,
+  farmPlotId VARCHAR(36) NULL,
   evidenceId VARCHAR(36) NULL,
   FOREIGN KEY (assigneeId) REFERENCES User(id) ON DELETE CASCADE,
   FOREIGN KEY (nonConformanceId) REFERENCES NonConformance(id) ON DELETE SET NULL,
@@ -429,6 +438,7 @@ CREATE TABLE IF NOT EXISTS Stakeholder (
   status ENUM('ACTIVE', 'INACTIVE', 'PENDING') DEFAULT 'ACTIVE',
   notes TEXT,
   uocId VARCHAR(36) NULL,
+  farmPlotId VARCHAR(36) NULL,
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE SET NULL
@@ -443,9 +453,11 @@ CREATE TABLE IF NOT EXISTS Alert (
   action VARCHAR(255) NULL,
   module VARCHAR(100) NULL,
   uocId VARCHAR(36) NULL,
+  farmPlotId VARCHAR(36) NULL,
   dismissed TINYINT(1) NOT NULL DEFAULT 0,
   createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_alert_dismissed_created (dismissed, createdAt),
+  INDEX idx_alert_uoc_plot_status (uocId, farmPlotId, dismissed, createdAt),
   FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE SET NULL
 );
 
@@ -523,6 +535,7 @@ CREATE TABLE IF NOT EXISTS PrismaAttachment (
 CREATE TABLE IF NOT EXISTS PlantRecord (
   id VARCHAR(36) PRIMARY KEY,
   uocId VARCHAR(36) NOT NULL,
+  farmPlotId VARCHAR(36) NULL,
   section ENUM('contratistas','sst','ambiente','avc','social','negocios') NOT NULL,
   title VARCHAR(255) NOT NULL,
   description TEXT NULL,
@@ -666,4 +679,97 @@ CREATE TABLE IF NOT EXISTS DocumentApproval (
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (userId) REFERENCES User(id) ON DELETE CASCADE,
   FOREIGN KEY (documentId) REFERENCES Document(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS UserPlantationAccess (
+  id VARCHAR(36) PRIMARY KEY,
+  userId VARCHAR(36) NOT NULL,
+  uocId VARCHAR(36) NOT NULL,
+  farmPlotId VARCHAR(36) NOT NULL,
+  accessLevel ENUM('ADMIN','OPERATOR','VIEWER') NOT NULL DEFAULT 'VIEWER',
+  status ENUM('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
+  assignedBy VARCHAR(36) NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_user_plantation_access (userId, farmPlotId),
+  INDEX idx_user_plantation_uoc (userId, uocId, status),
+  INDEX idx_plantation_users (farmPlotId, status),
+  FOREIGN KEY (userId) REFERENCES User(id) ON DELETE CASCADE,
+  FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE CASCADE,
+  FOREIGN KEY (farmPlotId) REFERENCES FarmPlot(id) ON DELETE CASCADE,
+  FOREIGN KEY (assignedBy) REFERENCES User(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS EvidenceRequirementLink (
+  id VARCHAR(36) PRIMARY KEY,
+  evidenceId VARCHAR(36) NOT NULL,
+  requirementId VARCHAR(36) NOT NULL,
+  uocId VARCHAR(36) NOT NULL,
+  farmPlotId VARCHAR(36) NULL,
+  linkedBy VARCHAR(36) NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_evidence_requirement_scope (evidenceId, requirementId, farmPlotId),
+  INDEX idx_requirement_evidence_scope (uocId, requirementId, farmPlotId),
+  FOREIGN KEY (evidenceId) REFERENCES Evidence(id) ON DELETE CASCADE,
+  FOREIGN KEY (requirementId) REFERENCES Requirement(id) ON DELETE CASCADE,
+  FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE CASCADE,
+  FOREIGN KEY (farmPlotId) REFERENCES FarmPlot(id) ON DELETE CASCADE,
+  FOREIGN KEY (linkedBy) REFERENCES User(id)
+);
+
+CREATE TABLE IF NOT EXISTS OperationalRecord (
+  id VARCHAR(36) PRIMARY KEY,
+  uocId VARCHAR(36) NOT NULL,
+  farmPlotId VARCHAR(36) NULL,
+  plantationLotId VARCHAR(36) NULL,
+  moduleCode ENUM('SST','TRAINING','ENVIRONMENT','SOCIAL') NOT NULL,
+  category VARCHAR(100) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  responsible VARCHAR(255) NULL,
+  scheduledDate DATE NULL,
+  completedDate DATE NULL,
+  status ENUM('PLANNED','IN_PROGRESS','COMPLETED','OVERDUE','CANCELLED') NOT NULL DEFAULT 'PLANNED',
+  targetValue DECIMAL(14,4) NULL,
+  numeratorValue DECIMAL(14,4) NULL,
+  denominatorValue DECIMAL(14,4) NULL,
+  resultValue DECIMAL(14,4) NULL,
+  unit VARCHAR(50) NULL,
+  dataJson LONGTEXT NULL,
+  createdBy VARCHAR(36) NOT NULL,
+  updatedBy VARCHAR(36) NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_operational_scope (uocId, farmPlotId, moduleCode, category),
+  INDEX idx_operational_dates (uocId, moduleCode, scheduledDate, completedDate),
+  FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE CASCADE,
+  FOREIGN KEY (farmPlotId) REFERENCES FarmPlot(id) ON DELETE CASCADE,
+  FOREIGN KEY (plantationLotId) REFERENCES PlantationLot(id) ON DELETE SET NULL,
+  FOREIGN KEY (createdBy) REFERENCES User(id),
+  FOREIGN KEY (updatedBy) REFERENCES User(id)
+);
+
+CREATE TABLE IF NOT EXISTS OperationalRecordEvidence (
+  operationalRecordId VARCHAR(36) NOT NULL,
+  evidenceId VARCHAR(36) NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (operationalRecordId, evidenceId),
+  FOREIGN KEY (operationalRecordId) REFERENCES OperationalRecord(id) ON DELETE CASCADE,
+  FOREIGN KEY (evidenceId) REFERENCES Evidence(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS SystemChangeLog (
+  id VARCHAR(36) PRIMARY KEY,
+  uocId VARCHAR(36) NOT NULL,
+  farmPlotId VARCHAR(36) NULL,
+  entityType VARCHAR(80) NOT NULL,
+  entityId VARCHAR(191) NOT NULL,
+  action VARCHAR(80) NOT NULL,
+  changedBy VARCHAR(36) NOT NULL,
+  snapshotJson LONGTEXT NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_change_log_entity (uocId, entityType, entityId, createdAt),
+  FOREIGN KEY (uocId) REFERENCES CertificationUnit(id) ON DELETE CASCADE,
+  FOREIGN KEY (farmPlotId) REFERENCES FarmPlot(id) ON DELETE SET NULL,
+  FOREIGN KEY (changedBy) REFERENCES User(id)
 );

@@ -7,6 +7,12 @@ import path from 'path';
 import axios from 'axios';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
+import {
+  PlantationScopedRequest,
+  canAccessFarmPlot,
+  canEditFarmPlot,
+  restrictedFarmPlotSql
+} from '../middleware/plantation.middleware';
 
 const runActionPlanAiAnalysis = async (planId: string, evidenceName: string, _userId: string) => {
   const parts = evidenceName.split('|');
@@ -137,17 +143,17 @@ Sigue estas reglas estrictas:
   }
 };
 
-export const getActionPlans = async (req: Request, res: Response): Promise<void> => {
+export const getActionPlans = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   try {
     const uocId = (req as any).uocId;
-    const isAll = (req as any).user?.role === 'ADMIN' && !uocId;
+    const access = restrictedFarmPlotSql(req, 'p.farmPlotId');
     const [rows] = await db.query(
       `SELECT p.*, u.name AS assigneeName, u.email AS assigneeEmail
        FROM ActionPlan p
        JOIN User u ON p.assigneeId = u.id
-       ${isAll ? '' : 'WHERE p.uocId = ?'}
+       WHERE p.uocId = ?${access.clause}
        ORDER BY p.dueDate ASC`
-      , isAll ? [] : [uocId]
+      , [uocId, ...access.params]
     );
     const plans = rows as any[];
     
@@ -172,6 +178,7 @@ export const getActionPlans = async (req: Request, res: Response): Promise<void>
       correccion: p.correccion,
       eficacia: p.eficacia,
       closedAt: p.closedAt,
+      farmPlotId: p.farmPlotId,
       assignee: {
         name: p.assigneeName,
         email: p.assigneeEmail
@@ -185,13 +192,21 @@ export const getActionPlans = async (req: Request, res: Response): Promise<void>
   }
 };
 
-export const createActionPlan = async (req: Request, res: Response): Promise<void> => {
+export const createActionPlan = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   try {
     const data = req.body;
     const planId = uuidv4();
     const dueDate = new Date(data.dueDate);
     const progress = data.progress || 0;
     const uocId = (req as any).uocId;
+    let farmPlotId = String(data.farmPlotId || '').trim() || null;
+    if (req.plantationScope?.restricted && !farmPlotId && req.plantationScope.farmPlotIds.length === 1) {
+      farmPlotId = req.plantationScope.farmPlotIds[0];
+    }
+    if (req.plantationScope?.restricted && (!farmPlotId || !canAccessFarmPlot(req, farmPlotId))) {
+      res.status(403).json({ error: 'El plan debe pertenecer a una plantación asignada.' });
+      return;
+    }
     if (data.nonConformanceId) {
       const [linked] = await db.query('SELECT id FROM NonConformance WHERE id=? AND uocId=?', [data.nonConformanceId, uocId]);
       if (!(linked as any[]).length) { res.status(400).json({ error: 'El hallazgo no pertenece a la UoC.' }); return; }
@@ -202,9 +217,9 @@ export const createActionPlan = async (req: Request, res: Response): Promise<voi
     }
     
     await db.query(
-      `INSERT INTO ActionPlan (id, title, description, type, status, priority, assigneeId, dueDate, progress, nonConformanceId, riskId, brecha, causaRaiz, correccion, eficacia, closedAt, uocId)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [planId, data.title, data.description, data.type, data.status || 'PENDING', data.priority, data.assigneeId, dueDate, progress, data.nonConformanceId || null, data.riskId || null, data.brecha || null, data.causaRaiz || null, data.correccion || null, data.eficacia || null, data.closedAt || null, uocId]
+      `INSERT INTO ActionPlan (id,title,description,type,status,priority,assigneeId,dueDate,progress,nonConformanceId,riskId,brecha,causaRaiz,correccion,eficacia,closedAt,uocId,farmPlotId)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [planId, data.title, data.description, data.type, data.status || 'PENDING', data.priority, data.assigneeId, dueDate, progress, data.nonConformanceId || null, data.riskId || null, data.brecha || null, data.causaRaiz || null, data.correccion || null, data.eficacia || null, data.closedAt || null, uocId, farmPlotId]
     );
 
     // Fetch new plan with assignee
@@ -254,7 +269,7 @@ export const createActionPlan = async (req: Request, res: Response): Promise<voi
   }
 };
 
-export const updateActionPlan = async (req: Request, res: Response): Promise<void> => {
+export const updateActionPlan = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;
     const { title, description, type, status, priority, assigneeId, dueDate, progress, evidenceName, riskId, brecha, causaRaiz, correccion, eficacia, closedAt } = req.body;
@@ -289,6 +304,14 @@ export const updateActionPlan = async (req: Request, res: Response): Promise<voi
     const updatedClosedAt = closedAt !== undefined ? closedAt : (updatedStatus === 'COMPLETED' ? current.closedAt || new Date() : current.closedAt);
     if (updatedStatus === 'COMPLETED' && (!updatedBrecha || !updatedCausaRaiz || !updatedCorreccion || !updatedDescription || !updatedEficacia)) {
       res.status(400).json({ error: 'Para cerrar el plan complete brecha, corrección inmediata, causa raíz, acción correctiva y evaluación de eficacia.' });
+      return;
+    }
+    if (current.farmPlotId && !canEditFarmPlot(req, current.farmPlotId)) {
+      res.status(403).json({ error: 'No tiene permiso para modificar este plan.' });
+      return;
+    }
+    if (req.plantationScope?.restricted && !current.farmPlotId) {
+      res.status(403).json({ error: 'No tiene acceso a este plan general de la extractora.' });
       return;
     }
 

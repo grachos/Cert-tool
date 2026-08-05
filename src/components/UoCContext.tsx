@@ -56,8 +56,9 @@ export const UocProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUocs(normalized);
       const saved = localStorage.getItem('ctc_selected_uoc_id');
       const validSaved = saved && normalized.some((u: UocItem) => u.id === saved);
-      if (user.role !== 'ADMIN' && !validSaved) setSelectedUocId(normalized[0]?.id || '');
-      if (user.role === 'ADMIN' && !saved) setSelectedUocId('all');
+      const isGlobalAdmin = ['SUPERADMIN','ADMIN'].includes(user.role);
+      if (!isGlobalAdmin && !validSaved) setSelectedUocId(normalized[0]?.id || '');
+      if (isGlobalAdmin && !saved) setSelectedUocId('all');
     }).catch(() => setUocs([]));
   }, [user]);
 

@@ -1,20 +1,31 @@
 import { Request, Response } from 'express';
 import db from '../db';
 import cache from '../cache';
+import { getPlantationScope } from '../middleware/plantation.middleware';
 
 export const getStats = async (req: Request, res: Response): Promise<void> => {
   try {
     const uocId = typeof req.query.uocId === 'string' ? req.query.uocId : 'all';
-    const cacheKey = `dashboard_stats_${uocId}`;
+    const user = (req as any).user;
+    const isAll = ['SUPERADMIN','ADMIN'].includes(user?.role) && uocId === 'all';
+    const plantationScope = isAll
+      ? { restricted: false, farmPlotIds: [] as string[] }
+      : await getPlantationScope(user, uocId);
+    if (plantationScope.restricted && !plantationScope.farmPlotIds.length) {
+      res.status(403).json({ error: 'El usuario no tiene plantaciones asignadas.' });
+      return;
+    }
+    const cacheKey = `dashboard_stats_${uocId}_${plantationScope.restricted ? plantationScope.farmPlotIds.join(',') : 'CENTRAL'}`;
     const cachedStats = cache.get(cacheKey);
     if (cachedStats) {
       res.status(200).json(cachedStats);
       return;
     }
 
-    const isAll = (req as any).user?.role === 'ADMIN' && uocId === 'all';
-    const scope = isAll ? '' : ' WHERE uocId=?';
-    const scopeParams = isAll ? [] : [uocId];
+    const farmPlaceholders = plantationScope.farmPlotIds.map(() => '?').join(',');
+    const farmFilter = plantationScope.restricted ? ` AND farmPlotId IN (${farmPlaceholders})` : '';
+    const scope = isAll ? '' : ` WHERE uocId=?${farmFilter}`;
+    const scopeParams = isAll ? [] : [uocId, ...(plantationScope.restricted ? plantationScope.farmPlotIds : [])];
     const [evaluationRows] = await db.query(`SELECT AVG(score) average FROM PlantationActivity${scope}${scope ? ' AND' : ' WHERE'} category='EVALUATION' AND score IS NOT NULL`, scopeParams);
     const overallCompliance = Math.round(Number((evaluationRows as any[])[0]?.average || 0));
 
@@ -31,8 +42,8 @@ export const getStats = async (req: Request, res: Response): Promise<void> => {
     const criticalRisks = (criticalRiskRows as any[])[0]?.count || 0;
 
     // 4. Planes vencidos
-    const actionScope = isAll ? '' : ' AND uocId = ?';
-    const actionParams = isAll ? [] : [uocId];
+    const actionScope = isAll ? '' : ` AND uocId = ?${farmFilter}`;
+    const actionParams = isAll ? [] : [uocId, ...(plantationScope.restricted ? plantationScope.farmPlotIds : [])];
     const [overdueRows] = await db.query(
       `SELECT COUNT(*) AS count FROM ActionPlan WHERE (status = "OVERDUE" OR (status IN ("PENDING", "IN_PROGRESS") AND dueDate < NOW()))${actionScope}`,
       actionParams
@@ -72,8 +83,16 @@ export const getStats = async (req: Request, res: Response): Promise<void> => {
 export const getActivities = async (req: Request, res: Response): Promise<void> => {
   try {
     const uocId = typeof req.query.uocId === 'string' ? req.query.uocId : '';
-    const isAll = (req as any).user?.role === 'ADMIN' && uocId === 'all';
-    const cacheKey = `dashboard_activities_${isAll ? 'all' : uocId}`;
+    const user = (req as any).user;
+    const isAll = ['SUPERADMIN','ADMIN'].includes(user?.role) && uocId === 'all';
+    const plantationScope = isAll
+      ? { restricted: false, farmPlotIds: [] as string[] }
+      : await getPlantationScope(user, uocId);
+    if (plantationScope.restricted) {
+      res.status(200).json([]);
+      return;
+    }
+    const cacheKey = `dashboard_activities_${isAll ? 'all' : uocId}_CENTRAL`;
     const cachedActivities = cache.get(cacheKey);
     if (cachedActivities) {
       res.status(200).json(cachedActivities);

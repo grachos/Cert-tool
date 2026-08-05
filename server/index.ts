@@ -28,8 +28,10 @@ import approvalsRoutes from './src/routes/approvals.routes';
 import plantRoutes from './src/routes/plant.routes';
 import rspoRoutes from './src/routes/rspo.routes';
 import pcRoutes from './src/routes/pc.routes';
+import operationsRoutes from './src/routes/operations.routes';
 import { authenticateToken, AuthRequest } from './src/middleware/auth.middleware';
 import { canAccessUoc } from './src/middleware/uoc.middleware';
+import { getPlantationScope } from './src/middleware/plantation.middleware';
 
 // Ensure uploads folder exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -89,6 +91,7 @@ app.use('/api/approvals', approvalsRoutes);
 app.use('/api/plant', plantRoutes);
 app.use('/api/rspo', rspoRoutes);
 app.use('/api/pc', pcRoutes);
+app.use('/api/operations', operationsRoutes);
 
 // File Upload Endpoint
 app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => {
@@ -113,9 +116,16 @@ app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => 
 
 app.get('/api/files/:filename', authenticateToken, async (req: AuthRequest, res) => {
   const filename = path.basename(String(req.params.filename));
-  const [rows] = await db.query('SELECT uocId FROM Evidence WHERE fileName = ? LIMIT 1', [filename]);
+  const [rows] = await db.query('SELECT uocId,farmPlotId FROM Evidence WHERE fileName = ? LIMIT 1', [filename]);
   const evidence = (rows as any[])[0];
   if (!evidence || !evidence.uocId || !req.user || !(await canAccessUoc(req.user, evidence.uocId))) {
+    res.status(404).json({ error: 'Archivo no encontrado.' });
+    return;
+  }
+  const plantationScope = await getPlantationScope(req.user, evidence.uocId);
+  if (plantationScope.restricted && (
+    !evidence.farmPlotId || !plantationScope.farmPlotIds.includes(evidence.farmPlotId)
+  )) {
     res.status(404).json({ error: 'Archivo no encontrado.' });
     return;
   }
