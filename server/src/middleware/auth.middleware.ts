@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-interface AuthRequest extends Request {
+export interface AuthRequest extends Request {
   user?: {
     id: string;
     role: string;
@@ -18,7 +18,11 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
   }
 
   try {
-    const secret = process.env.JWT_SECRET || 'fallback_secret';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      res.status(500).json({ error: 'Configuración de autenticación incompleta.' });
+      return;
+    }
     const verified = jwt.verify(token, secret) as { id: string, role: string };
     req.user = verified;
     next();

@@ -1,9 +1,10 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcrypt';
 import pool from '../db';
 import cache from '../cache';
 import { alertCriticoNoConforme } from '../alertUtils';
+import { PlantationScopedRequest } from '../middleware/plantation.middleware';
 
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_MINUTES = 5;
@@ -23,19 +24,22 @@ async function sendTokenEmail(email: string, otp: string, documentName: string, 
   console.log(`========================================\n`);
 }
 
-export const requestToken = async (req: Request, res: Response): Promise<void> => {
+export const requestToken = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   const { id: documentId } = req.params;
   const { action } = req.body;
-  const authReq = req as any;
-  const userId = authReq.user?.id;
-  const userEmail = authReq.user?.email;
-  const userName = authReq.user?.name;
+  const userId = req.user?.id;
 
   if (!userId) { res.status(401).json({ error: 'No autenticado' }); return; }
   if (!action || !['APPROVE', 'REJECT'].includes(action)) { res.status(400).json({ error: 'Acción inválida. Use APPROVE o REJECT' }); return; }
 
   try {
-    const [docRows]: any = await pool.query('SELECT * FROM Document WHERE id = ?', [documentId]);
+    const [userRows]: any = await pool.query('SELECT email FROM User WHERE id=?', [userId]);
+    const userEmail = userRows[0]?.email;
+    if (!userEmail) { res.status(404).json({ error: 'Usuario no encontrado' }); return; }
+    const [docRows]: any = await pool.query(
+      'SELECT * FROM Document WHERE id=? AND uocId=?',
+      [documentId, req.uocId]
+    );
     if (!docRows.length) { res.status(404).json({ error: 'Documento no encontrado' }); return; }
 
     if (docRows[0].status === 'APPROVED') { res.status(400).json({ error: 'El documento ya fue aprobado' }); return; }
@@ -63,18 +67,22 @@ export const requestToken = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-export const signDocument = async (req: Request, res: Response): Promise<void> => {
+export const signDocument = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   const { id: documentId } = req.params;
   const { token, comment } = req.body;
-  const authReq = req as any;
-  const userId = authReq.user?.id;
-  const userName = authReq.user?.name;
+  const userId = req.user?.id;
 
   if (!userId) { res.status(401).json({ error: 'No autenticado' }); return; }
   if (!token || token.length !== OTP_LENGTH) { res.status(400).json({ error: 'Token inválido. Debe ser de 6 dígitos.' }); return; }
 
   try {
-    const [docRows]: any = await pool.query('SELECT * FROM Document WHERE id = ?', [documentId]);
+    const [userRows]: any = await pool.query('SELECT name FROM User WHERE id=?', [userId]);
+    const userName = userRows[0]?.name;
+    if (!userName) { res.status(404).json({ error: 'Usuario no encontrado' }); return; }
+    const [docRows]: any = await pool.query(
+      'SELECT * FROM Document WHERE id=? AND uocId=?',
+      [documentId, req.uocId]
+    );
     if (!docRows.length) { res.status(404).json({ error: 'Documento no encontrado' }); return; }
 
     const [tokenRows]: any = await pool.query(
@@ -108,7 +116,10 @@ export const signDocument = async (req: Request, res: Response): Promise<void> =
 
     // Update document status
     const newStatus = action === 'APPROVED' ? 'REVIEWED' : 'ISSUES_FOUND';
-    await pool.query('UPDATE Document SET status = ?, reviewer = ? WHERE id = ?', [newStatus, userName, documentId]);
+    await pool.query(
+      'UPDATE Document SET status=?,reviewer=? WHERE id=? AND uocId=?',
+      [newStatus, userName, documentId, req.uocId]
+    );
 
     // Activity log
     const activityId = uuidv4();
@@ -132,16 +143,17 @@ export const signDocument = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-export const getApprovalHistory = async (req: Request, res: Response): Promise<void> => {
+export const getApprovalHistory = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   const { id: documentId } = req.params;
   try {
     const [rows]: any = await pool.query(
       `SELECT da.*, u.name as userName, u.email as userEmail
        FROM DocumentApproval da
        JOIN User u ON da.userId = u.id
-       WHERE da.documentId = ?
+       JOIN Document d ON d.id=da.documentId
+       WHERE da.documentId=? AND d.uocId=?
        ORDER BY da.createdAt DESC`,
-      [documentId]
+      [documentId, req.uocId]
     );
     res.json(rows);
   } catch (error) {

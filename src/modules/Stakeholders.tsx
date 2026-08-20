@@ -33,7 +33,7 @@ export default function Stakeholders() {
     { id: 'q3', code: 'QJ-2026-003', date: '2026-07-01', stakeholder: 'Propietario Predio Colindante Lote 4', category: 'Linderos / Agua', description: 'Solicitud de verificación de drenaje pluvial cerca a cerca viva.', status: 'RECIBIDA', deadline: '2026-07-30', owner: 'Jorge Restrepo' },
   ]);
 
-  const fetch = async () => { try { setLoading(true); const { data } = await api.get('/stakeholders'); setStakeholders(data); } catch (e) { /* */ } setLoading(false); };
+  const fetch = async () => { try { setLoading(true); const { data } = await api.get('/stakeholders'); setStakeholders(Array.isArray(data) ? data : []); } catch (e) { setStakeholders([]); } setLoading(false); };
   useEffect(() => { fetch(); }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

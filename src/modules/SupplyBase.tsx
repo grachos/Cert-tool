@@ -1,85 +1,225 @@
-import { useState } from 'react';
-import { useThemeLanguage } from '../components/ThemeLanguageContext';
+import { useEffect, useMemo, useState } from 'react';
+import api from '../api';
+import { useUoc } from '../components/UoCContext';
+import { useAuth } from '../components/AuthContext';
 
-interface SupplyUnit {
+interface SupplySource {
   id: string;
   name: string;
   identifier: string;
-  type: 'propia' | 'tercero' | 'asociacion' | 'grupo';
-  area: number;
-  predios: number;
-  polygonsValidated: number;
-  riskLevel: 'bajo' | 'medio' | 'alto' | 'critico';
-  progress: number;
-  status: string;
-  responsible: string;
-  lastEvaluation: string;
+  personType?: 'NATURAL' | 'JURIDICAL';
+  identifierType?: 'CC' | 'NIT';
+  relationshipType?: 'PARTNER' | 'THIRD_PARTY' | 'SMALLHOLDER' | 'OWN';
+  sourceType?: string;
+  legalRepresentativeName?: string;
+  legalRepresentativeId?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  dataConsentAccepted?: boolean;
+  dataConsentHolderName?: string;
+  plantationCount?: number;
+  plantationArea?: number;
+  riskLevel: string;
+  eligibilityStatus: string;
+  certificationStatus: string;
+  status?: string;
+  notes?: string;
 }
 
-const riskColors: Record<string, { bg: string; color: string }> = {
-  bajo: { bg: 'var(--accent-green-bg)', color: 'var(--accent-green)' },
-  medio: { bg: 'var(--accent-gold-bg)', color: 'var(--accent-gold)' },
-  alto: { bg: 'var(--accent-red-bg)', color: 'var(--accent-red)' },
-  critico: { bg: '#fee2e2', color: '#dc2626' },
+interface FarmPlot {
+  id: string;
+  supplySourceId: string;
+  farmName?: string;
+  name?: string;
+  sourceName?: string;
+  locationDescription?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  area: number;
+  plantedArea?: number;
+  estimatedProductionMt?: number;
+  fieldWorkers?: number;
+  administrativeWorkers?: number;
+  permanentWorkers?: number;
+  contractorWorkers?: number;
+  hasResidents?: boolean;
+  eligibilityStatus?: string;
+  certificationStatus?: string;
+  lotCount?: number;
+}
+
+const emptyPlotForm = {
+  supplySourceId: '',
+  farmName: '',
+  locationDescription: '',
+  latitude: '',
+  longitude: '',
+  area: '',
+  plantedArea: '',
+  estimatedProductionMt: '',
+  fieldWorkers: '',
+  administrativeWorkers: '',
+  permanentWorkers: '',
+  contractorWorkers: '',
+  hasResidents: false,
+  eligibilityStatus: 'PENDING',
+  certificationStatus: 'PENDING'
 };
 
-const demoData: SupplyUnit[] = [
-  { id: '1', name: 'Hacienda San Miguel', identifier: 'SM-001', type: 'propia', area: 1200, predios: 4, polygonsValidated: 100, riskLevel: 'bajo', progress: 92, status: 'Activa', responsible: 'Ing. Agrónomo San Miguel', lastEvaluation: '2026-06-15' },
-  { id: '2', name: 'Finca El Roble', identifier: 'ER-002', type: 'propia', area: 850, predios: 3, polygonsValidated: 100, riskLevel: 'bajo', progress: 88, status: 'Activa', responsible: 'Ing. Agrónomo El Roble', lastEvaluation: '2026-06-20' },
-  { id: '3', name: 'Palmas del Río S.A.S.', identifier: 'PR-003', type: 'tercero', area: 1800, predios: 12, polygonsValidated: 95, riskLevel: 'medio', progress: 65, status: 'Condicionada', responsible: 'Gestor de Proveedores', lastEvaluation: '2026-05-10' },
-  { id: '4', name: 'Asopalmar', identifier: 'AP-004', type: 'asociacion', area: 650, predios: 22, polygonsValidated: 85, riskLevel: 'alto', progress: 42, status: 'Riesgo Alto', responsible: 'Gestor de Proveedores', lastEvaluation: '2026-04-01' },
-  { id: '5', name: 'Cooperativa Horizonte', identifier: 'CH-005', type: 'grupo', area: 900, predios: 15, polygonsValidated: 78, riskLevel: 'critico', progress: 28, status: 'Riesgo Crítico', responsible: 'Gestor de Proveedores', lastEvaluation: '2026-03-15' },
-  { id: '6', name: 'El Porvenir', identifier: 'EP-006', type: 'tercero', area: 500, predios: 6, polygonsValidated: 100, riskLevel: 'medio', progress: 73, status: 'Activa', responsible: 'Gestor de Proveedores', lastEvaluation: '2026-06-30' },
-];
-
 export default function SupplyBase() {
-  const { t, language } = useThemeLanguage();
-  const [units] = useState<SupplyUnit[]>(demoData);
+  const { selectedUocId } = useUoc();
+  const { user } = useAuth();
+  const [rows, setRows] = useState<SupplySource[]>([]);
+  const [plots, setPlots] = useState<FarmPlot[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [showPlotForm, setShowPlotForm] = useState(false);
+  const [editingPlotId, setEditingPlotId] = useState('');
+  const [plotForm, setPlotForm] = useState(emptyPlotForm);
+  const canEdit = ['SUPERADMIN','ADMIN','MANAGER'].includes(user?.role || '');
 
-  const totalArea = units.reduce((s, u) => s + u.area, 0);
-  const totalPredios = units.reduce((s, u) => s + u.predios, 0);
-  const avgPolygons = Math.round(units.reduce((s, u) => s + u.polygonsValidated, 0) / units.length);
-  const highRisk = units.filter(u => u.riskLevel === 'alto' || u.riskLevel === 'critico').length;
-  const avgProgress = Math.round(units.reduce((s, u) => s + u.progress, 0) / units.length);
+  const load = () => {
+    if (!selectedUocId || selectedUocId === 'all') { setRows([]); setPlots([]); return; }
+    setLoading(true);
+    Promise.all([
+      api.get('/rspo/supply-sources', { params: { uocId: selectedUocId } }),
+      api.get('/rspo/farm-plots', { params: { uocId: selectedUocId } })
+    ])
+      .then(([sourceResponse, plotResponse]) => {
+        setRows(Array.isArray(sourceResponse.data) ? sourceResponse.data : []);
+        setPlots(Array.isArray(plotResponse.data) ? plotResponse.data : []);
+      })
+      .catch(e => { setRows([]); setPlots([]); setError(e.response?.data?.error || 'No fue posible cargar la base de suministro.'); })
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, [selectedUocId]);
 
-  return (
-    <div className="flex-col gap-6 animate-fade-in">
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">{language === 'es' ? 'Área Total' : 'Total Area'}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{totalArea.toLocaleString()}</span><span className="text-sm text-muted">{language === 'es' ? 'hectáreas' : 'hectares'}</span></div></div>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">{language === 'es' ? 'Predios Activos' : 'Active Farms'}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{totalPredios}</span><span className="text-sm text-muted">{units.length} {language === 'es' ? 'unidades' : 'units'}</span></div></div>
-        <div className="card"><div className="text-sm text-secondary font-medium uppercase tracking-wide">{language === 'es' ? 'Polígonos Validados' : 'Validated Polygons'}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold text-primary">{avgPolygons}%</span><span className="text-sm text-muted">{language === 'es' ? 'promedio' : 'average'}</span></div></div>
-        <div className="card"><div className="text-sm font-medium uppercase tracking-wide" style={{ color: 'var(--accent-red)' }}>{t('supply.highRisk')}</div><div className="flex items-end justify-between mt-3"><span className="text-3xl font-bold" style={{ color: 'var(--accent-red)' }}>{highRisk}</span><span className="text-sm text-muted">{language === 'es' ? 'grupos' : 'groups'}</span></div></div>
-      </div>
+  const safeRows = Array.isArray(rows) ? rows : [];
 
-      <div className="flex justify-between items-center flex-wrap gap-2">
-        <h3 className="text-lg font-bold text-primary">{t('supply.title')}</h3>
-        <span className="text-sm text-secondary">{language === 'es' ? 'Avance promedio:' : 'Average progress:'} <b style={{ color: 'var(--accent-blue)' }}>{avgProgress}%</b></span>
-      </div>
+  const stats = useMemo(() => ({
+    plantations: plots.length,
+    area: plots.reduce((sum, row) => sum + Number(row.area || 0), 0),
+    smallholders: plots.filter(row => Number(row.area || 0) <= 50).length
+  }), [plots]);
 
-      <div className="card p-0 overflow-hidden">
-        <div className="overflow-x-auto w-full">
-          <table className="w-full text-left min-w-[700px]">
-            <thead><tr className="bg-surface-1 border-b"><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Unidad / Grupo' : 'Unit / Group'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">ID</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Tipo' : 'Type'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Área (ha)' : 'Area (ha)'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Predios' : 'Farms'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Riesgo' : 'Risk'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Avance' : 'Progress'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Estado' : 'Status'}</th><th className="p-4 text-xs font-bold text-secondary uppercase">{language === 'es' ? 'Última Eval.' : 'Last Eval.'}</th></tr></thead>
-            <tbody>
-              {units.map(u => (
-                <tr key={u.id} className="border-b hover:bg-surface-1">
-                  <td className="p-4 font-semibold text-sm">{u.name}</td>
-                  <td className="p-4 text-sm font-mono text-secondary">{u.identifier}</td>
-                  <td className="p-4 text-sm text-secondary">{u.type === 'propia' ? (language === 'es' ? 'Propia' : 'Own') : u.type === 'tercero' ? (language === 'es' ? 'Tercero' : 'Third-Party') : u.type === 'asociacion' ? (language === 'es' ? 'Asociación' : 'Association') : (language === 'es' ? 'Grupo' : 'Group')}</td>
-                  <td className="p-4 text-sm">{u.area.toLocaleString()}</td>
-                  <td className="p-4 text-sm">{u.predios}</td>
-                  <td className="p-4"><span className="badge" style={{ background: riskColors[u.riskLevel].bg, color: riskColors[u.riskLevel].color }}>{u.riskLevel === 'bajo' ? (language === 'es' ? 'Bajo' : 'Low') : u.riskLevel === 'medio' ? (language === 'es' ? 'Medio' : 'Medium') : u.riskLevel === 'alto' ? (language === 'es' ? 'Alto' : 'High') : (language === 'es' ? 'Crítico' : 'Critical')}</span></td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2"><div className="w-16 bg-surface-2 h-1.5 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${u.progress}%`, background: 'var(--accent-blue)' }} /></div><span className="text-sm font-bold">{u.progress}%</span></div>
-                  </td>
-                  <td className="p-4"><span className="badge" style={{ background: u.status === 'Activa' ? 'var(--accent-green-bg)' : 'var(--accent-red-bg)', color: u.status === 'Activa' ? 'var(--accent-green)' : 'var(--accent-red)' }}>{u.status === 'Activa' ? (language === 'es' ? 'Activa' : 'Active') : u.status}</span></td>
-                  <td className="p-4 text-sm text-secondary">{u.lastEvaluation}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+  const resetPlotForm = () => {
+    setPlotForm(emptyPlotForm);
+    setEditingPlotId('');
+    setShowPlotForm(false);
+  };
+
+  const savePlot = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    try {
+      const body = {
+        ...plotForm,
+        name: plotForm.farmName,
+        uocId: selectedUocId,
+        area: Number(plotForm.area),
+        plantedArea: Number(plotForm.plantedArea || plotForm.area),
+        estimatedProductionMt: Number(plotForm.estimatedProductionMt || 0),
+        latitude: plotForm.latitude === '' ? null : Number(plotForm.latitude),
+        longitude: plotForm.longitude === '' ? null : Number(plotForm.longitude),
+        fieldWorkers: Number(plotForm.fieldWorkers || 0),
+        administrativeWorkers: Number(plotForm.administrativeWorkers || 0),
+        permanentWorkers: Number(plotForm.permanentWorkers || 0),
+        contractorWorkers: Number(plotForm.contractorWorkers || 0)
+      };
+      if (editingPlotId) await api.put(`/rspo/farm-plots/${editingPlotId}`, body);
+      else await api.post('/rspo/farm-plots', body);
+      resetPlotForm();
+      load();
+    } catch (e: any) {
+      setError(e.response?.data?.error || 'No fue posible guardar la plantación.');
+    }
+  };
+
+  const editPlot = (plot: FarmPlot) => {
+    setEditingPlotId(plot.id);
+    setPlotForm({
+      supplySourceId: plot.supplySourceId || '',
+      farmName: plot.farmName || plot.name || '',
+      locationDescription: plot.locationDescription || '',
+      latitude: plot.latitude == null ? '' : String(plot.latitude),
+      longitude: plot.longitude == null ? '' : String(plot.longitude),
+      area: String(plot.area ?? ''),
+      plantedArea: String(plot.plantedArea ?? ''),
+      estimatedProductionMt: String(plot.estimatedProductionMt ?? ''),
+      fieldWorkers: String(plot.fieldWorkers ?? ''),
+      administrativeWorkers: String(plot.administrativeWorkers ?? ''),
+      permanentWorkers: String(plot.permanentWorkers ?? ''),
+      contractorWorkers: String(plot.contractorWorkers ?? ''),
+      hasResidents: Boolean(plot.hasResidents),
+      eligibilityStatus: plot.eligibilityStatus || 'PENDING',
+      certificationStatus: plot.certificationStatus || 'PENDING'
+    });
+    setShowPlotForm(true);
+  };
+
+  if (!selectedUocId || selectedUocId === 'all') {
+    return <div className="empty-state card"><h3>Seleccione una UoC</h3><p>Las plantaciones siempre se consultan dentro de una unidad autorizada.</p></div>;
+  }
+
+  return <div className="flex-col gap-5 animate-fade-in">
+    <div className="stats-grid">
+      <div className="card"><small>Plantaciones registradas</small><div className="stat-value-lg">{stats.plantations}</div></div>
+      <div className="card"><small>Área de plantaciones</small><div className="stat-value-lg">{stats.area.toLocaleString('es-CO')} ha</div></div>
+      <div className="card"><small>Pequeños productores (≤ 50 ha)</small><div className="stat-value-lg">{stats.smallholders}</div></div>
     </div>
-  );
+
+    {error && <div className="integration-note">{error}</div>}
+
+    <section className="supply-plantations-section">
+      <div className="flex-between gap-4 flex-wrap">
+        <div>
+          <p className="text-xs font-bold uppercase text-secondary">Inventario agrícola</p>
+          <h2 className="text-xl font-bold">Información general de plantaciones</h2>
+          <p className="text-secondary text-sm">Cree o modifique aquí la ficha general. La evaluación se realiza en Cumplimiento P&amp;C Núcleo.</p>
+        </div>
+        {canEdit && <button className="btn btn-primary" onClick={() => showPlotForm ? resetPlotForm() : setShowPlotForm(true)}>
+          {showPlotForm ? 'Cancelar' : '+ Nueva plantación'}
+        </button>}
+      </div>
+
+      {showPlotForm && <form className="card form-grid supply-plot-form" onSubmit={savePlot}>
+        <div className="pc-form-wide"><h3>{editingPlotId ? 'Editar plantación' : 'Nueva plantación'}</h3></div>
+        <label>Productor o razón social
+          <select required className="form-select" disabled={Boolean(editingPlotId)} value={plotForm.supplySourceId} onChange={event => setPlotForm({ ...plotForm, supplySourceId: event.target.value })}>
+            <option value="">Seleccione</option>{safeRows.filter(row => row.status !== 'ARCHIVED').map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
+          </select>
+        </label>
+        <label>Nombre de la plantación<input required className="form-input" value={plotForm.farmName} onChange={event => setPlotForm({ ...plotForm, farmName: event.target.value })} /></label>
+        <label className="pc-form-wide">Ubicación o dirección<input required className="form-input" value={plotForm.locationDescription} onChange={event => setPlotForm({ ...plotForm, locationDescription: event.target.value })} /></label>
+        <label>Latitud<input className="form-input" type="number" min="-90" max="90" step="0.0000001" value={plotForm.latitude} onChange={event => setPlotForm({ ...plotForm, latitude: event.target.value })} /></label>
+        <label>Longitud<input className="form-input" type="number" min="-180" max="180" step="0.0000001" value={plotForm.longitude} onChange={event => setPlotForm({ ...plotForm, longitude: event.target.value })} /></label>
+        <label>Área total (ha)<input required className="form-input" type="number" min="0.01" step="0.01" value={plotForm.area} onChange={event => setPlotForm({ ...plotForm, area: event.target.value })} /></label>
+        <label>Área sembrada (ha)<input className="form-input" type="number" min="0" step="0.01" value={plotForm.plantedArea} onChange={event => setPlotForm({ ...plotForm, plantedArea: event.target.value })} /></label>
+        <label>Producción estimada (t)<input className="form-input" type="number" min="0" step="0.01" value={plotForm.estimatedProductionMt} onChange={event => setPlotForm({ ...plotForm, estimatedProductionMt: event.target.value })} /></label>
+        <label>Trabajadores de campo<input className="form-input" type="number" min="0" value={plotForm.fieldWorkers} onChange={event => setPlotForm({ ...plotForm, fieldWorkers: event.target.value })} /></label>
+        <label>Administrativos<input className="form-input" type="number" min="0" value={plotForm.administrativeWorkers} onChange={event => setPlotForm({ ...plotForm, administrativeWorkers: event.target.value })} /></label>
+        <label>Trabajadores fijos<input className="form-input" type="number" min="0" value={plotForm.permanentWorkers} onChange={event => setPlotForm({ ...plotForm, permanentWorkers: event.target.value })} /></label>
+        <label>Contratistas<input className="form-input" type="number" min="0" value={plotForm.contractorWorkers} onChange={event => setPlotForm({ ...plotForm, contractorWorkers: event.target.value })} /></label>
+        <label>Elegibilidad<select className="form-select" value={plotForm.eligibilityStatus} onChange={event => setPlotForm({ ...plotForm, eligibilityStatus: event.target.value })}><option value="PENDING">Pendiente</option><option value="ELIGIBLE">Elegible</option><option value="CONDITIONAL">Condicionada</option><option value="INELIGIBLE">No elegible</option></select></label>
+        <label>Certificación<select className="form-select" value={plotForm.certificationStatus} onChange={event => setPlotForm({ ...plotForm, certificationStatus: event.target.value })}><option value="PENDING">Pendiente</option><option value="CERTIFIED">Certificada</option><option value="CONVENTIONAL">Convencional</option><option value="SUSPENDED">Suspendida</option></select></label>
+        <label className="consent-check pc-form-wide"><input type="checkbox" checked={plotForm.hasResidents} onChange={event => setPlotForm({ ...plotForm, hasResidents: event.target.checked })} /><span>La plantación tiene personas residentes.</span></label>
+        <div className="flex gap-2 flex-wrap pc-form-wide"><button className="btn btn-primary">{editingPlotId ? 'Guardar cambios' : 'Crear plantación'}</button><button type="button" className="btn btn-secondary" onClick={resetPlotForm}>Cancelar</button></div>
+      </form>}
+
+      {loading ? <div className="card">Cargando plantaciones…</div> : plots.length === 0 ? <div className="empty-state card"><h3>No hay plantaciones registradas</h3><p>Cree la primera plantación y relaciónela con su productor.</p></div> :
+        <div className="card p-0"><div className="table-responsive"><table className="w-full supply-plantations-table">
+          <thead><tr><th>Plantación</th><th>Productor</th><th>Área</th><th>Perfil P&amp;C</th><th>Ubicación</th><th>Estado</th><th /></tr></thead>
+          <tbody>{plots.map(plot => <tr key={plot.id}>
+            <td><strong>{plot.farmName || plot.name}</strong><small className="block">{Number(plot.lotCount || 0)} lotes</small></td>
+            <td>{plot.sourceName || '—'}</td>
+            <td>{Number(plot.area || 0).toLocaleString('es-CO')} ha</td>
+            <td><span className="badge">{Number(plot.area || 0) <= 50 ? 'Pequeño productor' : 'Plantación'}</span></td>
+            <td>{plot.locationDescription || 'Pendiente'}</td>
+            <td>{plot.certificationStatus || 'PENDING'}</td>
+            <td>{canEdit && <button className="btn btn-secondary btn-sm" onClick={() => editPlot(plot)}>Editar</button>}</td>
+          </tr>)}</tbody>
+        </table></div></div>}
+    </section>
+  </div>;
 }

@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db';
 import cache from '../cache';
@@ -7,11 +7,16 @@ import path from 'path';
 import axios from 'axios';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
+import {
+  PlantationScopedRequest,
+  canAccessFarmPlot,
+  restrictedFarmPlotSql
+} from '../middleware/plantation.middleware';
 
 const runEvidenceAiAnalysis = async (evidenceId: string, compoundTitle: string, standardId: string, clause: string, userId: string) => {
   const parts = compoundTitle.split('|');
   const cleanTitle = parts[0];
-  const filename = parts[1];
+  const filename = parts[2] || parts[1];
 
   if (!filename) {
     console.log(`[Evidence AI] No file attached to evidence ${evidenceId}. Skipping AI review.`);
@@ -108,10 +113,8 @@ Devuelve un JSON estrictamente estructurado según el siguiente formato:
         feedback = result.feedback || 'Evidencia analizada.';
       }
     } else {
-      console.log(`[Evidence AI] No GEMINI_API_KEY. Simulating review...`);
-      await new Promise(resolve => setTimeout(resolve, 4000));
-      status = 'VALID';
-      feedback = 'Evidencia de auditoría simulada aprobada con éxito.';
+      status = 'PENDING_REVIEW';
+      feedback = 'Pendiente de revisión manual; el servicio externo de análisis no está configurado.';
     }
 
     // 4. Update the DB under transaction
@@ -160,16 +163,20 @@ Devuelve un JSON estrictamente estructurado según el siguiente formato:
   }
 };
 
-export const getEvidence = async (req: Request, res: Response): Promise<void> => {
+export const getEvidence = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   try {
     const { standardId } = req.query;
     
-    let query = 'SELECT * FROM Evidence ORDER BY uploadDate DESC';
-    let params: any[] = [];
+    let query = 'SELECT * FROM Evidence WHERE uocId = ?';
+    let params: any[] = [req.uocId];
+    const access = restrictedFarmPlotSql(req, 'farmPlotId');
+    query += access.clause;
+    params.push(...access.params);
     if (standardId) {
-      query = 'SELECT * FROM Evidence WHERE standardId = ? ORDER BY uploadDate DESC';
-      params = [standardId];
+      query += ' AND standardId = ?';
+      params.push(standardId);
     }
+    query += ' ORDER BY uploadDate DESC';
 
     const [evRows] = await db.query(query, params);
     const evidence = evRows as any[];
@@ -178,7 +185,8 @@ export const getEvidence = async (req: Request, res: Response): Promise<void> =>
     const formattedEvidence = await Promise.all(evidence.map(async (ev) => {
       const parts = ev.title.split('|');
       const cleanTitle = parts[0];
-      const filename = parts[1] || '';
+      const originalFileName = ev.originalFileName || parts[1] || '';
+      const filename = ev.fileName || parts[2] || parts[1] || '';
       
       const [stdRows] = await db.query('SELECT * FROM Standard WHERE id = ?', [ev.standardId]);
       
@@ -186,7 +194,9 @@ export const getEvidence = async (req: Request, res: Response): Promise<void> =>
         ...ev,
         title: cleanTitle,
         standard: (stdRows as any[])[0] || null,
-        linkedDocuments: filename ? [filename.split('-').slice(2).join('-') || filename] : []
+        fileName: filename,
+        originalFileName,
+        linkedDocuments: filename ? [originalFileName || filename] : []
       };
     }));
     
@@ -197,9 +207,14 @@ export const getEvidence = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
-export const createEvidence = async (req: Request, res: Response): Promise<void> => {
+export const createEvidence = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
   try {
-    const { title, description, standardId, clause, type, status, expiryDate } = req.body;
+    const {
+      title, description, standardId, clause, type, status, expiryDate, companyName,
+      supplySourceId, requirementId, requirementIds, indicator, responsible,
+      observations, mimeType, moduleCode, programCode, plantationLotId,
+      documentDate, evidenceVersion
+    } = req.body;
     const authReq = req as any;
     const userId = authReq.user?.id;
 
@@ -211,10 +226,78 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
     const evId = uuidv4();
     const parsedExpiryDate = expiryDate ? new Date(expiryDate) : null;
     const evStatus = status || 'PENDING_REVIEW';
+    const scopedUocId = (req as any).uocId;
+    const linkedRequirementIds = [...new Set(
+      (Array.isArray(requirementIds) ? requirementIds : [requirementId])
+        .map(value => String(value || '').trim())
+        .filter(Boolean)
+    )];
+    if (!linkedRequirementIds.length) { res.status(400).json({ error: 'Debe seleccionar al menos un indicador P&C válido.' }); return; }
+    const placeholders = linkedRequirementIds.map(() => '?').join(',');
+    const [requirements] = await db.query(
+      `SELECT id FROM Requirement WHERE id IN (${placeholders}) AND standardId=?`,
+      [...linkedRequirementIds, standardId]
+    );
+    if ((requirements as any[]).length !== linkedRequirementIds.length) {
+      res.status(400).json({ error: 'Uno o más indicadores seleccionados no son válidos.' });
+      return;
+    }
+    let farmPlotId = String(req.body.farmPlotId || '').trim() || null;
+    if (req.plantationScope?.restricted) {
+      if (!farmPlotId && req.plantationScope.farmPlotIds.length === 1) {
+        farmPlotId = req.plantationScope.farmPlotIds[0];
+      }
+      if (!farmPlotId || !canAccessFarmPlot(req, farmPlotId)) {
+        res.status(403).json({ error: 'La evidencia debe pertenecer a una plantación asignada al usuario.' });
+        return;
+      }
+    }
+    if (supplySourceId) {
+      const [sources] = await db.query('SELECT id FROM SupplySource WHERE id=? AND uocId=?', [supplySourceId, scopedUocId]);
+      if (!(sources as any[]).length) { res.status(400).json({ error: 'La fuente no pertenece a la UoC.' }); return; }
+    }
+    if (farmPlotId) {
+      const [plots] = await db.query('SELECT id FROM FarmPlot WHERE id=? AND uocId=? AND (? IS NULL OR supplySourceId=?)', [farmPlotId, scopedUocId, supplySourceId || null, supplySourceId || null]);
+      if (!(plots as any[]).length) { res.status(400).json({ error: 'La plantación no pertenece a la UoC o fuente seleccionada.' }); return; }
+    }
+    if (plantationLotId) {
+      const [lots] = await db.query(
+        'SELECT id FROM PlantationLot WHERE id=? AND farmPlotId=? AND uocId=?',
+        [plantationLotId, farmPlotId, scopedUocId]
+      );
+      if (!(lots as any[]).length) { res.status(400).json({ error: 'El lote no pertenece a la plantación seleccionada.' }); return; }
+    }
 
+    const parts = title.split('|');
+    const originalFileName = parts[1] || null;
+    const fileName = parts[2] || parts[1] || null;
     await db.query(
-      'INSERT INTO Evidence (id, title, description, standardId, clause, type, status, expiryDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [evId, title, description, standardId, clause, type, evStatus, parsedExpiryDate]
+      `INSERT INTO Evidence
+       (id,title,description,standardId,clause,type,status,expiryDate,uocId,companyName,
+        supplySourceId,farmPlotId,plantationLotId,requirementId,indicator,responsible,
+        fileName,originalFileName,mimeType,observations,moduleCode,programCode,uploadedBy,
+        documentDate,evidenceVersion)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        evId, title, description, standardId, clause, type, evStatus, parsedExpiryDate,
+        scopedUocId, companyName || null, supplySourceId || null, farmPlotId,
+        plantationLotId || null, linkedRequirementIds[0], indicator || null,
+        responsible || null, fileName, originalFileName, mimeType || null,
+        observations || null, moduleCode || null, programCode || null, userId,
+        documentDate || null, evidenceVersion || '1'
+      ]
+    );
+    for (const linkedRequirementId of linkedRequirementIds) {
+      await db.query(
+        `INSERT IGNORE INTO EvidenceRequirementLink
+         (id,evidenceId,requirementId,uocId,farmPlotId,linkedBy)
+         VALUES (?,?,?,?,?,?)`,
+        [uuidv4(), evId, linkedRequirementId, scopedUocId, farmPlotId, userId]
+      );
+    }
+    await db.query(
+      'INSERT INTO EvidenceHistory (id,evidenceId,uocId,changedBy,action,snapshotJson) VALUES (?,?,?,?,?,?)',
+      [uuidv4(), evId, scopedUocId, userId, 'CREATED', JSON.stringify({ title, standardId, clause, type, status: evStatus, expiryDate: parsedExpiryDate, requirementIds: linkedRequirementIds, farmPlotId, fileName })]
     );
 
     const [evRows] = await db.query('SELECT * FROM Evidence WHERE id = ?', [evId]);
@@ -224,14 +307,33 @@ export const createEvidence = async (req: Request, res: Response): Promise<void>
     runEvidenceAiAnalysis(newEvidence.id, title, standardId, clause, userId);
     
     // Format response before sending
-    const parts = newEvidence.title.split('|');
+    const responseParts = newEvidence.title.split('|');
     res.status(201).json({
       ...newEvidence,
-      title: parts[0],
-      linkedDocuments: parts[1] ? [parts[1]] : []
+      title: responseParts[0],
+      fileName,
+      originalFileName,
+      linkedDocuments: fileName ? [originalFileName || fileName] : []
     });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al subir evidencia.' });
   }
+};
+
+export const reviewEvidence = async (req: PlantationScopedRequest, res: Response): Promise<void> => {
+  const { status, observations } = req.body;
+  if (!['VALID','EXPIRED','PENDING_REVIEW','IN_REVIEW','APPROVED','REJECTED','REPLACED'].includes(status)) { res.status(400).json({ error: 'Estado de revisión inválido.' }); return; }
+  const authReq = req as any;
+  const [result]: any = await db.query(
+    'UPDATE Evidence SET status=?,observations=COALESCE(?,observations),reviewedBy=?,reviewedAt=NOW() WHERE id=? AND uocId=?',
+    [status, observations ?? null, authReq.user.id, req.params.id, authReq.uocId]
+  );
+  if (!result.affectedRows) { res.status(404).json({ error: 'Evidencia no encontrada.' }); return; }
+  const [rows] = await db.query('SELECT * FROM Evidence WHERE id=? AND uocId=?', [req.params.id, authReq.uocId]);
+  await db.query(
+    'INSERT INTO EvidenceHistory (id,evidenceId,uocId,changedBy,action,snapshotJson) VALUES (?,?,?,?,?,?)',
+    [uuidv4(), req.params.id, authReq.uocId, authReq.user.id, 'REVIEWED', JSON.stringify((rows as any[])[0])]
+  );
+  res.json((rows as any[])[0]);
 };

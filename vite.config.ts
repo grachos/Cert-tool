@@ -7,6 +7,14 @@ import { viteSingleFile } from 'vite-plugin-singlefile'
 export default defineConfig({
   plugins: [react(), tailwindcss(), viteSingleFile()],
   server: {
-    port: 8080
+    port: 8080,
+    allowedHosts: ['.trycloudflare.com'],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false
+      }
+    }
   }
 })

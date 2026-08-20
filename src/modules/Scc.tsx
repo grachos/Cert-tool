@@ -46,8 +46,8 @@ export default function Scc() {
         api.get('/scc/transactions', { params: { uocId: selectedUocFilter || undefined, type: filterType || undefined } })
       ]);
       setDashboard(d.data);
-      setTransactions(t.data);
-    } catch (e) { /* */ }
+      setTransactions(Array.isArray(t.data) ? t.data : []);
+    } catch (e) { setTransactions([]); }
     setLoading(false);
   };
   useEffect(() => { fetchAll(); }, [selectedUocFilter, filterType]);
@@ -270,7 +270,7 @@ export default function Scc() {
               { i: language === 'es' ? 'Confirmar volúmenes vendidos no exceden créditos disponibles' : 'Confirm sold volumes do not exceed available credits', f: language === 'es' ? 'Semanal' : 'Weekly', s: 'WARN' },
               { i: language === 'es' ? 'Revisar GEI declarado vs calculado' : 'Review declared vs calculated GHG', f: language === 'es' ? 'Mensual' : 'Monthly', s: 'OK' },
               { i: language === 'es' ? 'Auditar documentos de respaldo (REMs, facturas, certificados)' : 'Audit supporting documents (waybills, invoices, certificates)', f: language === 'es' ? 'Mensual' : 'Monthly', s: 'PENDING' },
-              { i: language === 'es' ? 'Validar registro de UoCs en PalmTrace' : 'Validate UoC registration in PalmTrace', f: language === 'es' ? 'Trimestral' : 'Quarterly', s: 'OK' },
+              { i: language === 'es' ? 'Validar registro de UoCs en PRISMA' : 'Validate UoC registration in PRISMA', f: language === 'es' ? 'Trimestral' : 'Quarterly', s: 'OK' },
               { i: language === 'es' ? 'Verificar todas las transacciones tienen supplyModel' : 'Verify all transactions have supplyModel', f: language === 'es' ? 'Diario' : 'Daily', s: 'OK' },
             ].map(c => <tr key={c.i} className="border-b hover:bg-surface-1"><td className="p-4 text-sm">{c.i}</td><td className="p-4 text-sm text-secondary">{c.f}</td><td className="p-4">{getStatusBadge(c.s)}</td></tr>)}
           </tbody></table>
@@ -293,8 +293,8 @@ export default function Scc() {
               { a: language === 'es' ? 'Documentación' : 'Documentation', i: language === 'es' ? 'Registros de capacitación del personal en SCC' : 'Staff SCC training records', r: true, d: true },
               { a: language === 'es' ? 'Trazabilidad' : 'Traceability', i: language === 'es' ? 'Sistema de trazabilidad implementado (lotes, documentos)' : 'Implemented traceability system (batches, docs)', r: true, d: true },
               { a: language === 'es' ? 'Trazabilidad' : 'Traceability', i: language === 'es' ? 'Balance de masa por modelo sin déficits' : 'Mass balance per model without deficit', r: true, d: true },
-              { a: 'PalmTrace', i: language === 'es' ? 'Registro activo en PalmTrace / Prisma' : 'Active registration in PalmTrace / Prisma', r: true, d: true },
-              { a: 'PalmTrace', i: language === 'es' ? 'Transacciones de créditos registradas al día' : 'Up-to-date credit transaction records', r: false, d: true },
+              { a: 'PRISMA', i: language === 'es' ? 'Registro activo y datos de la organización actualizados en PRISMA' : 'Active registration and current organization data in PRISMA', r: true, d: true },
+              { a: 'PRISMA', i: language === 'es' ? 'Operaciones y soportes conciliados con PRISMA' : 'Operations and supporting records reconciled with PRISMA', r: false, d: true },
               { a: language === 'es' ? 'Ventas' : 'Sales', i: language === 'es' ? 'Facturas con declaración RSPO (modelo de suministro)' : 'Invoices carrying RSPO claim (supply model)', r: true, d: true },
               { a: language === 'es' ? 'Ventas' : 'Sales', i: language === 'es' ? 'Contratos con compradores incluyen cláusula RSPO' : 'Buyer contracts include RSPO clause', r: false, d: true },
               { a: language === 'es' ? 'Auditoría' : 'Audit', i: language === 'es' ? 'Auditoría interna SCC en últimos 12 meses' : 'Internal SCC audit within last 12 months', r: true, d: false },

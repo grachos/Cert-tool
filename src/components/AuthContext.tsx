@@ -6,6 +6,14 @@ interface User {
   name: string;
   email: string;
   role: string;
+  isCentralUser?: boolean;
+  plantationAccess?: Array<{
+    uocId: string;
+    farmPlotId: string;
+    accessLevel: 'ADMIN' | 'OPERATOR' | 'VIEWER';
+    farmName?: string;
+    plantationName?: string;
+  }>;
 }
 
 interface AuthContextType {
@@ -35,8 +43,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           const res = await api.get('/auth/profile');
           setUser(res.data);
-        } catch {
-          localStorage.removeItem('cert_token');
+        } catch (err: any) {
+          if (err?.response?.status === 401 || err?.response?.status === 403) {
+            localStorage.removeItem('cert_token');
+          }
         }
       }
       setLoading(false);

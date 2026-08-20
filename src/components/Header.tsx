@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useThemeLanguage } from './ThemeLanguageContext';
 import { useUoC } from './UoCContext';
 import api from '../api';
+import { useAuth } from './AuthContext';
 
 interface HeaderProps {
   title: string;
@@ -15,11 +16,18 @@ interface UocSearchSelectProps {
   selectedUocId: string;
   onSelectUoc: (id: string) => void;
   language: 'es' | 'en';
+  allowAll: boolean;
+  onCreateUoc?: (data: { name: string; companyName: string; type: string }) => Promise<void>;
 }
 
-function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language }: UocSearchSelectProps) {
+function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language, allowAll, onCreateUoc }: UocSearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newCompany, setNewCompany] = useState('');
+  const [newType, setNewType] = useState('MILL');
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -82,7 +90,11 @@ function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language }: UocSear
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <div style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'left' }}>
-          {selectedUocId === 'all' || !selectedUoc ? (
+          {!uocs.length ? (
+            <span className="font-semibold text-primary">
+              {language === 'es' ? 'Crear primera UoC' : 'Create first UoC'}
+            </span>
+          ) : selectedUocId === 'all' || !selectedUoc ? (
             <span className="font-semibold text-primary">
               {language === 'es' ? 'Todas las UoCs' : 'All UoCs'}
             </span>
@@ -93,7 +105,7 @@ function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language }: UocSear
           )}
         </div>
         <span className="badge text-[10px]" style={{ background: selectedUocId === 'all' ? 'var(--accent-blue-light)' : 'var(--accent-green-bg)', color: selectedUocId === 'all' ? 'var(--accent-blue)' : 'var(--accent-green)', padding: '2px 6px' }}>
-          {selectedUocId === 'all' ? 'Σ' : (selectedUoc?.appliesAll ? '100%' : `${7 - selectedUoc?.applicablePrinciples.length} N/A`)}
+          {!uocs.length ? '+' : selectedUocId === 'all' ? 'Σ' : (selectedUoc?.appliesAll ? '100%' : `${7 - selectedUoc?.applicablePrinciples.length} N/A`)}
         </span>
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '14px', height: '14px', color: 'var(--text-muted)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms ease', flexShrink: 0 }}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -118,7 +130,7 @@ function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language }: UocSear
           }}
         >
           {/* Inner Search Field */}
-          <div className="p-2 border-b" style={{ borderColor: 'var(--border-light)', background: 'var(--bg-surface-1)' }}>
+          {uocs.length > 0 && <div className="p-2 border-b" style={{ borderColor: 'var(--border-light)', background: 'var(--bg-surface-1)' }}>
             <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-full" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '14px', height: '14px', color: 'var(--text-muted)' }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -137,12 +149,48 @@ function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language }: UocSear
                 </button>
               )}
             </div>
-          </div>
+          </div>}
 
           {/* List of UoCs */}
           <div style={{ maxHeight: '280px', overflowY: 'auto', padding: '4px' }}>
+            {!uocs.length && onCreateUoc ? (
+              <form className="p-3 flex-col gap-3" onSubmit={async e => {
+                e.preventDefault();
+                setCreateError('');
+                if (!newName.trim() || !newCompany.trim()) {
+                  setCreateError(language === 'es' ? 'Nombre y empresa son obligatorios.' : 'Name and company are required.');
+                  return;
+                }
+                try {
+                  setCreating(true);
+                  await onCreateUoc({ name: newName.trim(), companyName: newCompany.trim(), type: newType });
+                  setIsOpen(false);
+                } catch (error: any) {
+                  setCreateError(error.response?.data?.error || (language === 'es' ? 'No fue posible crear la UoC.' : 'Could not create the UoC.'));
+                } finally {
+                  setCreating(false);
+                }
+              }}>
+                <div>
+                  <div className="text-sm font-bold text-primary">{language === 'es' ? 'Registrar la primera UoC' : 'Register the first UoC'}</div>
+                  <div className="text-xs text-secondary">{language === 'es' ? 'Use los datos reales de la unidad de certificación.' : 'Use the certification unit’s real information.'}</div>
+                </div>
+                <input className="form-input" value={newName} onChange={e => setNewName(e.target.value)} placeholder={language === 'es' ? 'Nombre de la UoC' : 'UoC name'} />
+                <input className="form-input" value={newCompany} onChange={e => setNewCompany(e.target.value)} placeholder={language === 'es' ? 'Empresa' : 'Company'} />
+                <select className="form-input" value={newType} onChange={e => setNewType(e.target.value)}>
+                  <option value="MILL">{language === 'es' ? 'Planta extractora' : 'Mill'}</option>
+                  <option value="PLANTATION">{language === 'es' ? 'Plantación' : 'Plantation'}</option>
+                  <option value="SMALLHOLDERS">{language === 'es' ? 'Pequeños productores' : 'Smallholders'}</option>
+                  <option value="MIXED">{language === 'es' ? 'Unidad mixta' : 'Mixed unit'}</option>
+                </select>
+                {createError && <div className="text-xs" style={{ color: 'var(--accent-red)' }}>{createError}</div>}
+                <button className="btn btn-primary w-full" type="submit" disabled={creating}>
+                  {creating ? (language === 'es' ? 'Creando...' : 'Creating...') : (language === 'es' ? 'Crear UoC' : 'Create UoC')}
+                </button>
+              </form>
+            ) : <>
             {/* Option: Consolidado / All */}
-            <div
+            {allowAll && <div
               className={`p-2 rounded-lg flex items-center justify-between cursor-pointer transition-colors ${selectedUocId === 'all' ? 'bg-surface-2 font-bold' : 'hover:bg-surface-1'}`}
               onClick={() => { onSelectUoc('all'); setIsOpen(false); setSearchQuery(''); }}
             >
@@ -154,9 +202,9 @@ function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language }: UocSear
                 </div>
               </div>
               {selectedUocId === 'all' && <span className="text-xs font-bold text-accent-blue">✓</span>}
-            </div>
+            </div>}
 
-            <div className="my-1 border-t" style={{ borderColor: 'var(--border-light)' }} />
+            {allowAll && <div className="my-1 border-t" style={{ borderColor: 'var(--border-light)' }} />}
 
             {filteredUocs.length === 0 ? (
               <div className="p-4 text-center text-xs text-muted">
@@ -188,6 +236,7 @@ function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language }: UocSear
                 );
               })
             )}
+            </>}
           </div>
         </div>
       )}
@@ -197,7 +246,8 @@ function UocSearchSelect({ uocs, selectedUocId, onSelectUoc, language }: UocSear
 
 export default function Header({ title, subtitle, onToggleSidebar, onNavigateNotifications }: HeaderProps) {
   const { theme, toggleTheme, language, setLanguage } = useThemeLanguage();
-  const { selectedUocId, uocs, setSelectedUocId } = useUoC();
+  const { selectedUocId, uocs, setSelectedUocId, addUoc } = useUoC();
+  const { user } = useAuth();
   const [alertCount, setAlertCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
@@ -240,7 +290,7 @@ export default function Header({ title, subtitle, onToggleSidebar, onNavigateNot
     <header className="page-header">
       <div className="header-left">
         {onToggleSidebar && (
-          <button className="btn-icon d-lg-none" onClick={onToggleSidebar}>
+          <button className="btn-icon d-lg-none" onClick={onToggleSidebar} aria-label="Abrir menú principal">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px' }}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -253,12 +303,14 @@ export default function Header({ title, subtitle, onToggleSidebar, onNavigateNot
       </div>
 
       <div className="header-right">
-        {uocs.length > 0 && (
+        {(uocs.length > 0 || user?.role === 'ADMIN') && (
           <UocSearchSelect 
             uocs={uocs}
             selectedUocId={selectedUocId}
             onSelectUoc={setSelectedUocId}
             language={language}
+            allowAll={user?.role === 'ADMIN'}
+            onCreateUoc={user?.role === 'ADMIN' ? async data => { await addUoc(data as any); } : undefined}
           />
         )}
 

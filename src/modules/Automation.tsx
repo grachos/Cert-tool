@@ -38,13 +38,17 @@ export default function Automation() {
     riskId: '',
     brecha: '',
     causaRaiz: '',
-    correccion: ''
+    correccion: '',
+    eficacia: '',
+    closedAt: ''
   });
 
   // Edit progress / status state
   const [editProgress, setEditProgress] = useState(0);
   const [editStatus, setEditStatus] = useState<string>('PENDING');
   const [editEvidenceFile, setEditEvidenceFile] = useState<File | null>(null);
+  const [editEfficacy, setEditEfficacy] = useState('');
+  const [editClosedAt, setEditClosedAt] = useState('');
   const [isEvaluatingEvidence, setIsEvaluatingEvidence] = useState(false);
 
   // Drag over state to highlight column
@@ -53,8 +57,9 @@ export default function Automation() {
   const fetchPlans = async () => {
     try {
       const res = await api.get('/automation');
-      setPlans(res.data);
+      setPlans(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
+      setPlans([]);
       console.error(err);
     }
   };
@@ -67,12 +72,12 @@ export default function Automation() {
       api.get('/risks'),
       api.get('/compliance/standards')
     ]).then(([autoRes, usersRes, findingsRes, risksRes, standardsRes]) => {
-      setPlans(autoRes.data);
-      setUsers(usersRes.data);
-      setFindings(findingsRes.data.filter((f: any) => f.status !== 'CLOSED'));
-      setRisks(risksRes.data);
+      setPlans(Array.isArray(autoRes.data) ? autoRes.data : []);
+      setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+      setFindings(Array.isArray(findingsRes.data) ? findingsRes.data.filter((f: any) => f?.status !== 'CLOSED') : []);
+      setRisks(Array.isArray(risksRes.data) ? risksRes.data : []);
       
-      const activeIds = (standardsRes.data as any[]).map(s => s.standardId || s.id);
+      const activeIds = Array.isArray(standardsRes.data) ? (standardsRes.data as any[]).map(s => s.standardId || s.id) : [];
       const filtered = standards.filter(std => activeIds.includes(std.id));
       setActiveStandards(filtered);
       
@@ -170,7 +175,9 @@ export default function Automation() {
         riskId: newPlanForm.riskId || null,
         brecha: newPlanForm.brecha,
         causaRaiz: newPlanForm.causaRaiz,
-        correccion: newPlanForm.correccion
+        correccion: newPlanForm.correccion,
+        eficacia: newPlanForm.eficacia,
+        closedAt: newPlanForm.closedAt || null
       });
       fetchPlans();
       setShowNewModal(false);
@@ -186,7 +193,9 @@ export default function Automation() {
         riskId: '',
         brecha: '',
         causaRaiz: '',
-        correccion: ''
+        correccion: '',
+        eficacia: '',
+        closedAt: ''
       });
     } catch (err) {
       console.error(err);
@@ -198,6 +207,8 @@ export default function Automation() {
     setEditProgress(plan.progress);
     setEditStatus(plan.status);
     setEditEvidenceFile(null);
+    setEditEfficacy(plan.eficacia || '');
+    setEditClosedAt(plan.closedAt ? String(plan.closedAt).slice(0,10) : '');
     setShowEditModal(true);
   };
 
@@ -221,6 +232,8 @@ export default function Automation() {
       await api.put(`/automation/${selectedPlan.id}`, {
         status: editStatus,
         progress: editProgress,
+        eficacia: editEfficacy,
+        closedAt: editClosedAt || null,
         ...(evidenceName && { evidenceName })
       });
       
@@ -460,7 +473,17 @@ export default function Automation() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">{language === 'es' ? 'Descripción' : 'Description'}</label>
+                  <label className="form-label">Evaluación de eficacia</label>
+                  <textarea className="form-input" rows={2} value={newPlanForm.eficacia} onChange={e => setNewPlanForm({ ...newPlanForm, eficacia: e.target.value })} placeholder="Criterio y resultado de la verificación de eficacia" />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Fecha de cierre (si aplica)</label>
+                  <input className="form-input" type="date" value={newPlanForm.closedAt} onChange={e => setNewPlanForm({ ...newPlanForm, closedAt: e.target.value })} />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">{language === 'es' ? 'Acción correctiva' : 'Corrective action'}</label>
                   <textarea 
                     className="form-input" 
                     style={{ minHeight: '80px' }}
@@ -644,14 +667,15 @@ export default function Automation() {
                     <span className="text-green-700">{(selectedPlan as any).correccion}</span>
                   </div>
                 )}
+                {(selectedPlan as any).eficacia && <div className="integration-note"><strong>Evaluación de eficacia:</strong> {(selectedPlan as any).eficacia}</div>}
+                {(selectedPlan as any).closedAt && <div className="text-sm text-secondary"><strong>Fecha de cierre:</strong> {new Date((selectedPlan as any).closedAt).toLocaleDateString()}</div>}
 
                 <div className="form-group">
-                  <label className="form-label">{language === 'es' ? 'Estado (Gestionado por IA)' : 'Status (AI Managed)'}</label>
+                  <label className="form-label">{language === 'es' ? 'Estado' : 'Status'}</label>
                   <select 
-                    className="form-select opacity-70 cursor-not-allowed bg-gray-100"
+                    className="form-select"
                     value={editStatus}
-                    disabled
-                    onChange={() => {}}
+                    onChange={e => setEditStatus(e.target.value)}
                   >
                     <option value="PENDING">{language === 'es' ? 'Pendiente' : 'Pending'}</option>
                     <option value="IN_PROGRESS">{language === 'es' ? 'En Progreso' : 'In Progress'}</option>
@@ -662,7 +686,7 @@ export default function Automation() {
 
                 <div className="form-group">
                   <div className="flex justify-between items-center mb-1">
-                    <label className="form-label">{language === 'es' ? 'Progreso (Gestionado por IA)' : 'Progress (AI Managed)'}</label>
+                    <label className="form-label">{language === 'es' ? 'Progreso' : 'Progress'}</label>
                     <span className="text-xs font-bold text-blue-500">{editProgress}%</span>
                   </div>
                   <input 
@@ -670,12 +694,13 @@ export default function Automation() {
                     min="0" 
                     max="100" 
                     step="5"
-                    className="w-full cursor-not-allowed opacity-75 accent-blue-500" 
+                    className="w-full accent-blue-500"
                     value={editProgress}
-                    disabled
-                    onChange={() => {}}
+                    onChange={e => setEditProgress(Number(e.target.value))}
                   />
                 </div>
+                <div className="form-group"><label className="form-label">Evaluación de eficacia</label><textarea className="form-input" value={editEfficacy} onChange={e=>setEditEfficacy(e.target.value)} /></div>
+                <div className="form-group"><label className="form-label">Fecha de cierre</label><input type="date" className="form-input" value={editClosedAt} onChange={e=>setEditClosedAt(e.target.value)} /></div>
 
                 {(selectedPlan as any).aiFeedback && (
                   <div className="form-group bg-blue-50/50 p-3 rounded-lg border border-blue-100 flex-col gap-1.5 animate-fade-in">

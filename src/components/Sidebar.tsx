@@ -1,8 +1,8 @@
-import { type ReactNode, useState } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { useThemeLanguage } from './ThemeLanguageContext';
 
-type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations';
+type ModuleId = 'dashboard' | 'documents' | 'risks' | 'compliance' | 'evidence' | 'automation' | 'audits' | 'users' | 'scc' | 'stakeholders' | 'alerts' | 'plant' | 'ghg' | 'supply' | 'plantations' | 'traceability' | 'transactions' | 'actionPlans' | 'findings' | 'sst' | 'training' | 'environment' | 'social';
 
 interface SidebarProps {
   activeModule: ModuleId;
@@ -13,8 +13,7 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
-interface NavItem { id: ModuleId; labelKey: any; icon: ReactNode; adminOnly?: boolean; }
-interface NavSection { label: string; items: NavItem[]; }
+interface NavItem { id: ModuleId; labelKey: any; icon: ReactNode; portalAllowed?: boolean; }
 
 const Icons = {
   Dashboard: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
@@ -35,54 +34,52 @@ const Icons = {
 };
 
 const topItems: NavItem[] = [
-  { id: 'dashboard', labelKey: 'nav.dashboard', icon: Icons.Dashboard },
+  { id: 'dashboard', labelKey: 'Resumen', icon: Icons.Dashboard, portalAllowed: true },
+  { id: 'plant', labelKey: 'Cumplimiento P&C Planta Extractora', icon: Icons.Plant },
+  { id: 'plantations', labelKey: 'Mi cumplimiento P&C', icon: Icons.Plantations, portalAllowed: true },
+  { id: 'supply', labelKey: 'Base de suministro', icon: Icons.Supply },
+  { id: 'traceability', labelKey: 'Trazabilidad RFF', icon: Icons.Scc },
+  { id: 'ghg', labelKey: 'Calculadora GHG', icon: Icons.Ghg },
+  { id: 'scc', labelKey: 'Cadena de suministro', icon: Icons.Scc },
+  { id: 'transactions', labelKey: 'Transacciones', icon: Icons.Stakeholders },
+  { id: 'sst', labelKey: 'Seguridad y salud', icon: Icons.Risks, portalAllowed: true },
+  { id: 'training', labelKey: 'Capacitación', icon: Icons.Documents, portalAllowed: true },
+  { id: 'environment', labelKey: 'Gestión ambiental', icon: Icons.Ghg, portalAllowed: true },
+  { id: 'social', labelKey: 'Gestión social', icon: Icons.Stakeholders, portalAllowed: true },
+  { id: 'evidence', labelKey: 'Evidencias', icon: Icons.Evidence, portalAllowed: true },
+  { id: 'actionPlans', labelKey: 'Planes de acción', icon: Icons.Automation, portalAllowed: true },
+  { id: 'findings', labelKey: 'Hallazgos', icon: Icons.Alerts, portalAllowed: true },
 ];
 
-const sections: NavSection[] = [
-  {
-    label: 'Certificación', items: [
-      { id: 'compliance', labelKey: 'nav.compliance', icon: Icons.Compliance },
-      { id: 'plantations', labelKey: 'nav.plantations', icon: Icons.Plantations },
-      { id: 'plant', labelKey: 'nav.plant', icon: Icons.Plant },
-      { id: 'scc', labelKey: 'nav.scc', icon: Icons.Scc },
-      { id: 'supply', labelKey: 'nav.supply', icon: Icons.Supply },
-      { id: 'ghg', labelKey: 'nav.ghg', icon: Icons.Ghg },
-    ]
-  },
-  {
-    label: 'Gestión', items: [
-      { id: 'documents', labelKey: 'nav.documents', icon: Icons.Documents },
-      { id: 'evidence', labelKey: 'nav.evidence', icon: Icons.Evidence },
-      { id: 'risks', labelKey: 'nav.risks', icon: Icons.Risks },
-      { id: 'automation', labelKey: 'nav.automation', icon: Icons.Automation },
-      { id: 'stakeholders', labelKey: 'nav.stakeholders', icon: Icons.Stakeholders },
-    ]
-  },
-  {
-    label: 'Control', items: [
-      { id: 'audits', labelKey: 'nav.audits', icon: Icons.Audits },
-      { id: 'alerts', labelKey: 'nav.alerts', icon: Icons.Alerts },
-      { id: 'users', labelKey: 'nav.users', icon: Icons.Users, adminOnly: true },
-    ]
-  },
+const managementItems: NavItem[] = [
+  { id: 'documents', labelKey: 'Revisión documental', icon: Icons.Documents, portalAllowed: true },
+  { id: 'risks', labelKey: 'Análisis de riesgos', icon: Icons.Risks, portalAllowed: true },
+  { id: 'audits', labelKey: 'Auditorías', icon: Icons.Audits },
+  { id: 'alerts', labelKey: 'Alertas', icon: Icons.Alerts },
 ];
 
 export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleCollapse, mobileOpen, onCloseMobile }: SidebarProps) {
   const { user, logout } = useAuth();
   const { t } = useThemeLanguage();
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [isMobileWindow, setIsMobileWindow] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
 
-  // On mobile the drawer must always render expanded (with labels);
-  // the desktop "collapsed" (icons-only) state makes no sense there.
-  const effectiveCollapsed = collapsed && !mobileOpen;
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileWindow(window.innerWidth < 1024);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
-  const toggleSection = (label: string) => {
-    setCollapsedSections(prev => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label); else next.add(label);
-      return next;
-    });
+  // On mobile drawer (isMobileWindow && mobileOpen = true), render full 280px menu with labels.
+  // On desktop (viewport >= 1024px), strictly follow desktop collapsed state.
+  const effectiveCollapsed = (isMobileWindow && mobileOpen) ? false : collapsed;
+  const itemLabel = (item: NavItem) => {
+    if (item.id === 'plantations' && user?.isCentralUser) return 'Cumplimiento P&C Núcleo';
+    return item.labelKey.startsWith('nav.') ? t(item.labelKey as any) : item.labelKey;
   };
+  const visibleTopItems = user?.isCentralUser ? topItems : topItems.filter(item => item.portalAllowed);
+  const visibleManagementItems = user?.isCentralUser ? managementItems : managementItems.filter(item => item.portalAllowed);
 
   return (
     <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
@@ -90,8 +87,8 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
         {!effectiveCollapsed ? (
           <>
             <div className="flex items-center gap-2">
-              <span className="logo-badge">CTC</span>
-              <span>Cert-TechCol</span>
+              <span className="logo-badge">◆</span>
+              <div className="sidebar-brand-copy"><span>RSPO TECH</span><small>Inteligencia RSPO</small></div>
             </div>
             <button className="btn-icon sidebar-collapse-btn" onClick={onToggleCollapse} title="Colapsar menú">
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '18px', height: '18px' }}>
@@ -101,9 +98,9 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
           </>
         ) : (
           <div className="flex items-center justify-center w-full">
-            <button className="btn-icon sidebar-collapse-btn" onClick={onToggleCollapse} title="Restaurar menú">
+            <button className="btn-icon sidebar-collapse-btn" onClick={onToggleCollapse} title="Expandir menú">
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px' }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
               </svg>
             </button>
           </div>
@@ -116,44 +113,27 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
       </div>
 
       <nav className="sidebar-nav">
-        {topItems.map((item) => (
+        {!effectiveCollapsed && <p className="nexo-nav-label">ESPACIO DE TRABAJO</p>}
+        {visibleTopItems.map((item) => (
           <div key={item.id}
             className={`sidebar-item ${activeModule === item.id ? 'active' : ''}`}
             onClick={() => onNavigate(item.id)}
-            title={effectiveCollapsed ? t(item.labelKey as any) : undefined}>
+            title={effectiveCollapsed ? itemLabel(item) : undefined}>
             {item.icon}
-            {!effectiveCollapsed && <span>{t(item.labelKey as any)}</span>}
+            {!effectiveCollapsed && <span>{itemLabel(item)}</span>}
           </div>
         ))}
 
-        {sections.map(section => {
-          const filtered = section.items.filter(i => !i.adminOnly || user?.role === 'ADMIN');
-          if (filtered.length === 0) return null;
-          const isCollapsed = collapsedSections.has(section.label);
-
-          return (
-            <div key={section.label}>
-              {!effectiveCollapsed && (
-                <div className="sidebar-section-header" onClick={() => toggleSection(section.label)}>
-                  <span className="sidebar-section-label">{section.label}</span>
-                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                    className={`sidebar-section-chevron ${isCollapsed ? '' : 'open'}`}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              )}
-              {!isCollapsed && filtered.map(item => (
-                <div key={item.id}
-                  className={`sidebar-item ${activeModule === item.id ? 'active' : ''}`}
-                  onClick={() => onNavigate(item.id)}
-                  title={effectiveCollapsed ? t(item.labelKey as any) : undefined}>
-                  {item.icon}
-                  {!effectiveCollapsed && <span>{t(item.labelKey as any)}</span>}
-                </div>
-              ))}
-            </div>
-          );
-        })}
+        {!effectiveCollapsed && <p className="nexo-nav-label nexo-management-label">GESTIÓN Y CONTROL</p>}
+        {visibleManagementItems.map((item) => (
+          <div key={item.id}
+            className={`sidebar-item ${activeModule === item.id ? 'active' : ''}`}
+            onClick={() => onNavigate(item.id)}
+            title={effectiveCollapsed ? itemLabel(item) : undefined}>
+            {item.icon}
+            {!effectiveCollapsed && <span>{itemLabel(item)}</span>}
+          </div>
+        ))}
       </nav>
 
       <div className="sidebar-footer">
@@ -177,6 +157,11 @@ export default function Sidebar({ activeModule, onNavigate, collapsed, onToggleC
             </div>
           )}
         </div>
+        {!effectiveCollapsed && ['SUPERADMIN','ADMIN','MILL_ADMIN','MANAGER'].includes(user?.role || '') && (
+          <button className="nexo-admin-link" onClick={() => onNavigate('users')}>
+            {Icons.Users}<span>Usuarios y UoC</span>
+          </button>
+        )}
         {!effectiveCollapsed && (
           <button className="btn btn-secondary w-full sidebar-logout-btn" style={{ background: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.15)' }} onClick={logout}>
             {t('nav.logout')}

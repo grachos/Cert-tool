@@ -53,7 +53,7 @@ export default function Audits() {
     description: ''
   });
 
-  // AI Verdict Modal State
+  // Deterministic closure validation state
   const [showVerdictModal, setShowVerdictModal] = useState(false);
   const [verdict, setVerdict] = useState<{ isApproved: boolean; justification: string } | null>(null);
   const [verdictLoading, setVerdictLoading] = useState(false);
@@ -66,8 +66,9 @@ export default function Audits() {
   const fetchRequirements = async () => {
     try {
       const res = await api.get('/audits/requirements');
-      setRequirements(res.data);
+      setRequirements(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
+      setRequirements([]);
       console.error(error);
     }
   };
@@ -76,8 +77,9 @@ export default function Audits() {
     try {
       setLoading(true);
       const res = await api.get('/audits');
-      setAudits(res.data);
+      setAudits(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
+      setAudits([]);
       console.error(error);
     } finally {
       setLoading(false);
@@ -87,8 +89,9 @@ export default function Audits() {
   const fetchFindings = async (auditId: string) => {
     try {
       const res = await api.get(`/audits/${auditId}/findings`);
-      setFindings(res.data);
+      setFindings(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
+      setFindings([]);
       console.error(error);
     }
   };
@@ -134,8 +137,8 @@ export default function Audits() {
     setShowVerdictModal(true);
     setVerdict(null);
     try {
-      const res = await api.post(`/audits/findings/${findingId}/ai-verify`);
-      setVerdict({ isApproved: res.data.isApproved, justification: res.data.aiJustification });
+      const res = await api.post(`/audits/findings/${findingId}/verify-closure`);
+      setVerdict({ isApproved: res.data.isApproved, justification: res.data.justification });
       // Refresh findings to show updated status
       if (selectedAudit) fetchFindings(selectedAudit.id);
     } catch (error) {
@@ -337,14 +340,14 @@ export default function Audits() {
         </div>
       )}
 
-      {/* AI Verdict Modal */}
+      {/* Closure validation modal */}
       {showVerdictModal && (
         <div className="modal-overlay flex-center">
           <div className="modal card p-0 w-full" style={{ maxWidth: '600px' }}>
             <div className="modal-header p-4 border-b border-gray-200 flex justify-between items-center bg-surface-1">
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <svg className="text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '20px', height: '20px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
-                {t('audits.aiTitle')}
+                {language === 'es' ? 'Validación de cierre' : 'Closure validation'}
               </h3>
               <button className="btn-icon" onClick={() => setShowVerdictModal(false)}>✕</button>
             </div>
@@ -355,7 +358,7 @@ export default function Audits() {
                     <div className="absolute inset-0 rounded-full blur-md bg-accent-blue opacity-50 animate-pulse"></div>
                     <svg className="animate-spin relative z-10 text-accent-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" style={{ width: '48px', height: '48px' }}><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                   </div>
-                  <p className="text-secondary text-lg">Analizando evidencias y planes de acción...</p>
+                  <p className="text-secondary text-lg">{language === 'es' ? 'Verificando planes de acción y avance...' : 'Checking action plans and progress...'}</p>
                 </div>
               ) : verdict ? (
                 <div className="flex-col gap-6">

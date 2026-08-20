@@ -1,56 +1,64 @@
 import { Request, Response } from 'express';
 import db from '../db';
 import cache from '../cache';
+import { getPlantationScope } from '../middleware/plantation.middleware';
 
 export const getStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    const cacheKey = 'dashboard_stats';
+    const uocId = typeof req.query.uocId === 'string' ? req.query.uocId : 'all';
+    const user = (req as any).user;
+    const isAll = ['SUPERADMIN','ADMIN'].includes(user?.role) && uocId === 'all';
+    const plantationScope = isAll
+      ? { restricted: false, farmPlotIds: [] as string[] }
+      : await getPlantationScope(user, uocId);
+    if (plantationScope.restricted && !plantationScope.farmPlotIds.length) {
+      res.status(403).json({ error: 'El usuario no tiene plantaciones asignadas.' });
+      return;
+    }
+    const cacheKey = `dashboard_stats_${uocId}_${plantationScope.restricted ? plantationScope.farmPlotIds.join(',') : 'CENTRAL'}`;
     const cachedStats = cache.get(cacheKey);
     if (cachedStats) {
       res.status(200).json(cachedStats);
       return;
     }
 
-    // 1. Calcular Cumplimiento Global
-    const [reqRows] = await db.query('SELECT status FROM Requirement');
-    const requirements = reqRows as any[];
-    let overallCompliance = 0;
-    if (requirements.length > 0) {
-      const totalScore = requirements.reduce((acc, r) => {
-        if (r.status === 'COMPLIANT') return acc + 1;
-        if (r.status === 'PARTIAL') return acc + 0.5;
-        return acc;
-      }, 0);
-      overallCompliance = Math.round((totalScore / requirements.length) * 100);
-    }
+    const farmPlaceholders = plantationScope.farmPlotIds.map(() => '?').join(',');
+    const farmFilter = plantationScope.restricted ? ` AND farmPlotId IN (${farmPlaceholders})` : '';
+    const scope = isAll ? '' : ` WHERE uocId=?${farmFilter}`;
+    const scopeParams = isAll ? [] : [uocId, ...(plantationScope.restricted ? plantationScope.farmPlotIds : [])];
+    const [evaluationRows] = await db.query(`SELECT AVG(score) average FROM PlantationActivity${scope}${scope ? ' AND' : ' WHERE'} category='EVALUATION' AND score IS NOT NULL`, scopeParams);
+    const overallCompliance = Math.round(Number((evaluationRows as any[])[0]?.average || 0));
 
     // 2. Documentos pendientes de revisión
-    const [pendingRows] = await db.query('SELECT COUNT(*) AS count FROM Document WHERE status = "PENDING"');
+    const [pendingRows] = await db.query(`SELECT COUNT(*) AS count FROM Evidence${scope}${scope ? ' AND' : ' WHERE'} status='PENDING_REVIEW'`, scopeParams);
     const pendingReviews = (pendingRows as any[])[0]?.count || 0;
 
     // 3. Riesgos activos (OPEN)
-    const [activeRiskRows] = await db.query('SELECT COUNT(*) AS count FROM Risk WHERE status = "OPEN"');
+    const [activeRiskRows] = await db.query(`SELECT COUNT(*) AS count FROM Risk${scope}${scope ? ' AND' : ' WHERE'} status='OPEN'`, scopeParams);
     const activeRisks = (activeRiskRows as any[])[0]?.count || 0;
 
     // Calcular cuántos de esos riesgos activos son críticos
-    const [criticalRiskRows] = await db.query('SELECT COUNT(*) AS count FROM Risk WHERE status = "OPEN" AND level = "CRITICAL"');
+    const [criticalRiskRows] = await db.query(`SELECT COUNT(*) AS count FROM Risk${scope}${scope ? ' AND' : ' WHERE'} status='OPEN' AND level='CRITICAL'`, scopeParams);
     const criticalRisks = (criticalRiskRows as any[])[0]?.count || 0;
 
     // 4. Planes vencidos
+    const actionScope = isAll ? '' : ` AND uocId = ?${farmFilter}`;
+    const actionParams = isAll ? [] : [uocId, ...(plantationScope.restricted ? plantationScope.farmPlotIds : [])];
     const [overdueRows] = await db.query(
-      'SELECT COUNT(*) AS count FROM ActionPlan WHERE status = "OVERDUE" OR (status IN ("PENDING", "IN_PROGRESS") AND dueDate < NOW())'
+      `SELECT COUNT(*) AS count FROM ActionPlan WHERE (status = "OVERDUE" OR (status IN ("PENDING", "IN_PROGRESS") AND dueDate < NOW()))${actionScope}`,
+      actionParams
     );
     const overdueActions = (overdueRows as any[])[0]?.count || 0;
 
     // 5. No Conformidades abiertas / cerradas
-    const [openFindingsRows] = await db.query('SELECT COUNT(*) AS count FROM NonConformance WHERE status != "CLOSED"');
+    const [openFindingsRows] = await db.query(`SELECT COUNT(*) AS count FROM NonConformance${scope}${scope ? ' AND' : ' WHERE'} status <> 'CLOSED'`, scopeParams);
     const openFindings = (openFindingsRows as any[])[0]?.count || 0;
 
-    const [closedFindingsRows] = await db.query('SELECT COUNT(*) AS count FROM NonConformance WHERE status = "CLOSED"');
+    const [closedFindingsRows] = await db.query(`SELECT COUNT(*) AS count FROM NonConformance${scope}${scope ? ' AND' : ' WHERE'} status = 'CLOSED'`, scopeParams);
     const closedFindings = (closedFindingsRows as any[])[0]?.count || 0;
 
     // 6. Avance promedio de planes de acción
-    const [avgProgressRows] = await db.query('SELECT AVG(progress) AS avg FROM ActionPlan');
+    const [avgProgressRows] = await db.query(`SELECT AVG(progress) AS avg FROM ActionPlan WHERE 1=1${actionScope}`, actionParams);
     const averagePlansProgress = Math.round(Number((avgProgressRows as any[])[0]?.avg || 0));
 
     const stats = {
@@ -74,7 +82,17 @@ export const getStats = async (req: Request, res: Response): Promise<void> => {
 
 export const getActivities = async (req: Request, res: Response): Promise<void> => {
   try {
-    const cacheKey = 'dashboard_activities';
+    const uocId = typeof req.query.uocId === 'string' ? req.query.uocId : '';
+    const user = (req as any).user;
+    const isAll = ['SUPERADMIN','ADMIN'].includes(user?.role) && uocId === 'all';
+    const plantationScope = isAll
+      ? { restricted: false, farmPlotIds: [] as string[] }
+      : await getPlantationScope(user, uocId);
+    if (plantationScope.restricted) {
+      res.status(200).json([]);
+      return;
+    }
+    const cacheKey = `dashboard_activities_${isAll ? 'all' : uocId}_CENTRAL`;
     const cachedActivities = cache.get(cacheKey);
     if (cachedActivities) {
       res.status(200).json(cachedActivities);
@@ -86,43 +104,12 @@ export const getActivities = async (req: Request, res: Response): Promise<void> 
        FROM Activity a
        JOIN User u ON a.userId = u.id
        LEFT JOIN Standard s ON a.standardId = s.id
+       ${isAll ? '' : 'WHERE a.uocId = ?'}
        ORDER BY a.timestamp DESC
-       LIMIT 10`
+       LIMIT 10`,
+      isAll ? [] : [uocId]
     );
     const activities = actRows as any[];
-
-    // Si no hay actividades en BD, retornamos algunas de demostración reales
-    if (activities.length === 0) {
-      const demoActivities = [
-        {
-          id: 'act-1',
-          action: 'Documento subido',
-          description: 'Se cargó la actualización de la Política de Control de Proveedores.',
-          timestamp: 'Hace 10 min',
-          user: 'Administrador Principal',
-          standard: 'BASC'
-        },
-        {
-          id: 'act-2',
-          action: 'Riesgo mitigado',
-          description: 'Riesgo de fuga de información de clientes cambió a Mitigado.',
-          timestamp: 'Hace 1 hora',
-          user: 'Administrador Principal',
-          standard: 'ISO9001'
-        },
-        {
-          id: 'act-3',
-          action: 'Plan de Acción creado',
-          description: 'Se asignó capacitación en seguridad vial a conductores.',
-          timestamp: 'Hace 3 horas',
-          user: 'Administrador Principal',
-          standard: 'PESV'
-        }
-      ];
-      cache.set(cacheKey, demoActivities);
-      res.status(200).json(demoActivities);
-      return;
-    }
 
     const formattedActivities = activities.map(act => ({
       id: act.id,

@@ -38,7 +38,7 @@ interface StandardDetail {
 export default function Compliance() {
   const { selectedUoc, isPrincipleApplicable } = useUoc();
   const [complianceStatuses, setComplianceStatuses] = useState<StandardCompliance[]>([]);
-  const [selectedStandard, setSelectedStandard] = useState<string | null>(null);
+  const [selectedStandard, setSelectedStandard] = useState<string | null>('RSPO');
   const [standardDetail, setStandardDetail] = useState<StandardDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -47,7 +47,7 @@ export default function Compliance() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
 
-  // Modales y Form State para Normas
+  // Configuración del único estándar operativo: RSPO P&C 2024.
   const [showEditStdModal, setShowEditStdModal] = useState(false);
   const [stdName, setStdName] = useState('');
   const [stdFullName, setStdFullName] = useState('');
@@ -66,14 +66,16 @@ export default function Compliance() {
 
   const [expandedPrinciple, setExpandedPrinciple] = useState<string | null>(null);
   const [principleFilter, setPrincipleFilter] = useState<string>('all');
+  const [showAutoEvaluation, setShowAutoEvaluation] = useState(false);
 
   const fetchCompliance = async () => {
     try {
       setIsLoading(true);
       const res = await api.get('/compliance/standards');
-      setComplianceStatuses(res.data);
+      setComplianceStatuses(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       console.error('Error al obtener cumplimiento', error);
+      setComplianceStatuses([]);
     } finally {
       setIsLoading(false);
     }
@@ -83,9 +85,18 @@ export default function Compliance() {
     try {
       setIsDetailLoading(true);
       const res = await api.get(`/compliance/standards/${id}`);
-      setStandardDetail(res.data);
+      const data = res.data;
+      if (data && typeof data === 'object') {
+        setStandardDetail({
+          ...data,
+          requirements: Array.isArray(data.requirements) ? data.requirements : []
+        });
+      } else {
+        setStandardDetail(null);
+      }
     } catch (error) {
       console.error('Error al obtener detalles del estándar', error);
+      setStandardDetail(null);
     } finally {
       setIsDetailLoading(false);
     }
@@ -104,7 +115,7 @@ export default function Compliance() {
   }, [selectedStandard]);
 
   const openEditStdModal = () => {
-    const std = complianceStatuses.find(s => s.standardId === selectedStandard);
+    const std = (Array.isArray(complianceStatuses) ? complianceStatuses : []).find(s => s.standardId === selectedStandard);
     if (std) {
       setStdName(std.name);
       setStdFullName(std.fullName);
@@ -230,7 +241,7 @@ export default function Compliance() {
 
   const renderRspoDetail = () => {
     if (!standardDetail) return null;
-    const reqs = standardDetail.requirements;
+    const reqs = Array.isArray(standardDetail.requirements) ? standardDetail.requirements : [];
     const grouped: Record<string, Requirement[]> = {};
     reqs.forEach(r => {
       const p = r.clause.split('.')[0];
@@ -400,7 +411,7 @@ export default function Compliance() {
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {complianceStatuses.map((status) => {
+          {(Array.isArray(complianceStatuses) ? complianceStatuses : []).map((status) => {
             return (
               <div 
                 key={status.standardId} 
@@ -475,7 +486,7 @@ export default function Compliance() {
                   <p className="text-sm text-secondary mt-1">{standardDetail.fullName}</p>
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap compliance-actions">
                   {isAdmin && (
                     <button className="btn btn-secondary no-print" onClick={openAddReqModal}>
                       ➕ {language === 'es' ? 'Añadir Requisito' : 'Add Requirement'}
@@ -485,7 +496,7 @@ export default function Compliance() {
                     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                     {language === 'es' ? 'Exportar Reporte PDF' : 'Export PDF Report'}
                   </button>
-                  <button className="btn btn-primary no-print">{t('compliance.evalBtn')}</button>
+                  <button className="btn btn-primary no-print" onClick={() => setShowAutoEvaluation(true)}>{t('compliance.evalBtn')}</button>
                 </div>
               </div>
 
@@ -501,7 +512,7 @@ export default function Compliance() {
                   </tr>
                 </thead>
                 <tbody>
-                  {standardDetail.requirements.map(req => (
+                  {(Array.isArray(standardDetail.requirements) ? standardDetail.requirements : []).map(req => (
                     <tr key={req.id} className="border-b border-gray-100 hover:bg-surface-1 transition-colors">
                       <td className="p-4 font-mono text-sm text-secondary">{req.clause}</td>
                       <td className="p-4">
@@ -697,6 +708,47 @@ export default function Compliance() {
           </div>
         </div>
       )}
+
+      {showAutoEvaluation && standardDetail && (() => {
+        const requirements = Array.isArray(standardDetail.requirements) ? standardDetail.requirements : [];
+        const compliant = requirements.filter(req => req.status === 'COMPLIANT').length;
+        const partial = requirements.filter(req => req.status === 'PARTIAL').length;
+        const nonCompliant = requirements.filter(req => req.status === 'NON_COMPLIANT').length;
+        const pending = requirements.filter(req => req.status === 'PENDING').length;
+        const withEvidence = requirements.filter(req => Number(req.evidenceCount || 0) > 0).length;
+        const score = requirements.length ? Math.round(((compliant + partial * 0.5) / requirements.length) * 100) : 0;
+        return (
+          <div className="modal-overlay flex-center" onClick={() => setShowAutoEvaluation(false)}>
+            <div className="modal card max-w-2xl w-full p-6 animate-scale-in" onClick={event => event.stopPropagation()}>
+              <div className="flex-between mb-5">
+                <div>
+                  <p className="nexo-eyebrow">ANÁLISIS ASISTIDO · DATOS REGISTRADOS</p>
+                  <h3 className="text-xl font-bold">Resultado de autoevaluación</h3>
+                  <p className="text-sm text-secondary mt-1">Diagnóstico automático sin modificar el estado de los requisitos.</p>
+                </div>
+                <button className="btn-icon" onClick={() => setShowAutoEvaluation(false)} aria-label="Cerrar">×</button>
+              </div>
+              <div className="stats-grid mb-5">
+                <div className="card"><span className="text-xs text-secondary">PUNTAJE</span><strong className="block text-3xl mt-2">{score}%</strong></div>
+                <div className="card"><span className="text-xs text-secondary">CUMPLEN</span><strong className="block text-3xl mt-2 text-accent-green">{compliant}</strong></div>
+                <div className="card"><span className="text-xs text-secondary">BRECHAS</span><strong className="block text-3xl mt-2 text-accent-red">{nonCompliant}</strong></div>
+                <div className="card"><span className="text-xs text-secondary">CON EVIDENCIA</span><strong className="block text-3xl mt-2">{withEvidence}/{requirements.length}</strong></div>
+              </div>
+              <div className="integration-note">
+                <strong>Prioridad sugerida:</strong>{' '}
+                {nonCompliant > 0
+                  ? `atender ${nonCompliant} requisito(s) no conforme(s) antes de la auditoría.`
+                  : pending > 0
+                    ? `completar la evaluación de ${pending} requisito(s) pendiente(s).`
+                    : partial > 0
+                      ? `cerrar ${partial} cumplimiento(s) parcial(es) y completar sus evidencias.`
+                      : 'mantener las evidencias vigentes y preparar la revisión de auditoría.'}
+              </div>
+              <div className="flex justify-end mt-5"><button className="btn btn-primary" onClick={() => setShowAutoEvaluation(false)}>Cerrar evaluación</button></div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

@@ -3,31 +3,44 @@ import { standards } from '../data/standards';
 import type { StandardId, Evidence as EvidenceType } from '../types';
 import { useThemeLanguage } from '../components/ThemeLanguageContext';
 import api from '../api';
+import { useUoc } from '../components/UoCContext';
+import { useAuth } from '../components/AuthContext';
 
 export default function Evidence() {
   const [evidence, setEvidence] = useState<EvidenceType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<StandardId>('BASC');
+  const [activeTab, setActiveTab] = useState<StandardId>('RSPO');
   const [activeStandards, setActiveStandards] = useState<any[]>([]);
   const { t, language } = useThemeLanguage();
+  const { selectedUoc, selectedUocId } = useUoc();
+  const { user } = useAuth();
 
   // Modal & Form States
   const [showModal, setShowModal] = useState(false);
-  const [selectedClause, setSelectedClause] = useState('');
+  const [selectedClauses, setSelectedClauses] = useState<string[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [evidenceType, setEvidenceType] = useState<'DOCUMENT' | 'PHOTO' | 'RECORD' | 'REPORT' | 'CERTIFICATE'>('DOCUMENT');
   const [expiryDate, setExpiryDate] = useState('');
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [responsible, setResponsible] = useState('');
+  const [indicator, setIndicator] = useState('');
+  const [observations, setObservations] = useState('');
+  const [supplySourceId, setSupplySourceId] = useState('');
+  const [farmPlotId, setFarmPlotId] = useState('');
+  const [sources, setSources] = useState<any[]>([]);
+  const [plots, setPlots] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchEvidence = async () => {
     try {
       const res = await api.get('/evidence');
-      setEvidence(res.data);
-      return res.data;
+      const safeData = Array.isArray(res.data) ? res.data : [];
+      setEvidence(safeData);
+      return safeData;
     } catch (error) {
+      setEvidence([]);
       console.error('Error al obtener evidencias', error);
       return [];
     }
@@ -39,8 +52,10 @@ export default function Evidence() {
       api.get('/evidence'),
       api.get('/compliance/standards')
     ]).then(([evidenceRes, complianceRes]) => {
-      setEvidence(evidenceRes.data);
-      const activeIds = (complianceRes.data as any[]).map(s => s.standardId || s.id);
+      setEvidence(Array.isArray(evidenceRes.data) ? evidenceRes.data : []);
+      const activeIds = Array.isArray(complianceRes.data)
+        ? (complianceRes.data as any[]).map(s => s.standardId || s.id).filter(id => id === 'RSPO')
+        : [];
       const filtered = standards.filter(std => activeIds.includes(std.id));
       setActiveStandards(filtered);
       
@@ -53,6 +68,12 @@ export default function Evidence() {
       setIsLoading(false);
     });
   }, []);
+  useEffect(() => {
+    if (!selectedUocId || selectedUocId === 'all') { setSources([]); setPlots([]); return; }
+    Promise.all([api.get('/rspo/supply-sources'), api.get('/rspo/farm-plots')])
+      .then(([s, p]) => { setSources(Array.isArray(s.data) ? s.data : []); setPlots(Array.isArray(p.data) ? p.data : []); })
+      .catch(() => { setSources([]); setPlots([]); });
+  }, [selectedUocId]);
 
   // Polling para actualizar las evidencias en revisión por la IA en tiempo real
   useEffect(() => {
@@ -89,8 +110,8 @@ export default function Evidence() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    if (!selectedClause) {
-      setErrorMsg(language === 'es' ? 'Por favor, selecciona una Cláusula antes.' : 'Please select a Clause first.');
+    if (selectedClauses.length === 0) {
+      setErrorMsg(language === 'es' ? 'Selecciona al menos un indicador antes.' : 'Select at least one indicator first.');
       return;
     }
     if (!title.trim()) {
@@ -110,17 +131,27 @@ export default function Evidence() {
       const uploadRes = await api.post('/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      const { name: compoundName } = uploadRes.data;
+      const { name: compoundName, mimeType } = uploadRes.data;
 
       // 2. Registrar evidencia en la base de datos
       const docRes = await api.post('/evidence', {
         title: `${title}|${compoundName}`,
         description: description || (language === 'es' ? 'Cargado por el usuario' : 'Uploaded by user'),
         standardId: activeTab,
-        clause: selectedClause,
+        clause: activeStandard?.requirements.find(r => r.id === selectedClauses[0])?.clause || '',
         type: evidenceType,
         expiryDate: expiryDate || null,
         status: 'PENDING_REVIEW'
+        ,uocId: selectedUocId,
+        companyName: selectedUoc?.companyName,
+        requirementId: selectedClauses[0],
+        requirementIds: selectedClauses,
+        supplySourceId: supplySourceId || null,
+        farmPlotId: farmPlotId || null,
+        indicator,
+        responsible,
+        observations,
+        mimeType
       });
 
       setEvidence([docRes.data, ...evidence]);
@@ -135,8 +166,8 @@ export default function Evidence() {
 
   const triggerUpload = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedClause) {
-      setErrorMsg(language === 'es' ? 'Por favor, selecciona una Cláusula.' : 'Please select a Clause.');
+    if (selectedClauses.length === 0) {
+      setErrorMsg(language === 'es' ? 'Selecciona al menos un indicador.' : 'Select at least one indicator.');
       return;
     }
     if (!title.trim()) {
@@ -146,12 +177,37 @@ export default function Evidence() {
     fileInputRef.current?.click();
   };
 
+  const openProtectedFile = async (ev: EvidenceType) => {
+    if (!ev.fileName) return;
+    try {
+      const response = await api.get(`/files/${encodeURIComponent(ev.fileName)}`, { responseType: 'blob' });
+      const url = URL.createObjectURL(response.data);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      setErrorMsg(language === 'es' ? 'No fue posible abrir el archivo.' : 'The file could not be opened.');
+    }
+  };
+  const review = async (ev: EvidenceType, status: 'VALID' | 'EXPIRED') => {
+    try {
+      await api.put(`/evidence/${ev.id}/review`, { status });
+      await fetchEvidence();
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.error || 'No fue posible guardar la revisión.');
+    }
+  };
+
   const resetForm = () => {
-    setSelectedClause('');
+    setSelectedClauses([]);
     setTitle('');
     setDescription('');
     setEvidenceType('DOCUMENT');
     setExpiryDate('');
+    setResponsible('');
+    setIndicator('');
+    setObservations('');
+    setSupplySourceId('');
+    setFarmPlotId('');
     setErrorMsg('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -195,8 +251,8 @@ export default function Evidence() {
                 {language === 'es' ? 'Cláusula' : 'Clause'} {ev.clause}
               </div>
               <span className="badge text-xs font-bold" style={{ 
-                background: ev.status === 'valid' ? 'var(--accent-green-bg)' : ev.status === 'expired' ? 'var(--accent-red-bg)' : 'var(--accent-gold-bg)',
-                color: ev.status === 'valid' ? 'var(--accent-green)' : ev.status === 'expired' ? 'var(--accent-red)' : 'var(--accent-gold)'
+                background: ev.status?.toUpperCase() === 'VALID' ? 'var(--accent-green-bg)' : ev.status?.toUpperCase() === 'EXPIRED' ? 'var(--accent-red-bg)' : 'var(--accent-gold-bg)',
+                color: ev.status?.toUpperCase() === 'VALID' ? 'var(--accent-green)' : ev.status?.toUpperCase() === 'EXPIRED' ? 'var(--accent-red)' : 'var(--accent-gold)'
               }}>
                 {getTranslatedStatus(ev.status)}
               </span>
@@ -216,7 +272,7 @@ export default function Evidence() {
                   {ev.linkedDocuments.map((docName, idx) => (
                     <div key={idx} className="flex items-center gap-2 bg-card p-2 rounded border border-color shadow-sm">
                       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '14px', height: '14px', color: 'var(--text-muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                      <span className="text-xs text-primary truncate" title={docName}>{docName}</span>
+                      <button type="button" className="text-xs text-primary truncate" title={docName} onClick={() => openProtectedFile(ev)}>{docName}</button>
                     </div>
                   ))}
                 </div>
@@ -231,12 +287,18 @@ export default function Evidence() {
               {ev.expiryDate && (
                 <div className="flex-col text-right">
                   <span className="text-xs text-muted">{language === 'es' ? 'Vence el' : 'Expires on'}</span>
-                  <span className={`text-sm font-medium ${ev.status === 'expired' ? 'text-red-600' : 'text-primary'}`}>
+                  <span className={`text-sm font-medium ${ev.status?.toUpperCase() === 'EXPIRED' ? 'text-red-600' : 'text-primary'}`}>
                     {new Date(ev.expiryDate).toLocaleDateString()}
                   </span>
                 </div>
               )}
             </div>
+            {['SUPERADMIN','ADMIN','MILL_ADMIN','MANAGER','TECHNICAL_REVIEWER','AUDITOR'].includes(user?.role || '') && (
+              <div className="flex gap-2">
+                <button className="btn btn-secondary btn-sm" onClick={() => review(ev, 'VALID')}>Aprobar</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => review(ev, 'EXPIRED')}>Rechazar</button>
+              </div>
+            )}
           </div>
         ))}
 
@@ -245,7 +307,7 @@ export default function Evidence() {
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ width: '24px', height: '24px' }}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
           </div>
           <p className="font-semibold text-primary">{language === 'es' ? 'Añadir Evidencia' : 'Add Evidence'}</p>
-          <p className="text-xs text-secondary mt-1">{language === 'es' ? 'Sube archivos para auditar con IA' : 'Upload files to audit with AI'}</p>
+          <p className="text-xs text-secondary mt-1">{language === 'es' ? 'Carga controlada para revisión, aprobación e historial' : 'Controlled upload for review, approval, and history'}</p>
         </div>
       </div>
 
@@ -264,20 +326,33 @@ export default function Evidence() {
 
             <form onSubmit={triggerUpload} className="flex-col gap-4">
               <div className="form-group flex-col gap-1">
-                <label className="form-label font-semibold">{language === 'es' ? 'Cláusula / Requisito' : 'Clause / Requirement'}</label>
-                <select
-                  value={selectedClause}
-                  onChange={(e) => setSelectedClause(e.target.value)}
-                  className="form-input"
-                  required
-                >
-                  <option value="">{language === 'es' ? '-- Seleccione cláusula --' : '-- Select clause --'}</option>
+                <label className="form-label font-semibold">{language === 'es' ? 'Indicadores P&C relacionados' : 'Related P&C indicators'}</label>
+                <p className="text-xs text-secondary">
+                  {language === 'es'
+                    ? 'Una misma evidencia puede respaldar varios indicadores. Marca todos los que correspondan.'
+                    : 'The same evidence can support several indicators. Select every applicable one.'}
+                </p>
+                <div className="evidence-requirement-list">
                   {activeStandard?.requirements.map(r => (
-                    <option key={r.id} value={r.clause}>
-                      {r.clause} - {r.title}
-                    </option>
+                    <label key={r.id} className="evidence-requirement-option">
+                      <input
+                        type="checkbox"
+                        checked={selectedClauses.includes(r.id)}
+                        onChange={(event) => {
+                          setSelectedClauses(current => event.target.checked
+                            ? [...current, r.id]
+                            : current.filter(id => id !== r.id));
+                        }}
+                      />
+                      <span><strong>{r.clause}</strong> — {r.title}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
+                {selectedClauses.length > 0 && (
+                  <span className="text-xs text-secondary">
+                    {selectedClauses.length} {language === 'es' ? 'indicador(es) seleccionado(s)' : 'indicator(s) selected'}
+                  </span>
+                )}
               </div>
 
               <div className="form-group flex-col gap-1">
@@ -326,6 +401,36 @@ export default function Evidence() {
                   onChange={(e) => setExpiryDate(e.target.value)}
                   className="form-input"
                 />
+              </div>
+
+              <div className="form-grid">
+                <div className="form-group flex-col gap-1">
+                  <label className="form-label font-semibold">Fuente de suministro</label>
+                  <select className="form-input" value={supplySourceId} onChange={e => { setSupplySourceId(e.target.value); setFarmPlotId(''); }}>
+                    <option value="">No aplica</option>{sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group flex-col gap-1">
+                  <label className="form-label font-semibold">Plantación / predio</label>
+                  <select className="form-input" value={farmPlotId} onChange={e => setFarmPlotId(e.target.value)}>
+                    <option value="">No aplica</option>{plots.filter(p => !supplySourceId || p.supplySourceId === supplySourceId).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-grid">
+                <div className="form-group flex-col gap-1">
+                  <label className="form-label font-semibold">Responsable</label>
+                  <input className="form-input" value={responsible} onChange={e => setResponsible(e.target.value)} placeholder="Nombre o cargo" />
+                </div>
+                <div className="form-group flex-col gap-1">
+                  <label className="form-label font-semibold">Indicador</label>
+                  <input className="form-input" value={indicator} onChange={e => setIndicator(e.target.value)} placeholder="Indicador relacionado" />
+                </div>
+              </div>
+              <div className="form-group flex-col gap-1">
+                <label className="form-label font-semibold">Observaciones</label>
+                <textarea className="form-input" rows={2} value={observations} onChange={e => setObservations(e.target.value)} placeholder="Contexto, fuente o notas de verificación" />
               </div>
 
               <input

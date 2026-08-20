@@ -5,8 +5,8 @@ import cache from '../cache';
 
 export const getStandardsCompliance = async (req: Request, res: Response): Promise<void> => {
   try {
-    const enabledStandardsEnv = process.env.ENABLED_STANDARDS;
-    const cacheKey = `compliance_standards_${enabledStandardsEnv || 'ALL'}`;
+    const enabledStandardsEnv = process.env.ENABLED_STANDARDS || 'RSPO';
+    const cacheKey = `compliance_standards_${enabledStandardsEnv}`;
     const cachedCompliance = cache.get(cacheKey);
     if (cachedCompliance) {
       res.status(200).json(cachedCompliance);
@@ -16,11 +16,8 @@ export const getStandardsCompliance = async (req: Request, res: Response): Promi
     const [stdRows] = await db.query('SELECT * FROM Standard');
     let standards = stdRows as any[];
 
-    // Filter by environment variables if set (SaaS licensing check)
-    if (enabledStandardsEnv) {
-      const allowedIds = enabledStandardsEnv.split(',').map(s => s.trim().toUpperCase());
-      standards = standards.filter(std => allowedIds.includes(std.id.toUpperCase()));
-    }
+    const allowedIds = enabledStandardsEnv.split(',').map(s => s.trim().toUpperCase());
+    standards = standards.filter(std => allowedIds.includes(std.id.toUpperCase()));
 
     const complianceStatuses = await Promise.all(standards.map(async (std) => {
       const [reqRows] = await db.query('SELECT * FROM Requirement WHERE standardId = ?', [std.id]);
@@ -65,13 +62,11 @@ export const getStandardRequirements = async (req: Request, res: Response): Prom
     const { id } = req.params;
 
     // Check SaaS licensing
-    const enabledStandardsEnv = process.env.ENABLED_STANDARDS;
-    if (enabledStandardsEnv) {
-      const allowedIds = enabledStandardsEnv.split(',').map(s => s.trim().toUpperCase());
-      if (!allowedIds.includes((id as string).toUpperCase())) {
-        res.status(403).json({ error: 'Acceso denegado a esta norma por licenciamiento.' });
-        return;
-      }
+    const enabledStandardsEnv = process.env.ENABLED_STANDARDS || 'RSPO';
+    const allowedIds = enabledStandardsEnv.split(',').map(s => s.trim().toUpperCase());
+    if (!allowedIds.includes((id as string).toUpperCase())) {
+      res.status(403).json({ error: 'RSPO TECH solo tiene habilitado el alcance RSPO P&C y SCC.' });
+      return;
     }
     const cacheKey = `compliance_standard_${id}`;
     const cachedStandard = cache.get(cacheKey);

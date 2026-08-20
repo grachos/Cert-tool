@@ -3,6 +3,27 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db';
+import { isCentralRole } from '../middleware/plantation.middleware';
+
+async function userPayload(user: any) {
+  const [accessRows] = await db.query(
+    `SELECT upa.uocId,upa.farmPlotId,upa.accessLevel,
+            fp.farmName,fp.name plantationName
+     FROM UserPlantationAccess upa
+     JOIN FarmPlot fp ON fp.id=upa.farmPlotId
+     WHERE upa.userId=? AND upa.status='ACTIVE'
+     ORDER BY fp.farmName,fp.name`,
+    [user.id]
+  );
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    isCentralUser: isCentralRole(user.role),
+    plantationAccess: accessRows
+  };
+}
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -55,7 +76,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Generate token
-    const secret = process.env.JWT_SECRET || 'fallback_secret';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      res.status(500).json({ error: 'Configuración de autenticación incompleta.' });
+      return;
+    }
     const token = jwt.sign(
       { id: user.id, role: user.role },
       secret,
@@ -64,12 +89,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     res.status(200).json({
       token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      }
+      user: await userPayload(user)
     });
   } catch (error) {
     console.error(error);
@@ -91,7 +111,10 @@ export const getProfile = async (req: any, res: Response): Promise<void> => {
       return;
     }
     
-    res.status(200).json(user);
+    res.status(200).json({
+      ...await userPayload(user),
+      createdAt: user.createdAt
+    });
   } catch {
     res.status(500).json({ error: 'Error al obtener perfil.' });
   }

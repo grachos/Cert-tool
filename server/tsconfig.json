@@ -12,5 +12,5 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  "include": ["src/**/*", "index.ts", "update_db.ts", "seed.ts"]
+  "include": ["src/**/*", "index.ts", "update_db.ts", "seed.ts", "test_seed.ts"]
 }

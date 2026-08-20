@@ -6,7 +6,13 @@
   "scripts": {
     "start": "tsx index.ts",
     "dev": "tsx watch index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test src/**/*.test.ts",
+    "test:seed": "tsx test_seed.ts seed",
+    "test:seed:count": "tsx test_seed.ts count",
+    "test:seed:clean": "tsx test_seed.ts clean",
+    "seed:pc-demo": "tsx seed_pc_demo.ts",
+    "import:rspo-pc": "tsx import_rspo_pc.ts"
   },
   "keywords": [],
   "author": "",
