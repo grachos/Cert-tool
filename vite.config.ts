@@ -8,6 +8,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), viteSingleFile()],
   server: {
     port: 8080,
+    allowedHosts: ['.trycloudflare.com'],
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
